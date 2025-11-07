@@ -1,0 +1,102 @@
+package manifest
+
+// Manifest represents a .pplugin file structure
+type Manifest struct {
+	Schema       string       `json:"$schema"`
+	Version      string       `json:"version"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description"`
+	Author       string       `json:"author"`
+	Website      string       `json:"website"`
+	License      string       `json:"license"`
+	Entry        string       `json:"entry"`
+	Platforms    []string     `json:"platforms"`
+	Language     string       `json:"language"`
+	Dependencies []Dependency `json:"dependencies"`
+	Methods      []Method     `json:"methods"`
+}
+
+// Dependency represents a plugin dependency
+type Dependency struct {
+	Name     string `json:"name"`
+	Optional bool   `json:"optional,omitempty"`
+}
+
+// Method represents an exported method/function
+type Method struct {
+	Name        string      `json:"name"`
+	Group       string      `json:"group,omitempty"`
+	Description string      `json:"description,omitempty"`
+	FuncName    string      `json:"funcName"`
+	ParamTypes  []ParamType `json:"paramTypes"`
+	RetType     TypeInfo    `json:"retType"`
+}
+
+// ParamType represents a function parameter
+type ParamType struct {
+	Name        string     `json:"name"`
+	Type        string     `json:"type"`
+	Ref         bool       `json:"ref,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Default     string     `json:"default,omitempty"`
+	Enum        *EnumType  `json:"enum,omitempty"`
+	Prototype   *Prototype `json:"prototype,omitempty"`
+}
+
+// TypeInfo represents a type (return type or nested type)
+type TypeInfo struct {
+	Type        string     `json:"type"`
+	Description string     `json:"description,omitempty"`
+	Ref         bool       `json:"ref,omitempty"`
+	Enum        *EnumType  `json:"enum,omitempty"`
+	Prototype   *Prototype `json:"prototype,omitempty"`
+}
+
+// EnumType represents an enum definition
+type EnumType struct {
+	Name        string      `json:"name"`
+	Type        string      `json:"type"`
+	Description string      `json:"description,omitempty"`
+	Values      []EnumValue `json:"values"`
+}
+
+// EnumValue represents a single enum value
+type EnumValue struct {
+	Name        string `json:"name"`
+	Value       int    `json:"value"`
+	Description string `json:"description,omitempty"`
+}
+
+// Prototype represents a function pointer/delegate type
+type Prototype struct {
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	ParamTypes  []ParamType `json:"paramTypes"`
+	RetType     TypeInfo    `json:"retType"`
+}
+
+// IsArray returns true if the type is an array (ends with [])
+func (t *TypeInfo) IsArray() bool {
+	return len(t.Type) > 2 && t.Type[len(t.Type)-2:] == "[]"
+}
+
+// BaseType returns the type without array suffix
+func (t *TypeInfo) BaseType() string {
+	if t.IsArray() {
+		return t.Type[:len(t.Type)-2]
+	}
+	return t.Type
+}
+
+// IsArray returns true if the parameter type is an array
+func (p *ParamType) IsArray() bool {
+	return len(p.Type) > 2 && p.Type[len(p.Type)-2:] == "[]"
+}
+
+// BaseType returns the parameter type without array suffix
+func (p *ParamType) BaseType() string {
+	if p.IsArray() {
+		return p.Type[:len(p.Type)-2]
+	}
+	return p.Type
+}
