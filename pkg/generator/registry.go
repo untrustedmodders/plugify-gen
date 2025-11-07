@@ -36,8 +36,8 @@ func init() {
 	// Register all generators
 	Register(NewCppGenerator())
 	Register(NewV8Generator())
-	// Register(NewGolangGenerator())
-	// Register(NewDotnetGenerator())
-	// Register(NewPythonGenerator())
-	// Register(NewLuaGenerator())
+	Register(NewPythonGenerator())
+	Register(NewLuaGenerator())
+	Register(NewDotnetGenerator())
+	Register(NewGolangGenerator())
 }

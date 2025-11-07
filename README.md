@@ -41,12 +41,12 @@ plugify-gen -manifest plugin.pplugin -output ./out -lang cpp -verbose
 
 ### Supported Languages
 
-- `cpp` - C++ headers (.hpp)
-- `v8` - V8/JavaScript TypeScript definitions (.d.ts)
-- `golang` - Go bindings (.go + .h)
-- `dotnet` - .NET/C# bindings (.cs)
-- `python` - Python3 bindings (.py)
-- `lua` - Lua bindings (.lua)
+- ✅ `cpp` - C++ headers (.hpp) - **COMPLETE**
+- ✅ `v8` - V8/JavaScript TypeScript definitions (.d.ts) - **COMPLETE**
+- ✅ `python` - Python3 type stubs (.pyi) - **COMPLETE**
+- ✅ `lua` - Lua stubs (.lua) - **COMPLETE**
+- ✅ `dotnet` - .NET/C# bindings (.cs) - **COMPLETE**
+- 🚧 `golang` - Go bindings (.go + .h) - **TODO** (requires complex marshaling)
 
 ## Architecture
 

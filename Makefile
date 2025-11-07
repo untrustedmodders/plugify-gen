@@ -21,7 +21,16 @@ test: build ## Test the generator with example manifest
 	@echo "Testing V8 generator..."
 	@./$(BINARY_NAME) -manifest plugify-plugin-s2sdk.pplugin.in -output ./test_output/v8 -lang v8 -overwrite -verbose
 	@echo ""
-	@echo "✓ All tests passed"
+	@echo "Testing Python generator..."
+	@./$(BINARY_NAME) -manifest plugify-plugin-s2sdk.pplugin.in -output ./test_output/python -lang python -overwrite -verbose
+	@echo ""
+	@echo "Testing Lua generator..."
+	@./$(BINARY_NAME) -manifest plugify-plugin-s2sdk.pplugin.in -output ./test_output/lua -lang lua -overwrite -verbose
+	@echo ""
+	@echo "Testing .NET generator..."
+	@./$(BINARY_NAME) -manifest plugify-plugin-s2sdk.pplugin.in -output ./test_output/dotnet -lang dotnet -overwrite -verbose
+	@echo ""
+	@echo "✓ All 5 generators tested successfully!"
 
 clean: ## Clean build artifacts and test outputs
 	@echo "Cleaning..."

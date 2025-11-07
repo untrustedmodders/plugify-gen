@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
 )
@@ -153,8 +154,87 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 				paramName = fmt.Sprintf("p%d", i)
 			}
 			result += typeName + " " + sanitize(paramName)
+			if param.Default != nil {
+                result += fmt.Sprintf(" = %d", *param.Default)
+            }
 		}
 	}
 
 	return result, nil
+}
+
+
+// RemoveFromBuilderRange removes the substring from index n1 up to (but not including) n2
+// from the builder’s current string. If indices are out of bounds, they are clamped safely.
+func RemoveFromBuilder(b *strings.Builder, n1, n2 int) {
+	s := b.String()
+
+	// Clamp indices to valid range
+	if n1 < 0 {
+		n1 = 0
+	}
+	if n2 > len(s) {
+		n2 = len(s)
+	}
+	if n1 >= n2 {
+		return // nothing to remove
+	}
+
+	s = s[:n1] + s[n2:]
+	b.Reset()
+	b.WriteString(s)
+}
+
+// RemoveLeadingTabsCharRange removes up to n leading tabs from each line
+// whose characters overlap the range [startChar, endChar) in the builder's string.
+func RemoveLeadingTabs(b *strings.Builder, n, startChar, endChar int) {
+	s := b.String()
+	if startChar < 0 {
+		startChar = 0
+	}
+	if endChar > len(s) {
+		endChar = len(s)
+	}
+	if startChar >= endChar {
+		return
+	}
+
+	lines := strings.Split(s, "\n")
+	pos := 0 // track start index of each line in the full string
+
+	for i, line := range lines {
+		lineStart := pos
+		lineEnd := pos + len(line) // exclusive, \n handled later
+
+		// Skip lines completely outside the range
+		if lineEnd <= startChar || lineStart >= endChar {
+			pos += len(line) + 1 // +1 for the \n
+			continue
+		}
+
+		// Only consider characters in the overlap of line and [startChar, endChar)
+		localStart := 0
+		if startChar > lineStart {
+			localStart = startChar - lineStart
+		}
+		localEnd := len(line)
+		if endChar < lineEnd {
+			localEnd = endChar - lineStart
+		}
+
+		// Remove leading tabs inside the local range
+		substr := line[localStart:localEnd]
+		count := 0
+		for strings.HasPrefix(substr, "\t") && count < n {
+			substr = substr[1:]
+			count++
+		}
+		line = line[:localStart] + substr + line[localEnd:]
+		lines[i] = line
+
+		pos += len(line) + 1
+	}
+
+	b.Reset()
+	b.WriteString(strings.Join(lines, "\n"))
 }

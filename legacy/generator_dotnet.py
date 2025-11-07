@@ -909,7 +909,7 @@ def gen_delegate_body(prototype: dict, delegates: set[str]) -> str:
     if delegate_description:
         delegate_code.append(gen_documentation(prototype, tab_level=1))
     param_list = gen_params(prototype, ParamGen.TypesCastNames)
-    delegate_code.append(f'\t\tpublic delegate {return_type} {delegate_name}({param_list});')
+    delegate_code.append(f'\tpublic delegate {return_type} {delegate_name}({param_list});')
 
     # Join the list into a single formatted string
     return '\n'.join(delegate_code)
@@ -934,10 +934,10 @@ def gen_enum_body(enum: dict, enum_type: str, enums: set[str]) -> str:
     # Start building the enum definition
     enum_code = []
     if enum_description:
-        enum_code.append(f'\t\t/// <summary>')
-        enum_code.append(f'\t\t/// {enum_description}')
-        enum_code.append(f'\t\t/// </summary>')
-    enum_code.append(f'\t\tpublic enum {enum_name} : {convert_type(enum_type)}\n\t{{')
+        enum_code.append(f'\t/// <summary>')
+        enum_code.append(f'\t/// {enum_description}')
+        enum_code.append(f'\t/// </summary>')
+    enum_code.append(f'\tpublic enum {enum_name} : {convert_type(enum_type)}\n\t{{')
 
     # Iterate over the enum values and generate corresponding code
     for i, value in enumerate(enum_values):
@@ -947,10 +947,10 @@ def gen_enum_body(enum: dict, enum_type: str, enums: set[str]) -> str:
 
         # Add summary comment for each value
         if description:
-            enum_code.append(f'\t\t\t/// <summary>')
-            enum_code.append(f'\t\t\t/// {description}')
-            enum_code.append(f'\t\t\t/// </summary>')
-        enum_code.append(f'\t\t\t{name} = {enum_value},')
+            enum_code.append(f'\t\t/// <summary>')
+            enum_code.append(f'\t\t/// {description}')
+            enum_code.append(f'\t\t/// </summary>')
+        enum_code.append(f'\t\t{name} = {enum_value},')
 
     # Close the enum definition
     enum_code.append("\t}\n")
@@ -1161,156 +1161,6 @@ def generate_enum_code(pplugin: dict, enums: set[str]) -> str:
     return '\n'.join(content)
 
 
-def generate_class_wrapper(class_def: dict, methods_dict: dict) -> str:
-    """
-    Generate a C# class wrapper for RAII-style object-oriented access to C functions.
-    """
-    class_name = class_def.get('name', 'UnnamedClass')
-    class_description = class_def.get('description', '')
-    handle_type = convert_type(class_def.get('handleType', 'ptr64'))
-    constructors = class_def.get('constructors', [])
-    destructor = class_def.get('destructor', '')
-    methods = class_def.get('methods', [])
-
-    has_constructors = len(constructors) > 0
-    has_destructor = destructor != ''
-
-    code = []
-
-    # Class documentation
-    if class_description:
-        code.append('\t\t/// <summary>')
-        code.append(f'\t\t/// {class_description}')
-        code.append('\t\t/// </summary>')
-
-    disposable =  ' : IDisposable ' if has_destructor else ''
-
-    # Class declaration
-    code.append(f'\t\tpublic sealed class {class_name}{disposable}')
-    code.append('\t\t{')
-
-    # Private handle field
-    code.append(f'\t\t\tprivate {handle_type} _handle;')
-    code.append('')
-
-    # Generate constructors
-    if has_constructors:
-        for ctor_name in constructors:
-            if ctor_name not in methods_dict:
-                continue
-
-            ctor_method = methods_dict[ctor_name]
-
-            # Generate constructor documentation
-            code.append(gen_documentation(ctor_method, 3))
-
-            # Generate constructor signature
-            params = gen_params(ctor_method, ParamGen.TypesNames)
-            code.append(f'\t\t\tpublic {class_name}({params})')
-            code.append('\t\t\t{')
-
-            # Constructor body
-            call_params = gen_params(ctor_method, ParamGen.Names)
-            code.append(f'\t\t\t\t_handle = {ctor_name}({call_params});')
-            code.append(f'\t\t\t\tif (_handle == default) throw new InvalidOperationException("Failed to create {class_name} handle.");')
-            code.append('\t\t\t}')
-            code.append('')
-
-    # Generate destructor if provided (RAII)
-    if has_destructor:
-        # Finalizer
-        code.append(f'\t\t\t~{class_name}()')
-        code.append('\t\t\t{')
-        code.append('\t\t\t\tDispose(false);')
-        code.append('\t\t\t}')
-        code.append('')
-
-    # Generate wrapper methods
-    for method_def in methods:
-        method_name = method_def.get('name')
-        original_method_name = method_def.get('method')
-        bind_self = method_def.get('bindSelf', False)
-
-        if original_method_name not in methods_dict:
-            continue
-
-        original_method = methods_dict[original_method_name]
-        ret_type_info = original_method.get('retType', {})
-        ret_type = get_type_name(ret_type_info)
-        param_types = original_method.get('paramTypes', [])
-
-        # Create a modified method for documentation and parameter generation (without self if bindSelf)
-        modified_method = original_method.copy()
-        if bind_self and param_types:
-            modified_method['paramTypes'] = param_types[1:]
-
-        # Generate method documentation
-        code.append(gen_documentation(modified_method, 3))
-
-        # Determine if method is static
-        is_static = 'static ' if not bind_self else ''
-
-        # Generate method signature
-        params = gen_params(modified_method, ParamGen.TypesNames)
-        code.append(f'\t\t\tpublic {is_static}{ret_type} {method_name}({params})')
-        code.append('\t\t\t{')
-
-        # Method body - add disposed check for instance methods
-        if bind_self:
-            code.append(f'\t\t\t\tif (_handle == default) throw new ObjectDisposedException(nameof({class_name}));')
-
-        # Build the call parameters
-        if bind_self:
-            # Prepend _handle to the parameter list
-            remaining_params = gen_params(modified_method, ParamGen.Names)
-            call_params = f'_handle, {remaining_params}' if remaining_params else '_handle'
-        else:
-            call_params = gen_params(modified_method, ParamGen.Names)
-
-        # Make the call
-        if ret_type == 'void':
-            code.append(f'\t\t\t\t{original_method_name}({call_params});')
-        else:
-            code.append(f'\t\t\t\treturn {original_method_name}({call_params});')
-
-        code.append('\t\t\t}')
-        code.append('')
-
-    # Generate destructor if provided (RAII)
-    if has_destructor:
-        # Dispose method
-        code.append('\t\t\t/// <summary>')
-        code.append('\t\t\t/// Disposes the object and releases the native handle.')
-        code.append('\t\t\t/// </summary>')
-        code.append('\t\t\tpublic void Dispose()')
-        code.append('\t\t\t{')
-        code.append('\t\t\t\tDispose(true);')
-        code.append('\t\t\t\tGC.SuppressFinalize(this);')
-        code.append('\t\t\t}')
-        code.append('')
-
-        # Private Dispose method
-        code.append('\t\t\tprivate void Dispose(bool disposing)')
-        code.append('\t\t\t{')
-        code.append('\t\t\t\tif (_handle != default)')
-        code.append('\t\t\t\t{')
-
-        code.append(f'\t\t\t\t\t{destructor}(_handle);')
-
-        code.append('\t\t\t\t\t_handle = default;')
-        code.append('\t\t\t\t}')
-        code.append('\t\t\t}')
-    else:
-        # No destructor - allow implicit construction from handle
-        code.append(f'public static implicit operator {handle_type}({class_name} obj) => obj.handle;')
-        code.append(f'public static explicit operator {class_name}({handle_type} handle) => new Digit(handle);')
-
-    # Close class
-    code.append('\t\t}')
-
-    return '\n'.join(code)
-
-
 def generate_header(plugin_name: str, pplugin: dict) -> str:
     """Generate the full header content for the plugin."""
     # GitHub link for reference
@@ -1343,13 +1193,6 @@ def generate_header(plugin_name: str, pplugin: dict) -> str:
     content.append(f'\tinternal static unsafe class {plugin_name} {{\n')
     for method in pplugin.get('methods', []):
         content.append(generate_method_code(method))
-
-    methods = { method['name']: method for method in pplugin.get('methods', []) }
-
-    # Append class wrappers
-    for klass in pplugin.get('classes', []):
-        content.append(generate_class_wrapper(klass, methods))
-
     content.append('\t}\n#pragma warning restore CS0649\n}')
 
     # Join and return the complete content as a single string

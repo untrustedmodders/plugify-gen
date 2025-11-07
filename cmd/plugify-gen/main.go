@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 	"path/filepath"
 
 	"github.com/untrustedmodders/plugify-generator/pkg/generator"
@@ -13,6 +14,8 @@ import (
 const version = "1.0.0"
 
 func main() {
+	start := time.Now()
+
 	var (
 		manifestPath = flag.String("manifest", "", "Path to .pplugin manifest file (required)")
 		outputDir    = flag.String("output", "", "Output directory (required)")
@@ -86,6 +89,12 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Create parent directories if they don't exist
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating directory for %s: %v\n", outputPath, err)
+			os.Exit(1)
+		}
+
 		if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing file %s: %v\n", outputPath, err)
 			os.Exit(1)
@@ -96,5 +105,9 @@ func main() {
 		}
 	}
 
+    elapsed := time.Since(start)
 	fmt.Printf("✓ Successfully generated %s bindings in %s\n", *language, *outputDir)
+	if *verbose {
+	    fmt.Printf("Execution time: %s\n", elapsed)
+	}
 }

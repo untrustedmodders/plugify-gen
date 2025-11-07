@@ -1,0 +1,186 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - LICENSE
+      - README.md
+      - '*.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - LICENSE
+      - README.md
+      - '*.md'
+      - 'docs/**'
+
+env:
+  PROJECT_NAME: plugify-gen
+  GO_VERSION: '1.23'
+
+jobs:
+  setup:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      repository-projects: write
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      github_sha_short: ${{ steps.vars.outputs.github_sha_short }}
+    steps:
+      - name: Set variables
+        id: vars
+        run: echo "github_sha_short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Generate Release
+        if: ${{ !env.ACT }}
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .github/release-please-config.json
+          manifest-file: .github/release-please-manifest.json
+
+  build:
+    needs: setup
+    if: ${{ needs.setup.outputs.release_created }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            platform: win64
+            ext: .exe
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            platform: linux64
+            ext: ''
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            platform: macos-arm64
+            ext: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Get dependencies
+        run: go mod download
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -v -ldflags="-s -w -X main.version=${{ needs.setup.outputs.tag_name }}" -o ${{ env.PROJECT_NAME }}${{ matrix.ext }} ./cmd/plugify-gen
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          mkdir -p build/${{ matrix.platform }}
+          cp ${{ env.PROJECT_NAME }}${{ matrix.ext }} build/${{ matrix.platform }}/
+          if [ -f README.md ]; then
+            cp README.md build/${{ matrix.platform }}/
+          fi
+          if [ -f LICENSE ]; then
+            cp LICENSE build/${{ matrix.platform }}/
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.platform }}-${{ needs.setup.outputs.github_sha_short }}
+          path: build/${{ matrix.platform }}/
+          retention-days: 7
+
+  package:
+    needs: ["setup", "build"]
+    if: ${{ needs.setup.outputs.release_created }}
+    strategy:
+      matrix:
+        platform: [linux64, win64, macos-arm64]
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.release.outputs.url }}
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.platform }}-${{ needs.setup.outputs.github_sha_short }}
+          path: artifacts/${{ matrix.platform }}
+
+      - name: Compress build artifacts
+        run: |
+          mkdir -p packages
+          cd artifacts/${{ matrix.platform }}
+          if [ "${{ matrix.platform }}" == "win64" ]; then
+            zip -r ../../packages/${{ env.PROJECT_NAME }}-${{ matrix.platform }}-${{ needs.setup.outputs.tag_name }}.zip .
+          else
+            tar -czf ../../packages/${{ env.PROJECT_NAME }}-${{ matrix.platform }}-${{ needs.setup.outputs.tag_name }}.tar.gz .
+          fi
+
+      - name: Upload release asset
+        if: ${{ !env.ACT }}
+        uses: softprops/action-gh-release@v1
+        id: release
+        with:
+          tag_name: ${{ needs.setup.outputs.tag_name }}
+          files: |
+            packages/*
+
+  notify:
+    needs: ["setup", "build", "package"]
+    if: ${{ needs.setup.outputs.release_created && always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification
+        if: ${{ needs.build.result == 'success' && needs.package.result == 'success' }}
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          embed-description: |
+            ## 🎉 New Release: ${{ env.PROJECT_NAME }} ${{ needs.setup.outputs.tag_name }}
+
+            ### 📦 Downloads
+            -# ➜ [${{ needs.setup.outputs.tag_name }}](${{ needs.package.outputs.url }})
+
+            **Install via curl (Linux):**
+            ```bash
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ needs.setup.outputs.tag_name }}/${{ env.PROJECT_NAME }}-linux64-${{ needs.setup.outputs.tag_name }}.tar.gz
+            tar -xzf ${{ env.PROJECT_NAME }}-linux64-${{ needs.setup.outputs.tag_name }}.tar.gz
+            ```
+
+            **Install via curl (macOS):**
+            ```bash
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ needs.setup.outputs.tag_name }}/${{ env.PROJECT_NAME }}-macos-arm64-${{ needs.setup.outputs.tag_name }}.tar.gz
+            tar -xzf ${{ env.PROJECT_NAME }}-macos-arm64-${{ needs.setup.outputs.tag_name }}.tar.gz
+            ```
+
+            **Install via curl (Windows):**
+            ```powershell
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ needs.setup.outputs.tag_name }}/${{ env.PROJECT_NAME }}-win64-${{ needs.setup.outputs.tag_name }}.zip
+            ```
+          embed-color: 955135
+
+      - name: Send Failure Notification
+        if: ${{ needs.build.result == 'failure' || needs.package.result == 'failure' }}
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          embed-description: "## ⚠️ Release workflow failed for ${{ env.PROJECT_NAME }} ${{ needs.setup.outputs.tag_name }}"
+          embed-color: 16221227

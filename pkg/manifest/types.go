@@ -14,6 +14,7 @@ type Manifest struct {
 	Language     string       `json:"language"`
 	Dependencies []Dependency `json:"dependencies"`
 	Methods      []Method     `json:"methods"`
+	Classes      []Class      `json:"classes,omitempty"`
 }
 
 // Dependency represents a plugin dependency
@@ -38,7 +39,7 @@ type ParamType struct {
 	Type        string     `json:"type"`
 	Ref         bool       `json:"ref,omitempty"`
 	Description string     `json:"description,omitempty"`
-	Default     string     `json:"default,omitempty"`
+	Default     *int64     `json:"default,omitempty"`
 	Enum        *EnumType  `json:"enum,omitempty"`
 	Prototype   *Prototype `json:"prototype,omitempty"`
 }
@@ -73,6 +74,39 @@ type Prototype struct {
 	Description string      `json:"description,omitempty"`
 	ParamTypes  []ParamType `json:"paramTypes"`
 	RetType     TypeInfo    `json:"retType"`
+}
+
+// Class represents an RAII wrapper class for handle-based APIs
+type Class struct {
+	Name             string        `json:"name"`
+	Description      string        `json:"description,omitempty"`
+	HandleType       string        `json:"handleType"`
+	InvalidValue     string        `json:"invalidValue"`
+	NullHandlePolicy string        `json:"nullHandlePolicy,omitempty"`
+	Constructors     []string      `json:"constructors,omitempty"`
+	Destructor       string        `json:"destructor,omitempty"`
+	Methods          []ClassMethod `json:"methods"`
+}
+
+// ClassMethod represents a method in a wrapper class
+type ClassMethod struct {
+	Name         string       `json:"name"`
+	Method       string       `json:"method"`
+	BindSelf     bool         `json:"bindSelf,omitempty"`
+	ParamAliases []ParamAlias `json:"paramAliases,omitempty"`
+	RetAlias     *RetAlias    `json:"retAlias,omitempty"`
+}
+
+// ParamAlias represents a parameter that should be treated as a class type
+type ParamAlias struct {
+	Name  string `json:"name"`
+	Owner bool   `json:"owner,omitempty"`
+}
+
+// RetAlias represents a return value that should be treated as a class type
+type RetAlias struct {
+	Name  string `json:"name"`
+	Owner bool   `json:"owner,omitempty"`
 }
 
 // IsArray returns true if the type is an array (ends with [])

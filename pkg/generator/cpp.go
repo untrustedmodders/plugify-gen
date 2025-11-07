@@ -45,7 +45,8 @@ func (g *CppGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) 
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString("#include <plg/plugin.hpp>\n")
 	sb.WriteString("#include <plg/any.hpp>\n")
-	sb.WriteString("#include <cstdint>\n\n")
+	sb.WriteString("#include <cstdint>\n")
+	sb.WriteString("#include <stdexcept>\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 
 	// Namespace
@@ -66,6 +67,18 @@ func (g *CppGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) 
 		}
 		sb.WriteString(methodCode)
 		sb.WriteString("\n")
+	}
+
+	// Ownership enum
+	sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
+
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return nil, err
+		}
+		sb.WriteString(classesCode)
 	}
 
 	// Close namespace
@@ -248,6 +261,422 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	return sb.String(), nil
 }
 
+func (g *CppGenerator) generateClasses(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for i, class := range m.Classes {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		classCode, err := g.generateClass(m, &class)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+		}
+		sb.WriteString(classCode)
+	}
+
+	return sb.String(), nil
+}
+
+func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+	var sb strings.Builder
+
+	// Get handle type and invalid value
+	handleType, err := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
+	if err != nil {
+		return "", err
+	}
+
+	// Determine invalid value representation
+	invalidValue := class.InvalidValue
+	if class.HandleType == "ptr64" || strings.Contains(handleType, "*") {
+		if invalidValue == "0" || invalidValue == "" {
+			invalidValue = "nullptr"
+		}
+	}
+
+	hasDtor := class.Destructor != ""
+
+	// Class documentation
+	sb.WriteString("  /**\n")
+	if class.Description != "" {
+		sb.WriteString(fmt.Sprintf("   * @brief %s\n", class.Description))
+	}
+	sb.WriteString("   */\n")
+
+	// Class declaration
+	sb.WriteString(fmt.Sprintf("  class %s final {\n", class.Name))
+
+	sb.WriteString("  public:\n")
+
+	// Default constructor
+	sb.WriteString(fmt.Sprintf("    %s() = default;\n\n", class.Name))
+
+	// Generate constructors from methods
+	for _, ctorName := range class.Constructors {
+		ctorCode, err := g.generateConstructor(m, class, ctorName)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(ctorCode)
+	}
+
+	// Destructor and copy/move semantics
+	if hasDtor {
+		sb.WriteString(fmt.Sprintf("    ~%s() {\n", class.Name))
+		sb.WriteString("      destroy();\n")
+		sb.WriteString("    }\n\n")
+
+		sb.WriteString(fmt.Sprintf("    %s(const %s&) = delete;\n", class.Name, class.Name))
+		sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = delete;\n\n", class.Name, class.Name))
+
+		sb.WriteString(fmt.Sprintf("    %s(%s&& other) noexcept\n", class.Name, class.Name))
+		sb.WriteString("      : _handle(other._handle)\n")
+		sb.WriteString("      , _ownership(other._ownership) {\n")
+		sb.WriteString("      other.nullify();\n")
+		sb.WriteString("    }\n\n")
+
+		sb.WriteString(fmt.Sprintf("    %s& operator=(%s&& other) noexcept {\n", class.Name, class.Name))
+		sb.WriteString("      if (this != &other) {\n")
+		sb.WriteString("        destroy();\n")
+		sb.WriteString("        _handle = other._handle;\n")
+		sb.WriteString("        _ownership = other._ownership;\n")
+		sb.WriteString("        other.nullify();\n")
+		sb.WriteString("      }\n")
+		sb.WriteString("      return *this;\n")
+		sb.WriteString("    }\n\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("    %s(const %s&) = default;\n", class.Name, class.Name))
+		sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = default;\n", class.Name, class.Name))
+		sb.WriteString(fmt.Sprintf("    %s(%s&&) noexcept = default;\n", class.Name, class.Name))
+		sb.WriteString(fmt.Sprintf("    %s& operator=(%s&&) noexcept = default;\n", class.Name, class.Name))
+		sb.WriteString(fmt.Sprintf("    ~%s() = default;\n\n", class.Name))
+	}
+
+	// Constructor from handle
+	if hasDtor {
+		sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType))
+	} else {
+		sb.WriteString(fmt.Sprintf("    explicit %s(%s handle, Ownership) : _handle(handle) {}\n\n", class.Name, handleType))
+	}
+
+	// Utility methods
+	sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto get() const noexcept { return _handle; }\n\n"))
+
+	sb.WriteString("    [[nodiscard]] auto release() noexcept {\n")
+	sb.WriteString("      auto handle = _handle;\n")
+	if hasDtor {
+		sb.WriteString("      nullify();\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+	}
+	sb.WriteString("      return handle;\n")
+	sb.WriteString("    }\n\n")
+
+	sb.WriteString("    void reset() noexcept {\n")
+	if hasDtor {
+		sb.WriteString("      destroy();\n")
+		sb.WriteString("      nullify();\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+	}
+	sb.WriteString("    }\n\n")
+
+	sb.WriteString(fmt.Sprintf("    void swap(%s& other) noexcept {\n", class.Name))
+	sb.WriteString("      using std::swap;\n")
+	sb.WriteString("      swap(_handle, other._handle);\n")
+	if hasDtor {
+		sb.WriteString("      swap(_ownership, other._ownership);\n")
+	}
+	sb.WriteString("    }\n\n")
+
+	sb.WriteString(fmt.Sprintf("    friend void swap(%s& lhs, %s& rhs) noexcept { lhs.swap(rhs); }\n\n", class.Name, class.Name))
+
+	// Operators
+	sb.WriteString(fmt.Sprintf("    explicit operator bool() const noexcept { return _handle != %s; }\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto operator<=>(const %s& other) const noexcept { return _handle <=> other._handle; }\n", class.Name))
+	sb.WriteString(fmt.Sprintf("    [[nodiscard]] bool operator==(const %s& other) const noexcept { return _handle == other._handle; }\n\n", class.Name))
+
+	// Generate class bindings
+	for _, binding := range class.Bindings {
+		methodCode, err := g.generateBinding(m, class, &binding)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(methodCode)
+		sb.WriteString("\n")
+	}
+
+	// Private section
+	sb.WriteString("  private:\n")
+
+	if hasDtor {
+		// Destroy helper
+		sb.WriteString("    void destroy() const noexcept {\n")
+		sb.WriteString(fmt.Sprintf("      if (_handle != %s && _ownership == Ownership::Owned) {\n", invalidValue))
+		sb.WriteString(fmt.Sprintf("        %s(_handle);\n", class.Destructor))
+		sb.WriteString("      }\n")
+		sb.WriteString("    }\n\n")
+
+		// Nullify helper
+		sb.WriteString("    void nullify() noexcept {\n")
+		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+		sb.WriteString("      _ownership = Ownership::Borrowed;\n")
+		sb.WriteString("    }\n\n")
+	}
+
+	// Member variables
+	sb.WriteString(fmt.Sprintf("    %s _handle{%s};\n", handleType, invalidValue))
+	if hasDtor {
+		sb.WriteString("    Ownership _ownership{Ownership::Borrowed};\n")
+	}
+
+	sb.WriteString("  };\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("constructor method %s not found", methodName)
+	}
+
+	var sb strings.Builder
+
+	// Generate documentation
+	sb.WriteString("    /**\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("     * @brief %s\n", method.Description))
+	}
+
+	// Document parameters (skip first param if it's the return handle in C API)
+	for _, param := range method.ParamTypes {
+		paramType := param.Type
+		if param.Ref {
+			paramType += "&"
+		}
+		sb.WriteString(fmt.Sprintf("     * @param %s (%s)", g.SanitizeName(param.Name), paramType))
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", param.Description))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("     */\n")
+
+	// Generate constructor signature
+	params, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("    explicit %s(%s)\n", class.Name, params))
+
+	// Generate initialization list
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("      : %s(%s(%s), Ownership::Owned) {}\n\n", class.Name, method.FuncName, paramNames))
+
+	return sb.String(), nil
+}
+
+func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
+	// Find the underlying method
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("method %s not found", binding.Method)
+	}
+
+	var sb strings.Builder
+
+	// Determine parameters (skip first if bindSelf)
+	params := method.ParamTypes
+	startIdx := 0
+	if binding.BindSelf && len(params) > 0 {
+		startIdx = 1
+	}
+	methodParams := params[startIdx:]
+
+	// Generate documentation
+	sb.WriteString("    /**\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("     * @brief %s\n", method.Description))
+	}
+
+	// Document parameters (excluding self if bindSelf)
+	for i, param := range methodParams {
+		paramType := param.Type
+		if param.Ref {
+			paramType += "&"
+		}
+
+		// Check if this parameter has an alias
+		var aliasName string
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			aliasName = binding.ParamAliases[i].Name
+		}
+
+		if aliasName != "" {
+			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", g.SanitizeName(param.Name), aliasName))
+		} else {
+			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", g.SanitizeName(param.Name), paramType))
+		}
+
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", param.Description))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Document return type
+	if method.RetType.Type != "void" {
+		returnType := method.RetType.Type
+		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+			returnType = binding.RetAlias.Name
+		}
+		sb.WriteString(fmt.Sprintf("     * @return %s", returnType))
+		if method.RetType.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", method.RetType.Description))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("     */\n")
+
+	// Determine if method is static
+	isStatic := !binding.BindSelf
+
+	// Generate method signature
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+
+	// Handle return type alias
+	if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+		retType = binding.RetAlias.Name
+	}
+
+	formattedParams, err := FormatParameters(methodParams, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	if err != nil {
+		return "", err
+	}
+
+	// Apply parameter aliases to signature
+	if len(binding.ParamAliases) > 0 {
+		formattedParams = g.applyParamAliases(formattedParams, methodParams, binding.ParamAliases)
+	}
+
+	staticKeyword := ""
+	if isStatic {
+		staticKeyword = "static "
+	}
+
+	sb.WriteString(fmt.Sprintf("    %s%s %s(%s) {\n", staticKeyword, retType, binding.Name, formattedParams))
+
+	// Generate null check if needed
+	nullPolicy := class.NullPolicy
+	if nullPolicy == "" {
+		nullPolicy = "throw"
+	}
+
+	if !isStatic && nullPolicy == "throw" {
+		invalidValue := class.InvalidValue
+		if class.HandleType == "ptr64" {
+			invalidValue = "nullptr"
+		}
+		sb.WriteString(fmt.Sprintf("      if (_handle == %s) throw std::runtime_error(\"%s: Empty handle\");\n", invalidValue, class.Name))
+	}
+
+	// Build call arguments
+	callArgs := ""
+	if binding.BindSelf {
+		callArgs = "_handle"
+	}
+
+	for i, param := range methodParams {
+		if callArgs != "" {
+			callArgs += ", "
+		}
+
+		paramName := g.SanitizeName(param.Name)
+
+		// Check if parameter has alias and needs .release() or .get()
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			if binding.ParamAliases[i].Owner {
+				callArgs += paramName + ".release()"
+			} else {
+				callArgs += paramName + ".get()"
+			}
+		} else {
+			callArgs += paramName
+		}
+	}
+
+	// Generate return statement
+	if method.RetType.Type == "void" {
+		sb.WriteString(fmt.Sprintf("      %s(%s);\n", method.FuncName, callArgs))
+	} else {
+		// Handle return alias
+		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+			ownership := "Ownership::Borrowed"
+			if binding.RetAlias.Owner {
+				ownership = "Ownership::Owned"
+			}
+			sb.WriteString(fmt.Sprintf("      return %s(%s(%s), %s);\n", binding.RetAlias.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
+		} else {
+			sb.WriteString(fmt.Sprintf("      return %s(%s);\n", method.FuncName, callArgs))
+		}
+	}
+
+	sb.WriteString("    }\n")
+
+	return sb.String(), nil
+}
+
+func (g *CppGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []manifest.ParamAlias) string {
+	// This is a simplified implementation
+	// In reality, you might need more sophisticated parsing
+	result := formattedParams
+
+	for i, param := range params {
+		if i < len(aliases) && aliases[i].Name != "" {
+			// Build the parameter type to search for
+			paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
+
+			// Determine the replacement type
+			replacementType := aliases[i].Name
+			if aliases[i].Owner {
+				replacementType = aliases[i].Name + "&&"
+			} else {
+				replacementType = "const " + aliases[i].Name + "&"
+			}
+
+			// Replace in the formatted params
+			oldPattern := fmt.Sprintf("%s %s", paramType, g.SanitizeName(param.Name))
+			newPattern := fmt.Sprintf("%s %s", replacementType, g.SanitizeName(param.Name))
+			result = strings.ReplaceAll(result, oldPattern, newPattern)
+		}
+	}
+
+	return result
+}
+
 // CppTypeMapper implements type mapping for C++
 type CppTypeMapper struct{}
 
@@ -294,14 +723,14 @@ func (m *CppTypeMapper) MapType(baseType string, context TypeContext, isArray bo
 
 	// Handle parameter context (value parameters)
 	// Object-like types pass by const& even when not ref=true
-	if context == TypeContextValue && !isArray && baseType != "void" {
-		if m.isObjectLikeType(baseType) {
+	if context == TypeContextValue && baseType != "void" {
+		if m.isObjectLikeType(baseType) || isArray {
 			mapped = fmt.Sprintf("const %s&", mapped)
 		}
 	}
 
 	// Handle reference context (ref=true parameters)
-	if context == TypeContextRef && !isArray && baseType != "void" {
+	if context == TypeContextRef && baseType != "void" {
 		mapped = mapped + "&"
 	}
 

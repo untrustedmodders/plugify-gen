@@ -1,0 +1,656 @@
+package generator
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+)
+
+// DotnetGenerator generates C# (.NET) bindings
+type DotnetGenerator struct {
+	*BaseGenerator
+	typeMapper *DotnetTypeMapper
+}
+
+// NewDotnetGenerator creates a new .NET/C# generator
+func NewDotnetGenerator() *DotnetGenerator {
+	invalidNames := []string{
+		"abstract", "as", "base", "bool", "break", "byte", "case", "catch",
+		"char", "checked", "class", "const", "continue", "decimal", "default",
+		"delegate", "do", "double", "else", "enum", "event", "explicit", "extern",
+		"false", "finally", "fixed", "float", "for", "foreach", "goto", "if",
+		"implicit", "in", "int", "interface", "internal", "is", "lock", "long",
+		"namespace", "new", "null", "object", "operator", "out", "override", "params",
+		"private", "protected", "readonly", "ref", "return", "sbyte", "sealed",
+		"short", "sizeof", "stackalloc", "static", "string", "struct", "switch",
+		"this", "throw", "true", "try", "typeof", "uint", "ulong", "unchecked",
+		"unsafe", "ushort", "using", "virtual", "void", "volatile", "while",
+	}
+
+	mapper := NewDotnetTypeMapper()
+	return &DotnetGenerator{
+		BaseGenerator: NewBaseGenerator("dotnet", mapper, invalidNames),
+		typeMapper:    mapper,
+	}
+}
+
+// Generate generates .NET bindings
+func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+	g.ResetCaches()
+
+	var sb strings.Builder
+
+	// Using statements
+	sb.WriteString("using System;\n")
+	sb.WriteString("using System.Numerics;\n")
+	sb.WriteString("using System.Runtime.CompilerServices;\n")
+	sb.WriteString("using System.Runtime.InteropServices;\n")
+	sb.WriteString("using Plugify;\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
+	sb.WriteString("#pragma warning disable CS0649\n\n")
+
+	// Generate enums
+	enumsCode, err := g.generateEnums(m)
+	if err != nil {
+		return nil, err
+	}
+	if enumsCode != "" {
+		sb.WriteString(enumsCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return nil, err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+		sb.WriteString("\n")
+	}
+
+	// Class containing methods
+	sb.WriteString(fmt.Sprintf("\tinternal static unsafe class %s {\n\n", m.Name))
+
+	// Generate methods
+	for _, method := range m.Methods {
+		methodCode, err := g.generateMethod(&method, m.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+		}
+		sb.WriteString(methodCode)
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\t}\n")
+	sb.WriteString("#pragma warning restore CS0649\n")
+	sb.WriteString("}\n")
+
+	result := &GeneratorResult{
+		Files: map[string]string{
+			fmt.Sprintf("pps/%s.cs", m.Name): sb.String(),
+		},
+	}
+
+	return result, nil
+}
+
+func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for _, method := range m.Methods {
+		// Check return type
+		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
+			enumCode := g.generateEnum(method.RetType.Enum)
+			sb.WriteString(enumCode)
+			sb.WriteString("\n")
+			g.CacheEnum(method.RetType.Enum.Name)
+		}
+
+		// Check parameters
+		for _, param := range method.ParamTypes {
+			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
+				enumCode := g.generateEnum(param.Enum)
+				sb.WriteString(enumCode)
+				sb.WriteString("\n")
+				g.CacheEnum(param.Enum.Name)
+			}
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType) string {
+	var sb strings.Builder
+
+	// XML documentation
+	if enum.Description != "" {
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", enum.Description))
+		sb.WriteString("\t\t/// </summary>\n")
+	}
+
+	// Underlying type
+	underlyingType := "int"
+	if enum.Type != "" {
+		underlyingType, _ = g.typeMapper.MapType(enum.Type, TypeContextValue, false)
+	}
+
+	sb.WriteString(fmt.Sprintf("\t\tpublic enum %s : %s\n\t\t{\n", enum.Name, underlyingType))
+
+	for i, val := range enum.Values {
+		if val.Description != "" {
+			sb.WriteString("\t\t\t/// <summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\t\t/// %s\n", val.Description))
+			sb.WriteString("\t\t\t/// </summary>\n")
+		}
+		sb.WriteString(fmt.Sprintf("\t\t\t%s = %d", val.Name, val.Value))
+		if i < len(enum.Values)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\t\t}\n")
+	return sb.String()
+}
+
+func (g *DotnetGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for _, method := range m.Methods {
+		// Check return type
+		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
+			delegateCode, err := g.generateDelegate(method.RetType.Prototype)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(delegateCode)
+			sb.WriteString("\n")
+			g.CacheDelegate(method.RetType.Prototype.Name)
+		}
+
+		// Check parameters
+		for _, param := range method.ParamTypes {
+			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
+				delegateCode, err := g.generateDelegate(param.Prototype)
+				if err != nil {
+					return "", err
+				}
+				sb.WriteString(delegateCode)
+				sb.WriteString("\n")
+				g.CacheDelegate(param.Prototype.Name)
+			}
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
+	var sb strings.Builder
+
+	// XML documentation
+	if proto.Description != "" {
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", proto.Description))
+		sb.WriteString("\t\t/// </summary>\n")
+	}
+
+	// Return type
+	retType, err := g.typeMapper.MapDelegateReturnType(&proto.RetType)
+	if err != nil {
+		return "", err
+	}
+
+	// Parameters
+	params, err := g.formatDelegateParameters(proto.ParamTypes)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("\t\tpublic delegate %s %s(%s);\n", retType, proto.Name, params))
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) formatDelegateParameters(params []manifest.ParamType) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	result := ""
+	for i, param := range params {
+		if i > 0 {
+			result += ", "
+		}
+
+		typeName, err := g.typeMapper.MapDelegateParamType(&param)
+		if err != nil {
+			return "", err
+		}
+
+		paramName := param.Name
+		if paramName == "" {
+			paramName = fmt.Sprintf("p%d", i)
+		}
+
+		result += typeName + " " + g.SanitizeName(paramName)
+	}
+
+	return result, nil
+}
+
+func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName string) (string, error) {
+	var sb strings.Builder
+
+	// XML documentation
+	sb.WriteString(g.generateDocumentation(method))
+
+	// Generate function pointer declarations
+	managedTypes, err := g.formatManagedTypes(method)
+	if err != nil {
+		return "", err
+	}
+
+	unmanagedTypes, err := g.formatUnmanagedTypes(method)
+	if err != nil {
+		return "", err
+	}
+
+	methodName := g.SanitizeName(method.Name)
+
+	// Managed delegate pointer
+	sb.WriteString(fmt.Sprintf("\t\tinternal static delegate*<%s> %s = &___%s;\n", managedTypes, methodName, methodName))
+
+	// Unmanaged function pointer
+	sb.WriteString(fmt.Sprintf("\t\tinternal static delegate* unmanaged[Cdecl]<%s> __%s;\n", unmanagedTypes, methodName))
+
+	// Wrapper method signature
+	params, err := g.formatMethodParameters(method.ParamTypes)
+	if err != nil {
+		return "", err
+	}
+
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("\t\tprivate static %s ___%s(%s)\n", retType, methodName, params))
+	sb.WriteString("\t\t{\n")
+
+	// Method body
+	body, err := g.generateMethodBody(method)
+	if err != nil {
+		return "", err
+	}
+	sb.WriteString(body)
+
+	sb.WriteString("\t\t}\n")
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateDocumentation(method *manifest.Method) string {
+	var sb strings.Builder
+
+	sb.WriteString("\t\t/// <summary>\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Name))
+	}
+	sb.WriteString("\t\t/// </summary>\n")
+
+	for _, param := range method.ParamTypes {
+		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
+			g.SanitizeName(param.Name), param.Description))
+	}
+
+	if method.RetType.Type != "void" && method.RetType.Description != "" {
+		sb.WriteString(fmt.Sprintf("\t\t/// <returns>%s</returns>\n", method.RetType.Description))
+	}
+
+	return sb.String()
+}
+
+func (g *DotnetGenerator) formatManagedTypes(method *manifest.Method) (string, error) {
+	types := []string{}
+
+	for _, param := range method.ParamTypes {
+		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		if err != nil {
+			return "", err
+		}
+		types = append(types, typeName)
+	}
+
+	// Add return type
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+	types = append(types, retType)
+
+	return strings.Join(types, ", "), nil
+}
+
+func (g *DotnetGenerator) formatUnmanagedTypes(method *manifest.Method) (string, error) {
+	types := []string{}
+
+	for _, param := range method.ParamTypes {
+		typeName, err := g.typeMapper.MapUnmanagedParamType(&param)
+		if err != nil {
+			return "", err
+		}
+		types = append(types, typeName)
+	}
+
+	// Add return type
+	retType, err := g.typeMapper.MapUnmanagedReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+	types = append(types, retType)
+
+	return strings.Join(types, ", "), nil
+}
+
+func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	result := ""
+	for i, param := range params {
+		if i > 0 {
+			result += ", "
+		}
+
+		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		if err != nil {
+			return "", err
+		}
+
+		paramName := param.Name
+		if paramName == "" {
+			paramName = fmt.Sprintf("p%d", i)
+		}
+
+		result += typeName + " " + g.SanitizeName(paramName)
+
+		if param.Default != nil {
+		    result += fmt.Sprintf(" = %d", *param.Default)
+		}
+	}
+
+	return result, nil
+}
+
+func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, error) {
+	var sb strings.Builder
+	indent := "\t\t\t"
+
+	needsMarshaling := g.needsMarshaling(method)
+	hasReturn := method.RetType.Type != "void"
+	isObjectReturn := g.typeMapper.isObjectReturn(method.RetType.Type)
+	isFunctionReturn := g.typeMapper.isFunction(method.RetType.Type)
+
+	// Declare return variable if needed
+	if hasReturn && (isObjectReturn || needsMarshaling) {
+		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+		sb.WriteString(fmt.Sprintf("%s%s __retVal;\n", indent, retTypeName))
+	}
+
+	// Declare native return variable for object returns
+	if isObjectReturn {
+		nativeRetType := g.typeMapper.getNativeReturnType(method.RetType.Type)
+		sb.WriteString(fmt.Sprintf("%s%s __retVal_native;\n", indent, nativeRetType))
+	}
+
+	// Generate fixed blocks for ref primitive/POD parameters
+	fixedBlocks := g.generateFixedBlocks(method, indent)
+	for _, fixedBlock := range fixedBlocks {
+		sb.WriteString(fixedBlock)
+	}
+
+	// Parameter marshaling (constructor calls)
+	marshalCode := g.generateParameterMarshaling(method, indent)
+	if marshalCode != "" {
+		sb.WriteString(marshalCode)
+	}
+
+	hasTry := (needsMarshaling && hasReturn)
+	innerIndent := indent
+	insertIndexStart := 0
+	insertIndexEnd := 0
+	if hasTry || marshalCode != "" {
+		insertIndexStart = sb.Len()
+		sb.WriteString(fmt.Sprintf("%stry {\n", indent))
+		insertIndexEnd = sb.Len()
+		innerIndent = indent + "\t"
+	}
+
+	// Function call
+	callParams := g.generateCallParameters(method)
+	if isObjectReturn {
+		sb.WriteString(fmt.Sprintf("%s__retVal_native = __%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
+	} else if hasTry {
+		sb.WriteString(fmt.Sprintf("%s__retVal = __%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
+	} else if hasReturn {
+		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+		sb.WriteString(fmt.Sprintf("%s%s __retVal = __%s(%s);\n", innerIndent, retTypeName, g.SanitizeName(method.Name), callParams))
+	} else {
+		sb.WriteString(fmt.Sprintf("%s__%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
+	}
+
+	// Unmarshal return value and ref parameters
+	unmarshalCode := g.generateUnmarshaling(method, innerIndent)
+	if unmarshalCode != "" {
+		sb.WriteString(fmt.Sprintf("%s// Unmarshal - Convert native data to managed data.\n", innerIndent))
+		sb.WriteString(unmarshalCode)
+	}
+
+	// Cleanup
+	cleanupCode := g.generateCleanup(method, innerIndent)
+	if cleanupCode != "" {
+		sb.WriteString(fmt.Sprintf("%s}\n%sfinally {\n", indent, indent))
+		sb.WriteString(fmt.Sprintf("%s// Perform cleanup.\n", innerIndent))
+		sb.WriteString(cleanupCode)
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	} else if hasTry {
+		// Remove try block if no cleanup needed
+		RemoveFromBuilder(&sb, insertIndexStart, insertIndexEnd);
+        RemoveLeadingTabs(&sb, 1, insertIndexStart, sb.Len())
+	}
+
+	// Close fixed blocks
+	for i := len(fixedBlocks) - 1; i >= 0; i-- {
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+
+	// Return statement
+	if hasReturn {
+	    if isFunctionReturn {
+		    retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+            sb.WriteString(fmt.Sprintf("%sreturn Marshalling.GetDelegateForFunctionPointer<%s>(__retVal);\n", indent, retTypeName))
+	    } else {
+		    sb.WriteString(fmt.Sprintf("%sreturn __retVal;\n", indent))
+	    }
+	}
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) needsMarshaling(method *manifest.Method) bool {
+	if g.typeMapper.isObjectReturn(method.RetType.Type) {
+		return true
+	}
+
+	for _, param := range method.ParamTypes {
+		if g.typeMapper.isObjectReturn(param.Type) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (g *DotnetGenerator) generateFixedBlocks(method *manifest.Method, indent string) []string {
+	var blocks []string
+
+	for _, param := range method.ParamTypes {
+		// Only create fixed blocks for ref parameters that don't need marshaling (primitives, POD, enums)
+		if !param.Ref {
+			continue
+		}
+
+		// Skip object types (they need marshaling, not fixed blocks)
+		if g.typeMapper.isObjectReturn(param.Type) {
+			continue
+		}
+
+		paramName := g.SanitizeName(param.Name)
+		var typeName string
+
+		if param.Enum != nil {
+			typeName = param.Enum.Name
+		} else {
+			typeName, _ = g.typeMapper.MapType(param.BaseType(), TypeContextValue, false)
+		}
+
+		block := fmt.Sprintf("%sfixed(%s* __%s = &%s) {\n", indent, typeName, paramName, paramName)
+		blocks = append(blocks, block)
+	}
+
+	return blocks
+}
+
+func (g *DotnetGenerator) generateParameterMarshaling(method *manifest.Method, indent string) string {
+	var sb strings.Builder
+
+	for _, param := range method.ParamTypes {
+		constructor := g.typeMapper.getConstructor(param.Type)
+		if constructor == "" {
+			continue
+		}
+
+		paramName := g.SanitizeName(param.Name)
+
+		// Use NativeMethodsT for enum parameters
+		if param.Enum != nil {
+			constructor = strings.Replace(constructor, "NativeMethods.", "NativeMethodsT.", 1)
+		}
+
+		if strings.Contains(constructor, "ConstructVector") {
+			sb.WriteString(fmt.Sprintf("%svar __%s = %s(%s, %s.Length);\n", indent, paramName, constructor, paramName, paramName))
+		} else if constructor == "Marshalling.GetFunctionPointerForDelegate" {
+			// Function pointer - handled differently
+			continue
+		} else {
+			sb.WriteString(fmt.Sprintf("%svar __%s = %s(%s);\n", indent, paramName, constructor, paramName))
+		}
+	}
+
+	return sb.String()
+}
+
+func (g *DotnetGenerator) generateCallParameters(method *manifest.Method) string {
+	params := []string{}
+
+	for _, param := range method.ParamTypes {
+		paramName := g.SanitizeName(param.Name)
+
+		if g.typeMapper.isObjectReturn(param.Type) {
+			params = append(params, fmt.Sprintf("&__%s", paramName))
+		} else if g.typeMapper.isPODType(param.Type) && param.Ref {
+			params = append(params, fmt.Sprintf("__%s", paramName))
+		} else if g.typeMapper.isPODType(param.Type) {
+			params = append(params, fmt.Sprintf("&%s", paramName))
+		}  else if g.typeMapper.isFunction(param.Type) {
+          	params = append(params, fmt.Sprintf("Marshalling.GetFunctionPointerForDelegate(%s)", paramName))
+        } else if param.Ref {
+			params = append(params, fmt.Sprintf("__%s", paramName))
+		}else {
+			params = append(params, paramName)
+		}
+	}
+
+	return strings.Join(params, ", ")
+}
+
+func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent string) string {
+	var sb strings.Builder
+
+	// Unmarshal return value
+	if g.typeMapper.isObjectReturn(method.RetType.Type) {
+		converter := g.typeMapper.getDataConverter(method.RetType.Type)
+		if converter != "" {
+			if strings.Contains(converter, "VectorData") {
+				sizeFunc := g.typeMapper.getSizeFunction(method.RetType.Type)
+				retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+				// Remove [] suffix for array initialization
+				baseType := strings.TrimSuffix(retTypeName, "[]")
+				sb.WriteString(fmt.Sprintf("%s__retVal = new %s[%s(&__retVal_native)];\n", indent, baseType, sizeFunc))
+				sb.WriteString(fmt.Sprintf("%s%s(&__retVal_native, __retVal);\n", indent, converter))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s__retVal = %s(&__retVal_native);\n", indent, converter))
+			}
+		}
+	}
+
+	// Unmarshal ref parameters
+	for _, param := range method.ParamTypes {
+		if !param.Ref {
+			continue
+		}
+
+		converter := g.typeMapper.getDataConverter(param.Type)
+		if converter == "" {
+			continue
+		}
+
+		paramName := g.SanitizeName(param.Name)
+
+		if strings.Contains(converter, "VectorData") {
+			sizeFunc := g.typeMapper.getSizeFunction(param.Type)
+			sb.WriteString(fmt.Sprintf("%sArray.Resize(ref %s, %s(&__%s));\n", indent, paramName, sizeFunc, paramName))
+			sb.WriteString(fmt.Sprintf("%s%s(&__%s, %s);\n", indent, converter, paramName, paramName))
+		} else if converter != "" {
+			sb.WriteString(fmt.Sprintf("%s%s = %s(&__%s);\n", indent, paramName, converter, paramName))
+		}
+	}
+
+	return sb.String()
+}
+
+func (g *DotnetGenerator) generateCleanup(method *manifest.Method, indent string) string {
+	var sb strings.Builder
+
+	// Cleanup return value
+	if g.typeMapper.isObjectReturn(method.RetType.Type) {
+		destructor := g.typeMapper.getDestructor(method.RetType.Type)
+		if destructor != "" {
+			sb.WriteString(fmt.Sprintf("%s%s(&__retVal_native);\n", indent, destructor))
+		}
+	}
+
+	// Cleanup parameters
+	for _, param := range method.ParamTypes {
+		destructor := g.typeMapper.getDestructor(param.Type)
+		if destructor == "" {
+			continue
+		}
+
+		paramName := g.SanitizeName(param.Name)
+		sb.WriteString(fmt.Sprintf("%s%s(&__%s);\n", indent, destructor, paramName))
+	}
+
+	return sb.String()
+}
