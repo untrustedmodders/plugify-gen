@@ -82,14 +82,14 @@ type Class struct {
 	Description      string        `json:"description,omitempty"`
 	HandleType       string        `json:"handleType"`
 	InvalidValue     string        `json:"invalidValue"`
-	NullHandlePolicy string        `json:"nullHandlePolicy,omitempty"`
+	NullPolicy       string        `json:"nullPolicy,omitempty"`
 	Constructors     []string      `json:"constructors,omitempty"`
 	Destructor       string        `json:"destructor,omitempty"`
-	Methods          []ClassMethod `json:"methods"`
+	Bindings         []Binding     `json:"bindings"`
 }
 
-// ClassMethod represents a method in a wrapper class
-type ClassMethod struct {
+// Binding represents a method in a wrapper class
+type Binding struct {
 	Name         string       `json:"name"`
 	Method       string       `json:"method"`
 	BindSelf     bool         `json:"bindSelf,omitempty"`
