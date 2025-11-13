@@ -46,7 +46,7 @@ plugify-gen -manifest plugin.pplugin -output ./out -lang cpp -verbose
 - ✅ `python` - Python3 type stubs (.pyi) - **COMPLETE**
 - ✅ `lua` - Lua stubs (.lua) - **COMPLETE**
 - ✅ `dotnet` - .NET/C# bindings (.cs) - **COMPLETE**
-- 🚧 `golang` - Go bindings (.go + .h) - **TODO** (requires complex marshaling)
+- ✅ `golang` - Go bindings (.go + .h) - **COMPLETE**
 
 ## Architecture
 
