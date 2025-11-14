@@ -94,7 +94,7 @@ go test ./...
 go build -o plugify-gen ./cmd/plugify-gen
 
 # Test with example manifest
-./plugify-gen -manifest plugify-plugin-s2sdk.pplugin.in -output ./test_output -lang cpp -verbose
+./plugify-gen -manifest plugify-plugin-s2sdk.pplugin -output ./test_output -lang cpp -verbose
 ```
 
 ## Migration from Python Generators
@@ -103,12 +103,12 @@ The new generator is designed as a drop-in replacement:
 
 **Before:**
 ```bash
-python generator._cpppy plugify-plugin-s2sdk.pplugin.in include/
+python generator.py plugify-plugin-s2sdk.pplugin include/
 ```
 
 **After:**
 ```bash
-plugify-gen -manifest plugify-plugin-s2sdk.pplugin.in -output include/ -lang cpp
+plugify-gen -manifest plugify-plugin-s2sdk.pplugin -output include/ -lang cpp
 ```
 
 ## Performance
