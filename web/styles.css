@@ -195,6 +195,41 @@ h2 {
     margin: 32px 0;
 }
 
+.auto-convert-wrapper {
+    margin-bottom: 16px;
+}
+
+.auto-convert-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 12px 20px;
+    background: rgba(99, 102, 241, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.auto-convert-label:hover {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: var(--primary);
+}
+
+#autoConvert {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.checkbox-text {
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 500;
+    user-select: none;
+}
+
 .convert-btn {
     padding: 16px 48px;
     background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);

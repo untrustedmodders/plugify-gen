@@ -8,6 +8,7 @@ let wasmReady = false;
 const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
 const dropZone = document.getElementById('dropZone');
+const autoConvert = document.getElementById('autoConvert');
 const languageButtons = document.querySelectorAll('.lang-btn');
 const convertBtn = document.getElementById('convertBtn');
 const statusDiv = document.getElementById('status');
@@ -56,6 +57,44 @@ async function loadWasm() {
     }
 }
 
+// Perform conversion
+async function performConversion() {
+    if (!manifestContent || !selectedLanguage) {
+        return;
+    }
+
+    if (!window.convertManifest) {
+        showStatus('WebAssembly module not ready. Please wait and try again.', 'error');
+        return;
+    }
+
+    try {
+        showStatus('Converting...', 'info');
+        convertBtn.disabled = true;
+
+        // Call WebAssembly function
+        const result = window.convertManifest(manifestContent, selectedLanguage);
+
+        if (result && result.success) {
+            generatedFiles = result.files;
+            displayResults();
+            showStatus(`Successfully generated ${Object.keys(generatedFiles).length} file(s)`, 'success');
+        } else if (result && result.error) {
+            showStatus(`Error: ${result.error}`, 'error');
+            outputDiv.style.display = 'none';
+        } else {
+            showStatus('Conversion failed with unknown error', 'error');
+            outputDiv.style.display = 'none';
+        }
+    } catch (err) {
+        console.error('Conversion error:', err);
+        showStatus(`Unexpected error: ${err.message}`, 'error');
+        outputDiv.style.display = 'none';
+    } finally {
+        updateConvertButton();
+    }
+}
+
 // Handle file processing
 function handleFile(file) {
     if (!file) {
@@ -83,6 +122,11 @@ function handleFile(file) {
         manifestContent = e.target.result;
         updateConvertButton();
         showStatus('Manifest file loaded successfully', 'success');
+
+        // Auto-convert if enabled
+        if (autoConvert.checked && selectedLanguage && wasmReady) {
+            setTimeout(() => performConversion(), 100);
+        }
     };
     reader.onerror = () => {
         showStatus('Error reading file', 'error');
@@ -136,6 +180,11 @@ languageButtons.forEach(btn => {
         btn.classList.add('selected');
         selectedLanguage = btn.dataset.lang;
         updateConvertButton();
+
+        // Auto-convert if enabled
+        if (autoConvert.checked && manifestContent && wasmReady) {
+            setTimeout(() => performConversion(), 100);
+        }
     });
 });
 
@@ -145,45 +194,8 @@ function updateConvertButton() {
 }
 
 // Convert button handler
-convertBtn.addEventListener('click', async () => {
-    if (!manifestContent || !selectedLanguage) {
-        showStatus('Please select a file and target language', 'error');
-        return;
-    }
-
-    if (!window.convertManifest) {
-        showStatus('WebAssembly module not ready. Please wait and try again.', 'error');
-        return;
-    }
-
-    try {
-        showStatus('Converting...', 'info');
-        convertBtn.disabled = true;
-
-        console.log(manifestContent)
-        console.log(selectedLanguage)
-
-        // Call WebAssembly function
-        const result = window.convertManifest(manifestContent, selectedLanguage);
-
-        if (result && result.success) {
-            generatedFiles = result.files;
-            displayResults();
-            showStatus(`Successfully generated ${Object.keys(generatedFiles).length} file(s)`, 'success');
-        } else if (result && result.error) {
-            showStatus(`Error: ${result.error}`, 'error');
-            outputDiv.style.display = 'none';
-        } else {
-            showStatus('Conversion failed with unknown error', 'error');
-            outputDiv.style.display = 'none';
-        }
-    } catch (err) {
-        console.error('Conversion error:', err);
-        showStatus(`Unexpected error: ${err.message}`, 'error');
-        outputDiv.style.display = 'none';
-    } finally {
-        updateConvertButton();
-    }
+convertBtn.addEventListener('click', () => {
+    performConversion();
 });
 
 // Display results
