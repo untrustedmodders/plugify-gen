@@ -7,6 +7,7 @@ let wasmReady = false;
 // DOM elements
 const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
+const dropZone = document.getElementById('dropZone');
 const languageButtons = document.querySelectorAll('.lang-btn');
 const convertBtn = document.getElementById('convertBtn');
 const statusDiv = document.getElementById('status');
@@ -55,17 +56,27 @@ async function loadWasm() {
     }
 }
 
-// File input handler
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
+// Handle file processing
+function handleFile(file) {
     if (!file) {
         manifestContent = null;
         fileName.textContent = 'No file selected';
+        fileName.classList.remove('has-file');
         updateConvertButton();
         return;
     }
 
+    // Check file extension
+    const validExtensions = ['.pplugin', '.json'];
+    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+    if (!validExtensions.includes(fileExt)) {
+        showStatus('Please select a .pplugin or .json file', 'error');
+        return;
+    }
+
     fileName.textContent = file.name;
+    fileName.classList.add('has-file');
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -76,9 +87,46 @@ fileInput.addEventListener('change', (e) => {
     reader.onerror = () => {
         showStatus('Error reading file', 'error');
         manifestContent = null;
+        fileName.classList.remove('has-file');
         updateConvertButton();
     };
     reader.readAsText(file);
+}
+
+// File input handler
+fileInput.addEventListener('change', (e) => {
+    handleFile(e.target.files[0]);
+});
+
+// Drag and drop handlers
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        handleFile(files[0]);
+    }
+});
+
+// Click on drop zone to trigger file input
+dropZone.addEventListener('click', (e) => {
+    if (e.target !== fileInput && !e.target.closest('.file-label')) {
+        fileInput.click();
+    }
 });
 
 // Language selection

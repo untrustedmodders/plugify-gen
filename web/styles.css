@@ -68,6 +68,7 @@ h2 {
 
 /* File Upload */
 .file-input-wrapper {
+    position: relative;
     text-align: center;
 }
 
@@ -75,16 +76,52 @@ h2 {
     display: none;
 }
 
+.drop-zone-content {
+    padding: 40px 20px;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    background: rgba(99, 102, 241, 0.05);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.drop-zone-content:hover {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.file-input-wrapper.drag-over .drop-zone-content {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.15);
+    transform: scale(1.02);
+}
+
+.upload-icon {
+    color: var(--primary);
+    margin-bottom: 16px;
+}
+
+.drop-zone-text {
+    font-size: 1.1rem;
+    color: var(--text);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.drop-zone-or {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 12px 0;
+}
+
 .file-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 16px 32px;
+    display: inline-block;
+    padding: 12px 28px;
     background: var(--primary);
     color: white;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 500;
     transition: all 0.2s;
     border: none;
@@ -98,9 +135,14 @@ h2 {
 
 .file-name {
     display: block;
-    margin-top: 12px;
+    margin-top: 16px;
     color: var(--text-muted);
     font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.file-name.has-file {
+    color: var(--success);
 }
 
 /* Language Selection */
