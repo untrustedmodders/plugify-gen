@@ -118,6 +118,12 @@ Benchmarks show 10-50x faster generation compared to Python scripts for typical 
 
 ## WebAssembly Support
 
+### 🌐 Try it Online
+
+**[Live Demo on GitHub Pages](https://untrustedmodders.github.io/plugify-gen/)** - Convert manifests directly in your browser!
+
+### Build Locally
+
 Plugify Generator can be compiled to WebAssembly for use in web applications:
 
 ```bash

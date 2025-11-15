@@ -1,12 +1,18 @@
 @echo off
 echo Building Plugify Generator for WebAssembly...
 
+REM Get version from release-please manifest or use dev
+for /f "delims=" %%i in ('powershell -Command "(Get-Content .github/release-please-manifest.json | ConvertFrom-Json).'.''"') do set VERSION=%%i
+if "%VERSION%"=="" set VERSION=dev
+
+echo Building version: %VERSION%
+
 REM Set GOOS and GOARCH for WebAssembly
 set GOOS=js
 set GOARCH=wasm
 
-REM Build the WebAssembly binary
-go build -o dist\plugify-gen.wasm .\cmd\wasm\main.go
+REM Build the WebAssembly binary with version
+go build -ldflags="-X main.version=%VERSION%" -o dist\plugify-gen.wasm .\cmd\wasm\main.go
 
 if %ERRORLEVEL% EQU 0 (
     echo.

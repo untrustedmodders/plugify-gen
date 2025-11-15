@@ -49,6 +49,36 @@ h1 {
 .subtitle {
     color: var(--text-muted);
     font-size: 1.1rem;
+    margin-bottom: 16px;
+}
+
+.header-links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.header-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 0.95rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.header-link:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary-dark);
+}
+
+.header-separator {
+    color: var(--text-muted);
 }
 
 .card {

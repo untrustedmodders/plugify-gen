@@ -8,6 +8,8 @@ import (
 	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
 )
 
+var version = "dev" // Version is set via -ldflags during build
+
 // ConvertResult represents the result of a conversion
 type ConvertResult struct {
 	Success bool              `json:"success"`
@@ -74,7 +76,7 @@ func getSupportedLanguages(this js.Value, args []js.Value) interface{} {
 
 // getVersion returns the version
 func getVersion(this js.Value, args []js.Value) interface{} {
-	return "1.0.0-wasm"
+	return version + "-wasm"
 }
 
 func main() {

@@ -5,8 +5,19 @@ echo "Building Plugify Generator for WebAssembly..."
 # Create dist directory if it doesn't exist
 mkdir -p dist
 
-# Build the WebAssembly binary
-GOOS=js GOARCH=wasm go build -o dist/plugify-gen.wasm ./cmd/wasm/main.go
+# Get version from release-please manifest or use dev
+if [ -f .github/release-please-manifest.json ]; then
+    VERSION=$(cat .github/release-please-manifest.json | grep -o '"."[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[0-9][^"]*"' | tr -d '"')
+fi
+
+if [ -z "$VERSION" ]; then
+    VERSION="dev"
+fi
+
+echo "Building version: $VERSION"
+
+# Build the WebAssembly binary with version
+GOOS=js GOARCH=wasm go build -ldflags="-X main.version=$VERSION" -o dist/plugify-gen.wasm ./cmd/wasm/main.go
 
 if [ $? -eq 0 ]; then
     echo ""
