@@ -9,6 +9,7 @@ A unified, high-performance code generator that converts Plugify plugin manifest
 - **Extensible**: Plugin architecture makes adding new language generators easy
 - **Type-Safe**: Strong type mapping with validation
 - **Cross-Platform**: Works on Linux, macOS, Windows
+- **WebAssembly**: Run in the browser - perfect for web-based tools
 
 ## Installation
 
@@ -114,6 +115,38 @@ plugify-gen -manifest plugify-plugin-s2sdk.pplugin -output include/ -lang cpp
 ## Performance
 
 Benchmarks show 10-50x faster generation compared to Python scripts for typical manifests.
+
+## WebAssembly Support
+
+Plugify Generator can be compiled to WebAssembly for use in web applications:
+
+```bash
+# Build WebAssembly version
+./build-wasm.sh      # Linux/Mac
+build-wasm.bat       # Windows
+```
+
+This creates `plugify-gen.wasm` and `wasm_exec.js` in the `dist/` directory.
+
+**Integration Example (Nuxt, React, Vue, etc.):**
+
+```javascript
+// Load WASM module
+const go = new Go();
+const result = await WebAssembly.instantiateStreaming(
+  fetch('/plugify-gen.wasm'),
+  go.importObject
+);
+go.run(result.instance);
+
+// Convert manifest
+const result = convertManifest(manifestContent, 'cpp');
+if (result.success) {
+  console.log(result.files); // { "plugin.hpp": "...", ... }
+}
+```
+
+See [WASM.md](./WASM.md) for complete integration guide with Nuxt, React, and vanilla JS examples.
 
 ## License
 

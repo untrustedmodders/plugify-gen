@@ -1,0 +1,259 @@
+// State
+let selectedLanguage = null;
+let manifestContent = null;
+let generatedFiles = {};
+let wasmReady = false;
+
+// DOM elements
+const fileInput = document.getElementById('fileInput');
+const fileName = document.getElementById('fileName');
+const languageButtons = document.querySelectorAll('.lang-btn');
+const convertBtn = document.getElementById('convertBtn');
+const statusDiv = document.getElementById('status');
+const outputDiv = document.getElementById('output');
+const fileList = document.getElementById('fileList');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const wasmStatus = document.getElementById('wasmStatus');
+
+// Load WebAssembly
+async function loadWasm() {
+    try {
+        wasmStatus.textContent = 'Loading WebAssembly module...';
+        wasmStatus.className = 'wasm-status loading';
+
+        const go = new Go();
+        const result = await WebAssembly.instantiateStreaming(
+            fetch('plugify-gen.wasm'),
+            go.importObject
+        );
+
+        // Run Go program (this is async but doesn't return a promise)
+        go.run(result.instance);
+
+        // Wait for functions to be registered
+        let attempts = 0;
+        while (!window.convertManifest && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+
+        if (!window.convertManifest) {
+            throw new Error('WASM functions not registered after timeout');
+        }
+
+        wasmReady = true;
+        wasmStatus.textContent = 'WebAssembly module ready';
+        wasmStatus.className = 'wasm-status ready';
+        console.log('WASM loaded successfully');
+
+        updateConvertButton();
+    } catch (err) {
+        console.error('Failed to load WebAssembly:', err);
+        wasmStatus.textContent = 'Error loading WebAssembly module';
+        wasmStatus.className = 'wasm-status error';
+        showStatus('Failed to load WebAssembly module. Please refresh the page.', 'error');
+    }
+}
+
+// File input handler
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+        manifestContent = null;
+        fileName.textContent = 'No file selected';
+        updateConvertButton();
+        return;
+    }
+
+    fileName.textContent = file.name;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        manifestContent = e.target.result;
+        updateConvertButton();
+        showStatus('Manifest file loaded successfully', 'success');
+    };
+    reader.onerror = () => {
+        showStatus('Error reading file', 'error');
+        manifestContent = null;
+        updateConvertButton();
+    };
+    reader.readAsText(file);
+});
+
+// Language selection
+languageButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        languageButtons.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedLanguage = btn.dataset.lang;
+        updateConvertButton();
+    });
+});
+
+// Update convert button state
+function updateConvertButton() {
+    convertBtn.disabled = !(wasmReady && manifestContent && selectedLanguage);
+}
+
+// Convert button handler
+convertBtn.addEventListener('click', async () => {
+    if (!manifestContent || !selectedLanguage) {
+        showStatus('Please select a file and target language', 'error');
+        return;
+    }
+
+    if (!window.convertManifest) {
+        showStatus('WebAssembly module not ready. Please wait and try again.', 'error');
+        return;
+    }
+
+    try {
+        showStatus('Converting...', 'info');
+        convertBtn.disabled = true;
+
+        console.log(manifestContent)
+        console.log(selectedLanguage)
+
+        // Call WebAssembly function
+        const result = window.convertManifest(manifestContent, selectedLanguage);
+
+        if (result && result.success) {
+            generatedFiles = result.files;
+            displayResults();
+            showStatus(`Successfully generated ${Object.keys(generatedFiles).length} file(s)`, 'success');
+        } else if (result && result.error) {
+            showStatus(`Error: ${result.error}`, 'error');
+            outputDiv.style.display = 'none';
+        } else {
+            showStatus('Conversion failed with unknown error', 'error');
+            outputDiv.style.display = 'none';
+        }
+    } catch (err) {
+        console.error('Conversion error:', err);
+        showStatus(`Unexpected error: ${err.message}`, 'error');
+        outputDiv.style.display = 'none';
+    } finally {
+        updateConvertButton();
+    }
+});
+
+// Display results
+function displayResults() {
+    fileList.innerHTML = '';
+
+    for (const [filename, content] of Object.entries(generatedFiles)) {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+
+        const header = document.createElement('div');
+        header.className = 'file-item-header';
+
+        const name = document.createElement('div');
+        name.className = 'file-item-name';
+        name.textContent = filename;
+
+        const actions = document.createElement('div');
+        actions.className = 'file-item-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'file-btn copy';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = () => copyToClipboard(content, copyBtn);
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'file-btn';
+        downloadBtn.textContent = 'Download';
+        downloadBtn.onclick = () => downloadFile(filename, content);
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(downloadBtn);
+
+        header.appendChild(name);
+        header.appendChild(actions);
+
+        const contentDiv = document.createElement('pre');
+        contentDiv.className = 'file-content';
+        contentDiv.textContent = content;
+
+        fileItem.appendChild(header);
+        fileItem.appendChild(contentDiv);
+        fileList.appendChild(fileItem);
+    }
+
+    outputDiv.style.display = 'block';
+}
+
+// Copy to clipboard
+async function copyToClipboard(text, button) {
+    try {
+        await navigator.clipboard.writeText(text);
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        setTimeout(() => {
+            button.textContent = originalText;
+        }, 2000);
+    } catch (err) {
+        showStatus('Failed to copy to clipboard', 'error');
+    }
+}
+
+// Download single file
+function downloadFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Download all files as ZIP
+downloadAllBtn.addEventListener('click', async () => {
+    try {
+        // Use JSZip if available, otherwise download files individually
+        if (typeof JSZip !== 'undefined') {
+            const zip = new JSZip();
+
+            for (const [filename, content] of Object.entries(generatedFiles)) {
+                zip.file(filename, content);
+            }
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'generated-bindings.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showStatus('ZIP file downloaded', 'success');
+        } else {
+            // Fallback: download files individually
+            for (const [filename, content] of Object.entries(generatedFiles)) {
+                downloadFile(filename, content);
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            showStatus('Files downloaded individually', 'success');
+        }
+    } catch (err) {
+        console.error('Download error:', err);
+        showStatus('Error creating download', 'error');
+    }
+});
+
+// Show status message
+function showStatus(message, type) {
+    statusDiv.textContent = message;
+    statusDiv.className = `status ${type}`;
+
+    if (type === 'success' || type === 'info') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Initialize
+loadWasm();

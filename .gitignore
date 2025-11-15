@@ -1,0 +1,32 @@
+# Binaries
+plugify-gen
+plugify-gen.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# WebAssembly build artifacts
+dist/
+web/plugify-gen.wasm
+web/wasm_exec.js
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test output
+test_output/

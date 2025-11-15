@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plugify Header Generator - Web</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Plugify Header Generator</h1>
+            <p class="subtitle">Convert .pplugin manifests to language bindings - Runs entirely in your browser!</p>
+        </header>
+
+        <main>
+            <div class="upload-section card">
+                <h2>Upload Manifest</h2>
+                <div class="file-input-wrapper">
+                    <input type="file" id="fileInput" accept=".pplugin,.json" />
+                    <label for="fileInput" class="file-label">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Choose .pplugin file
+                    </label>
+                    <span id="fileName" class="file-name">No file selected</span>
+                </div>
+            </div>
+
+            <div class="language-section card">
+                <h2>Target Language</h2>
+                <div class="language-grid" id="languageGrid">
+                    <button class="lang-btn" data-lang="cpp">
+                        <span class="lang-icon">C++</span>
+                        <span class="lang-ext">.hpp</span>
+                    </button>
+                    <button class="lang-btn" data-lang="v8">
+                        <span class="lang-icon">JavaScript</span>
+                        <span class="lang-ext">.d.ts</span>
+                    </button>
+                    <button class="lang-btn" data-lang="python">
+                        <span class="lang-icon">Python</span>
+                        <span class="lang-ext">.pyi</span>
+                    </button>
+                    <button class="lang-btn" data-lang="lua">
+                        <span class="lang-icon">Lua</span>
+                        <span class="lang-ext">.lua</span>
+                    </button>
+                    <button class="lang-btn" data-lang="dotnet">
+                        <span class="lang-icon">C#</span>
+                        <span class="lang-ext">.cs</span>
+                    </button>
+                    <button class="lang-btn" data-lang="golang">
+                        <span class="lang-icon">Go</span>
+                        <span class="lang-ext">.go</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <button id="convertBtn" class="convert-btn" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    Convert
+                </button>
+            </div>
+
+            <div id="status" class="status"></div>
+
+            <div id="output" class="output-section card" style="display: none;">
+                <div class="output-header">
+                    <h2>Generated Files</h2>
+                    <button id="downloadAllBtn" class="download-all-btn">Download All as ZIP</button>
+                </div>
+                <div id="fileList" class="file-list"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>WebAssembly version • <a href="https://github.com/untrustedmodders/plugify-generator" target="_blank">GitHub</a></p>
+            <p id="wasmStatus" class="wasm-status">Loading WebAssembly module...</p>
+        </footer>
+    </div>
+
+    <script src="wasm_exec.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
