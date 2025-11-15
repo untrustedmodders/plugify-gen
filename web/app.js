@@ -1,5 +1,5 @@
 // State
-let selectedLanguage = null;
+let selectedLanguage = 'cpp'; // Default to C++
 let manifestContent = null;
 let generatedFiles = {};
 let wasmReady = false;
@@ -117,7 +117,7 @@ function handleFile(file) {
     }
 
     // Check file extension
-    const validExtensions = ['.pplugin', '.json'];
+    const validExtensions = ['.pplugin', '.json', '.jsonc'];
     const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
 
     if (!validExtensions.includes(fileExt)) {
@@ -370,5 +370,33 @@ function showStatus(message, type) {
     }
 }
 
+// Initialize default language selection
+function initializeDefaultLanguage() {
+    const cppButton = document.querySelector('.lang-btn[data-lang="cpp"]');
+    if (cppButton) {
+        cppButton.classList.add('selected');
+    }
+}
+
+// Load auto-convert preference from localStorage
+function loadAutoConvertPreference() {
+    const savedPreference = localStorage.getItem('autoConvert');
+    if (savedPreference !== null) {
+        autoConvert.checked = savedPreference === 'true';
+    }
+}
+
+// Save auto-convert preference to localStorage
+function saveAutoConvertPreference() {
+    localStorage.setItem('autoConvert', autoConvert.checked);
+}
+
+// Auto-convert toggle change handler
+autoConvert.addEventListener('change', () => {
+    saveAutoConvertPreference();
+});
+
 // Initialize
+initializeDefaultLanguage();
+loadAutoConvertPreference();
 loadWasm();
