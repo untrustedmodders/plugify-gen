@@ -4,6 +4,17 @@ let manifestContent = null;
 let generatedFiles = {};
 let wasmReady = false;
 
+// Language mapping for syntax highlighting
+const languageMap = {
+    'c': 'c',
+    'cpp': 'cpp',
+    'v8': 'typescript',
+    'golang': 'go',
+    'dotnet': 'csharp',
+    'python': 'python',
+    'lua': 'lua',
+};
+
 // DOM elements
 const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
@@ -202,6 +213,9 @@ convertBtn.addEventListener('click', () => {
 function displayResults() {
     fileList.innerHTML = '';
 
+    // Get the highlight.js language name
+    const hlLanguage = languageMap[selectedLanguage] || 'plaintext';
+
     for (const [filename, content] of Object.entries(generatedFiles)) {
         const fileItem = document.createElement('div');
         fileItem.className = 'file-item';
@@ -232,12 +246,22 @@ function displayResults() {
         header.appendChild(name);
         header.appendChild(actions);
 
-        const contentDiv = document.createElement('pre');
-        contentDiv.className = 'file-content';
-        contentDiv.textContent = content;
+        // Create code block with syntax highlighting
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.className = `language-${hlLanguage} file-content`;
+        code.textContent = content;
+
+        // Apply syntax highlighting
+        if (typeof hljs !== 'undefined') {
+            hljs.highlightElement(code);
+        }
+
+        pre.appendChild(code);
+        pre.className = 'file-content-wrapper';
 
         fileItem.appendChild(header);
-        fileItem.appendChild(contentDiv);
+        fileItem.appendChild(pre);
         fileList.appendChild(fileItem);
     }
 
