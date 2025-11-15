@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // LuaGenerator generates Lua stub files

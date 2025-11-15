@@ -18,7 +18,7 @@ A unified, high-performance code generator that converts Plugify plugin manifest
 go build -o plugify-gen ./cmd/plugify-gen
 
 # Or install
-go install github.com/untrustedmodders/plugify-generator/cmd/plugify-gen@latest
+go install github.com/untrustedmodders/plugify-gen/cmd/plugify-gen@latest
 ```
 
 ## Usage
@@ -52,7 +52,7 @@ plugify-gen -manifest plugin.pplugin -output ./out -lang cpp -verbose
 ## Architecture
 
 ```
-plugify-generator/
+plugify-gen/
 ├── cmd/plugify-gen/       # CLI entry point
 ├── pkg/
 │   ├── manifest/          # .pplugin parser & types

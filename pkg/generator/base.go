@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // Generator is the interface that all language-specific generators must implement
@@ -24,11 +24,11 @@ type GeneratorResult struct {
 
 // BaseGenerator provides common functionality for all generators
 type BaseGenerator struct {
-	name            string
-	typeMapper      TypeMapper
-	invalidNames    map[string]bool
-	enumCache       map[string]bool
-	delegateCache   map[string]bool
+	name          string
+	typeMapper    TypeMapper
+	invalidNames  map[string]bool
+	enumCache     map[string]bool
+	delegateCache map[string]bool
 }
 
 // NewBaseGenerator creates a new base generator
@@ -102,7 +102,7 @@ type TypeMapper interface {
 type TypeContext int
 
 const (
-	TypeContextValue TypeContext = iota  // Value parameter
+	TypeContextValue  TypeContext = iota // Value parameter
 	TypeContextRef                       // Reference parameter
 	TypeContextReturn                    // Return type
 	TypeContextCast                      // Cast expression
@@ -112,9 +112,9 @@ const (
 type ParameterFormat int
 
 const (
-	ParamFormatTypes ParameterFormat = iota  // Just types: "int, string"
-	ParamFormatNames                         // Just names: "x, y"
-	ParamFormatTypesAndNames                 // Types and names: "int x, string y"
+	ParamFormatTypes         ParameterFormat = iota // Just types: "int, string"
+	ParamFormatNames                                // Just names: "x, y"
+	ParamFormatTypesAndNames                        // Types and names: "int x, string y"
 )
 
 // FormatParameters is a helper to format method parameters
@@ -155,14 +155,13 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 			}
 			result += typeName + " " + sanitize(paramName)
 			if param.Default != nil {
-                result += fmt.Sprintf(" = %d", *param.Default)
-            }
+				result += fmt.Sprintf(" = %d", *param.Default)
+			}
 		}
 	}
 
 	return result, nil
 }
-
 
 // RemoveFromBuilderRange removes the substring from index n1 up to (but not including) n2
 // from the builder’s current string. If indices are out of bounds, they are clamped safely.

@@ -3,7 +3,7 @@ package generator
 import (
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // DotnetTypeMapper implements type mapping for C#/.NET
@@ -38,59 +38,59 @@ func NewDotnetTypeMapper() *DotnetTypeMapper {
 
 func initTypesMap() map[string]string {
 	return map[string]string{
-		"void":    "void",
-		"bool":    "Bool8",
-		"char8":   "Char8",
-		"char16":  "Char16",
-		"int8":    "sbyte",
-		"int16":   "short",
-		"int32":   "int",
-		"int64":   "long",
-		"uint8":   "byte",
-		"uint16":  "ushort",
-		"uint32":  "uint",
-		"uint64":  "ulong",
-		"ptr64":   "nint",
-		"float":   "float",
-		"double":  "double",
-		"string":  "string",
-		"any":     "object",
-		"vec2":    "Vector2",
-		"vec3":    "Vector3",
-		"vec4":    "Vector4",
-		"mat4x4":  "Matrix4x4",
+		"void":   "void",
+		"bool":   "Bool8",
+		"char8":  "Char8",
+		"char16": "Char16",
+		"int8":   "sbyte",
+		"int16":  "short",
+		"int32":  "int",
+		"int64":  "long",
+		"uint8":  "byte",
+		"uint16": "ushort",
+		"uint32": "uint",
+		"uint64": "ulong",
+		"ptr64":  "nint",
+		"float":  "float",
+		"double": "double",
+		"string": "string",
+		"any":    "object",
+		"vec2":   "Vector2",
+		"vec3":   "Vector3",
+		"vec4":   "Vector4",
+		"mat4x4": "Matrix4x4",
 	}
 }
 
 func initCTypesMap() map[string]string {
 	return map[string]string{
-		"void":    "void",
-		"bool":    "Bool8",
-		"char8":   "Char8",
-		"char16":  "Char16",
-		"int8":    "sbyte",
-		"int16":   "short",
-		"int32":   "int",
-		"int64":   "long",
-		"uint8":   "byte",
-		"uint16":  "ushort",
-		"uint32":  "uint",
-		"uint64":  "ulong",
-		"ptr64":   "nint",
-		"float":   "float",
-		"double":  "double",
-		"string":  "String192*",
-		"any":     "Variant256*",
-		"vec2":    "Vector2*",
-		"vec3":    "Vector3*",
-		"vec4":    "Vector4*",
-		"mat4x4":  "Matrix4x4*",
+		"void":   "void",
+		"bool":   "Bool8",
+		"char8":  "Char8",
+		"char16": "Char16",
+		"int8":   "sbyte",
+		"int16":  "short",
+		"int32":  "int",
+		"int64":  "long",
+		"uint8":  "byte",
+		"uint16": "ushort",
+		"uint32": "uint",
+		"uint64": "ulong",
+		"ptr64":  "nint",
+		"float":  "float",
+		"double": "double",
+		"string": "String192*",
+		"any":    "Variant256*",
+		"vec2":   "Vector2*",
+		"vec3":   "Vector3*",
+		"vec4":   "Vector4*",
+		"mat4x4": "Matrix4x4*",
 	}
 }
 
 func initConstructorMap() map[string]string {
 	return map[string]string{
-		"function":   "Marshalling.GetFunctionPointerForDelegate",
+		"function": "Marshalling.GetFunctionPointerForDelegate",
 		"string":   "NativeMethods.ConstructString",
 		"any":      "NativeMethods.ConstructVariant",
 		"bool[]":   "NativeMethods.ConstructVectorBool",
@@ -324,9 +324,9 @@ func (m *DotnetTypeMapper) MapDelegateParamType(param *manifest.ParamType) (stri
 	// Add ref for:
 	// 1. POD types (always, even when ref=false)
 	// 2. Any type with ref=true in manifest
-    if m.isPODType(param.Type) || param.Ref {
-        return "ref " + typeName, nil
-    }
+	if m.isPODType(param.Type) || param.Ref {
+		return "ref " + typeName, nil
+	}
 
 	return typeName, nil
 }

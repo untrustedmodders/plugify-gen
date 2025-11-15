@@ -1,4 +1,4 @@
-module github.com/untrustedmodders/plugify-generator
+module github.com/untrustedmodders/plugify-gen
 
 go 1.22
 

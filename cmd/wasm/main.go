@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"syscall/js"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/generator"
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/generator"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 var version = "dev" // Version is set via -ldflags during build

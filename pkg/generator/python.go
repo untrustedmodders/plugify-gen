@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // PythonGenerator generates Python stub (.pyi) files
@@ -310,27 +310,27 @@ func NewPythonTypeMapper() *PythonTypeMapper {
 
 func (m *PythonTypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
 	typeMap := map[string]string{
-		"void":    "None",
-		"bool":    "bool",
-		"char8":   "str",
-		"char16":  "str",
-		"int8":    "int",
-		"int16":   "int",
-		"int32":   "int",
-		"int64":   "int",
-		"uint8":   "int",
-		"uint16":  "int",
-		"uint32":  "int",
-		"uint64":  "int",
-		"ptr64":   "int",
-		"float":   "float",
-		"double":  "float",
-		"string":  "str",
-		"any":     "object",
-		"vec2":    "Vector2",
-		"vec3":    "Vector3",
-		"vec4":    "Vector4",
-		"mat4x4":  "Matrix4x4",
+		"void":   "None",
+		"bool":   "bool",
+		"char8":  "str",
+		"char16": "str",
+		"int8":   "int",
+		"int16":  "int",
+		"int32":  "int",
+		"int64":  "int",
+		"uint8":  "int",
+		"uint16": "int",
+		"uint32": "int",
+		"uint64": "int",
+		"ptr64":  "int",
+		"float":  "float",
+		"double": "float",
+		"string": "str",
+		"any":    "object",
+		"vec2":   "Vector2",
+		"vec3":   "Vector3",
+		"vec4":   "Vector4",
+		"mat4x4": "Matrix4x4",
 	}
 
 	mapped, ok := typeMap[baseType]

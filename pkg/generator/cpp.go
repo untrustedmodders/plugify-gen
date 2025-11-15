@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // CppGenerator generates C++ header files
@@ -687,27 +687,27 @@ func NewCppTypeMapper() *CppTypeMapper {
 func (m *CppTypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
 	// Base type mapping
 	typeMap := map[string]string{
-		"void":    "void",
-		"bool":    "bool",
-		"char8":   "char",
-		"char16":  "char16_t",
-		"int8":    "int8_t",
-		"int16":   "int16_t",
-		"int32":   "int32_t",
-		"int64":   "int64_t",
-		"uint8":   "uint8_t",
-		"uint16":  "uint16_t",
-		"uint32":  "uint32_t",
-		"uint64":  "uint64_t",
-		"ptr64":   "void*",
-		"float":   "float",
-		"double":  "double",
-		"string":  "plg::string",
-		"any":     "plg::any",
-		"vec2":    "plg::vec2",
-		"vec3":    "plg::vec3",
-		"vec4":    "plg::vec4",
-		"mat4x4":  "plg::mat4x4",
+		"void":   "void",
+		"bool":   "bool",
+		"char8":  "char",
+		"char16": "char16_t",
+		"int8":   "int8_t",
+		"int16":  "int16_t",
+		"int32":  "int32_t",
+		"int64":  "int64_t",
+		"uint8":  "uint8_t",
+		"uint16": "uint16_t",
+		"uint32": "uint32_t",
+		"uint64": "uint64_t",
+		"ptr64":  "void*",
+		"float":  "float",
+		"double": "double",
+		"string": "plg::string",
+		"any":    "plg::any",
+		"vec2":   "plg::vec2",
+		"vec3":   "plg::vec3",
+		"vec4":   "plg::vec4",
+		"mat4x4": "plg::mat4x4",
 	}
 
 	mapped, ok := typeMap[baseType]
@@ -740,12 +740,12 @@ func (m *CppTypeMapper) MapType(baseType string, context TypeContext, isArray bo
 // isObjectLikeType returns true for types that should be passed by const& in parameters
 func (m *CppTypeMapper) isObjectLikeType(baseType string) bool {
 	objectLikeTypes := map[string]bool{
-		"string":  true,
-		"any":     true,
-		"vec2":    true,
-		"vec3":    true,
-		"vec4":    true,
-		"mat4x4":  true,
+		"string": true,
+		"any":    true,
+		"vec2":   true,
+		"vec3":   true,
+		"vec4":   true,
+		"mat4x4": true,
 	}
 	return objectLikeTypes[baseType]
 }

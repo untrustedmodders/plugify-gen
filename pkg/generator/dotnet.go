@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // DotnetGenerator generates C# (.NET) bindings
@@ -386,7 +386,7 @@ func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (s
 		result += typeName + " " + g.SanitizeName(paramName)
 
 		if param.Default != nil {
-		    result += fmt.Sprintf(" = %d", *param.Default)
+			result += fmt.Sprintf(" = %d", *param.Default)
 		}
 	}
 
@@ -466,8 +466,8 @@ func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, e
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	} else if hasTry {
 		// Remove try block if no cleanup needed
-		RemoveFromBuilder(&sb, insertIndexStart, insertIndexEnd);
-        RemoveLeadingTabs(&sb, 1, insertIndexStart, sb.Len())
+		RemoveFromBuilder(&sb, insertIndexStart, insertIndexEnd)
+		RemoveLeadingTabs(&sb, 1, insertIndexStart, sb.Len())
 	}
 
 	// Close fixed blocks
@@ -477,12 +477,12 @@ func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, e
 
 	// Return statement
 	if hasReturn {
-	    if isFunctionReturn {
-		    retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
-            sb.WriteString(fmt.Sprintf("%sreturn Marshalling.GetDelegateForFunctionPointer<%s>(__retVal);\n", indent, retTypeName))
-	    } else {
-		    sb.WriteString(fmt.Sprintf("%sreturn __retVal;\n", indent))
-	    }
+		if isFunctionReturn {
+			retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+			sb.WriteString(fmt.Sprintf("%sreturn Marshalling.GetDelegateForFunctionPointer<%s>(__retVal);\n", indent, retTypeName))
+		} else {
+			sb.WriteString(fmt.Sprintf("%sreturn __retVal;\n", indent))
+		}
 	}
 
 	return sb.String(), nil
@@ -573,11 +573,11 @@ func (g *DotnetGenerator) generateCallParameters(method *manifest.Method) string
 			params = append(params, fmt.Sprintf("__%s", paramName))
 		} else if g.typeMapper.isPODType(param.Type) {
 			params = append(params, fmt.Sprintf("&%s", paramName))
-		}  else if g.typeMapper.isFunction(param.Type) {
-          	params = append(params, fmt.Sprintf("Marshalling.GetFunctionPointerForDelegate(%s)", paramName))
-        } else if param.Ref {
+		} else if g.typeMapper.isFunction(param.Type) {
+			params = append(params, fmt.Sprintf("Marshalling.GetFunctionPointerForDelegate(%s)", paramName))
+		} else if param.Ref {
 			params = append(params, fmt.Sprintf("__%s", paramName))
-		}else {
+		} else {
 			params = append(params, paramName)
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // V8Generator generates TypeScript definition files for V8/JavaScript
@@ -42,183 +42,183 @@ func (g *V8Generator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 
 	// Import plugify base types
 	// Add static methods and namespaces for plugify types
-    sb.WriteString("declare module \"plugify\" {\n")
+	sb.WriteString("declare module \"plugify\" {\n")
 
-    // Plugin
-    sb.WriteString("  /** Represents a plugin with metadata information. */\n")
-    sb.WriteString("  type Plugin = {\n")
-    sb.WriteString("    /** Unique identifier for the plugin */\n")
-    sb.WriteString("    id: bigint;\n")
-    sb.WriteString("    /** Name of the plugin */\n")
-    sb.WriteString("    name: string;\n")
-    sb.WriteString("    /** Description of the plugin */\n")
-    sb.WriteString("    description: string;\n")
-    sb.WriteString("    /** Version of the plugin */\n")
-    sb.WriteString("    version: string;\n")
-    sb.WriteString("    /** Author of the plugin */\n")
-    sb.WriteString("    author: string;\n")
-    sb.WriteString("    /** Website of the plugin */\n")
-    sb.WriteString("    website: string;\n")
-    sb.WriteString("    /** Software license of the plugin */\n")
-    sb.WriteString("    license: string;\n")
-    sb.WriteString("    /** Installation location of the plugin */\n")
-    sb.WriteString("    location: string;\n")
-    sb.WriteString("    /** List of plugin dependencies */\n")
-    sb.WriteString("    dependencies: string[];\n")
-    sb.WriteString("    /** Base directory where plugin files reside */\n")
-    sb.WriteString("    base_dir: string;\n")
-    sb.WriteString("    /** Directory for plugin extensions */\n")
-    sb.WriteString("    extensions_dir: string;\n")
-    sb.WriteString("    /** Directory for configuration files */\n")
-    sb.WriteString("    configs_dir: string;\n")
-    sb.WriteString("    /** Directory for plugin data files */\n")
-    sb.WriteString("    data_dir: string;\n")
-    sb.WriteString("    /** Directory for log files */\n")
-    sb.WriteString("    logs_dir: string;\n")
-    sb.WriteString("    /** Directory for cached files */\n")
-    sb.WriteString("    cache_dir: string;\n")
-    sb.WriteString("  };\n\n")
+	// Plugin
+	sb.WriteString("  /** Represents a plugin with metadata information. */\n")
+	sb.WriteString("  type Plugin = {\n")
+	sb.WriteString("    /** Unique identifier for the plugin */\n")
+	sb.WriteString("    id: bigint;\n")
+	sb.WriteString("    /** Name of the plugin */\n")
+	sb.WriteString("    name: string;\n")
+	sb.WriteString("    /** Description of the plugin */\n")
+	sb.WriteString("    description: string;\n")
+	sb.WriteString("    /** Version of the plugin */\n")
+	sb.WriteString("    version: string;\n")
+	sb.WriteString("    /** Author of the plugin */\n")
+	sb.WriteString("    author: string;\n")
+	sb.WriteString("    /** Website of the plugin */\n")
+	sb.WriteString("    website: string;\n")
+	sb.WriteString("    /** Software license of the plugin */\n")
+	sb.WriteString("    license: string;\n")
+	sb.WriteString("    /** Installation location of the plugin */\n")
+	sb.WriteString("    location: string;\n")
+	sb.WriteString("    /** List of plugin dependencies */\n")
+	sb.WriteString("    dependencies: string[];\n")
+	sb.WriteString("    /** Base directory where plugin files reside */\n")
+	sb.WriteString("    base_dir: string;\n")
+	sb.WriteString("    /** Directory for plugin extensions */\n")
+	sb.WriteString("    extensions_dir: string;\n")
+	sb.WriteString("    /** Directory for configuration files */\n")
+	sb.WriteString("    configs_dir: string;\n")
+	sb.WriteString("    /** Directory for plugin data files */\n")
+	sb.WriteString("    data_dir: string;\n")
+	sb.WriteString("    /** Directory for log files */\n")
+	sb.WriteString("    logs_dir: string;\n")
+	sb.WriteString("    /** Directory for cached files */\n")
+	sb.WriteString("    cache_dir: string;\n")
+	sb.WriteString("  };\n\n")
 
-    // Vector2
-    sb.WriteString("  /** Represents a 2D vector with mathematical operations. */\n")
-    sb.WriteString("  export type Vector2 = {\n")
-    sb.WriteString("    /** X-coordinate of the vector */\n")
-    sb.WriteString("    x: number;\n")
-    sb.WriteString("    /** Y-coordinate of the vector */\n")
-    sb.WriteString("    y: number;\n")
-    sb.WriteString("    /** Adds another Vector2 to this vector */\n")
-    sb.WriteString("    add(vector: Vector2): Vector2;\n")
-    sb.WriteString("    /** Subtracts another Vector2 from this vector */\n")
-    sb.WriteString("    subtract(vector: Vector2): Vector2;\n")
-    sb.WriteString("    /** Scales this vector by a scalar */\n")
-    sb.WriteString("    scale(scalar: number): Vector2;\n")
-    sb.WriteString("    /** Returns the magnitude (length) of the vector */\n")
-    sb.WriteString("    magnitude(): number;\n")
-    sb.WriteString("    /** Returns a normalized (unit length) version of this vector */\n")
-    sb.WriteString("    normalize(): Vector2;\n")
-    sb.WriteString("    /** Returns the dot product with another Vector2 */\n")
-    sb.WriteString("    dot(vector: Vector2): number;\n")
-    sb.WriteString("    /** Computes the distance between this vector and another Vector2 */\n")
-    sb.WriteString("    distanceTo(vector: Vector2): number;\n")
-    sb.WriteString("    /** Converts vector to string */\n")
-    sb.WriteString("    toString(): string;\n")
-    sb.WriteString("  };\n\n")
+	// Vector2
+	sb.WriteString("  /** Represents a 2D vector with mathematical operations. */\n")
+	sb.WriteString("  export type Vector2 = {\n")
+	sb.WriteString("    /** X-coordinate of the vector */\n")
+	sb.WriteString("    x: number;\n")
+	sb.WriteString("    /** Y-coordinate of the vector */\n")
+	sb.WriteString("    y: number;\n")
+	sb.WriteString("    /** Adds another Vector2 to this vector */\n")
+	sb.WriteString("    add(vector: Vector2): Vector2;\n")
+	sb.WriteString("    /** Subtracts another Vector2 from this vector */\n")
+	sb.WriteString("    subtract(vector: Vector2): Vector2;\n")
+	sb.WriteString("    /** Scales this vector by a scalar */\n")
+	sb.WriteString("    scale(scalar: number): Vector2;\n")
+	sb.WriteString("    /** Returns the magnitude (length) of the vector */\n")
+	sb.WriteString("    magnitude(): number;\n")
+	sb.WriteString("    /** Returns a normalized (unit length) version of this vector */\n")
+	sb.WriteString("    normalize(): Vector2;\n")
+	sb.WriteString("    /** Returns the dot product with another Vector2 */\n")
+	sb.WriteString("    dot(vector: Vector2): number;\n")
+	sb.WriteString("    /** Computes the distance between this vector and another Vector2 */\n")
+	sb.WriteString("    distanceTo(vector: Vector2): number;\n")
+	sb.WriteString("    /** Converts vector to string */\n")
+	sb.WriteString("    toString(): string;\n")
+	sb.WriteString("  };\n\n")
 
-    sb.WriteString("  export namespace Vector2 {\n")
-    sb.WriteString("    /** Returns a zero vector (0, 0). */\n")
-    sb.WriteString("    function zero(): Vector2;\n")
-    sb.WriteString("    /** Returns a unit vector (1, 1). */\n")
-    sb.WriteString("    function unit(): Vector2;\n")
-    sb.WriteString("  }\n\n")
+	sb.WriteString("  export namespace Vector2 {\n")
+	sb.WriteString("    /** Returns a zero vector (0, 0). */\n")
+	sb.WriteString("    function zero(): Vector2;\n")
+	sb.WriteString("    /** Returns a unit vector (1, 1). */\n")
+	sb.WriteString("    function unit(): Vector2;\n")
+	sb.WriteString("  }\n\n")
 
-    // Vector3
-    sb.WriteString("  /** Represents a 3D vector with mathematical operations. */\n")
-    sb.WriteString("  export type Vector3 = {\n")
-    sb.WriteString("    /** X-coordinate of the vector */\n")
-    sb.WriteString("    x: number;\n")
-    sb.WriteString("    /** Y-coordinate of the vector */\n")
-    sb.WriteString("    y: number;\n")
-    sb.WriteString("    /** Z-coordinate of the vector */\n")
-    sb.WriteString("    z: number;\n")
-    sb.WriteString("    /** Adds another Vector3 to this vector */\n")
-    sb.WriteString("    add(vector: Vector3): Vector3;\n")
-    sb.WriteString("    /** Subtracts another Vector3 from this vector */\n")
-    sb.WriteString("    subtract(vector: Vector3): Vector3;\n")
-    sb.WriteString("    /** Scales this vector by a scalar */\n")
-    sb.WriteString("    scale(scalar: number): Vector3;\n")
-    sb.WriteString("    /** Returns the magnitude (length) of the vector */\n")
-    sb.WriteString("    magnitude(): number;\n")
-    sb.WriteString("    /** Returns a normalized (unit length) version of this vector */\n")
-    sb.WriteString("    normalize(): Vector3;\n")
-    sb.WriteString("    /** Returns the dot product with another Vector3 */\n")
-    sb.WriteString("    dot(vector: Vector3): number;\n")
-    sb.WriteString("    /** Computes the cross product with another Vector3 */\n")
-    sb.WriteString("    cross(vector: Vector3): Vector3;\n")
-    sb.WriteString("    /** Computes the distance between this vector and another Vector3 */\n")
-    sb.WriteString("    distanceTo(vector: Vector3): number;\n")
-    sb.WriteString("    /** Converts vector to string */\n")
-    sb.WriteString("    toString(): string;\n")
-    sb.WriteString("  };\n\n")
+	// Vector3
+	sb.WriteString("  /** Represents a 3D vector with mathematical operations. */\n")
+	sb.WriteString("  export type Vector3 = {\n")
+	sb.WriteString("    /** X-coordinate of the vector */\n")
+	sb.WriteString("    x: number;\n")
+	sb.WriteString("    /** Y-coordinate of the vector */\n")
+	sb.WriteString("    y: number;\n")
+	sb.WriteString("    /** Z-coordinate of the vector */\n")
+	sb.WriteString("    z: number;\n")
+	sb.WriteString("    /** Adds another Vector3 to this vector */\n")
+	sb.WriteString("    add(vector: Vector3): Vector3;\n")
+	sb.WriteString("    /** Subtracts another Vector3 from this vector */\n")
+	sb.WriteString("    subtract(vector: Vector3): Vector3;\n")
+	sb.WriteString("    /** Scales this vector by a scalar */\n")
+	sb.WriteString("    scale(scalar: number): Vector3;\n")
+	sb.WriteString("    /** Returns the magnitude (length) of the vector */\n")
+	sb.WriteString("    magnitude(): number;\n")
+	sb.WriteString("    /** Returns a normalized (unit length) version of this vector */\n")
+	sb.WriteString("    normalize(): Vector3;\n")
+	sb.WriteString("    /** Returns the dot product with another Vector3 */\n")
+	sb.WriteString("    dot(vector: Vector3): number;\n")
+	sb.WriteString("    /** Computes the cross product with another Vector3 */\n")
+	sb.WriteString("    cross(vector: Vector3): Vector3;\n")
+	sb.WriteString("    /** Computes the distance between this vector and another Vector3 */\n")
+	sb.WriteString("    distanceTo(vector: Vector3): number;\n")
+	sb.WriteString("    /** Converts vector to string */\n")
+	sb.WriteString("    toString(): string;\n")
+	sb.WriteString("  };\n\n")
 
-    sb.WriteString("  export namespace Vector3 {\n")
-    sb.WriteString("    /** Returns a zero vector (0, 0, 0). */\n")
-    sb.WriteString("    function zero(): Vector3;\n")
-    sb.WriteString("    /** Returns a unit vector (1, 1, 1). */\n")
-    sb.WriteString("    function unit(): Vector3;\n")
-    sb.WriteString("  }\n\n")
+	sb.WriteString("  export namespace Vector3 {\n")
+	sb.WriteString("    /** Returns a zero vector (0, 0, 0). */\n")
+	sb.WriteString("    function zero(): Vector3;\n")
+	sb.WriteString("    /** Returns a unit vector (1, 1, 1). */\n")
+	sb.WriteString("    function unit(): Vector3;\n")
+	sb.WriteString("  }\n\n")
 
-    // Vector4
-    sb.WriteString("  /** Represents a 4D vector with mathematical operations. */\n")
-    sb.WriteString("  export type Vector4 = {\n")
-    sb.WriteString("    /** X-coordinate of the vector */\n")
-    sb.WriteString("    x: number;\n")
-    sb.WriteString("    /** Y-coordinate of the vector */\n")
-    sb.WriteString("    y: number;\n")
-    sb.WriteString("    /** Z-coordinate of the vector */\n")
-    sb.WriteString("    z: number;\n")
-    sb.WriteString("    /** W-coordinate of the vector */\n")
-    sb.WriteString("    w: number;\n")
-    sb.WriteString("    /** Adds another Vector4 to this vector */\n")
-    sb.WriteString("    add(vector: Vector4): Vector4;\n")
-    sb.WriteString("    /** Subtracts another Vector4 from this vector */\n")
-    sb.WriteString("    subtract(vector: Vector4): Vector4;\n")
-    sb.WriteString("    /** Scales this vector by a scalar */\n")
-    sb.WriteString("    scale(scalar: number): Vector4;\n")
-    sb.WriteString("    /** Returns the magnitude (length) of the vector */\n")
-    sb.WriteString("    magnitude(): number;\n")
-    sb.WriteString("    /** Returns a normalized (unit length) version of this vector */\n")
-    sb.WriteString("    normalize(): Vector4;\n")
-    sb.WriteString("    /** Returns the dot product with another Vector4 */\n")
-    sb.WriteString("    dot(vector: Vector4): number;\n")
-    sb.WriteString("    /** Computes the distance between this vector and another Vector4 */\n")
-    sb.WriteString("    distanceTo(vector: Vector4): number;\n")
-    sb.WriteString("    /** Converts vector to string */\n")
-    sb.WriteString("    toString(): string;\n")
-    sb.WriteString("  };\n\n")
+	// Vector4
+	sb.WriteString("  /** Represents a 4D vector with mathematical operations. */\n")
+	sb.WriteString("  export type Vector4 = {\n")
+	sb.WriteString("    /** X-coordinate of the vector */\n")
+	sb.WriteString("    x: number;\n")
+	sb.WriteString("    /** Y-coordinate of the vector */\n")
+	sb.WriteString("    y: number;\n")
+	sb.WriteString("    /** Z-coordinate of the vector */\n")
+	sb.WriteString("    z: number;\n")
+	sb.WriteString("    /** W-coordinate of the vector */\n")
+	sb.WriteString("    w: number;\n")
+	sb.WriteString("    /** Adds another Vector4 to this vector */\n")
+	sb.WriteString("    add(vector: Vector4): Vector4;\n")
+	sb.WriteString("    /** Subtracts another Vector4 from this vector */\n")
+	sb.WriteString("    subtract(vector: Vector4): Vector4;\n")
+	sb.WriteString("    /** Scales this vector by a scalar */\n")
+	sb.WriteString("    scale(scalar: number): Vector4;\n")
+	sb.WriteString("    /** Returns the magnitude (length) of the vector */\n")
+	sb.WriteString("    magnitude(): number;\n")
+	sb.WriteString("    /** Returns a normalized (unit length) version of this vector */\n")
+	sb.WriteString("    normalize(): Vector4;\n")
+	sb.WriteString("    /** Returns the dot product with another Vector4 */\n")
+	sb.WriteString("    dot(vector: Vector4): number;\n")
+	sb.WriteString("    /** Computes the distance between this vector and another Vector4 */\n")
+	sb.WriteString("    distanceTo(vector: Vector4): number;\n")
+	sb.WriteString("    /** Converts vector to string */\n")
+	sb.WriteString("    toString(): string;\n")
+	sb.WriteString("  };\n\n")
 
-    sb.WriteString("  export namespace Vector4 {\n")
-    sb.WriteString("    /** Returns a zero vector (0, 0, 0, 0). */\n")
-    sb.WriteString("    function zero(): Vector4;\n")
-    sb.WriteString("    /** Returns a unit vector (1, 1, 1, 1). */\n")
-    sb.WriteString("    function unit(): Vector4;\n")
-    sb.WriteString("  }\n\n")
+	sb.WriteString("  export namespace Vector4 {\n")
+	sb.WriteString("    /** Returns a zero vector (0, 0, 0, 0). */\n")
+	sb.WriteString("    function zero(): Vector4;\n")
+	sb.WriteString("    /** Returns a unit vector (1, 1, 1, 1). */\n")
+	sb.WriteString("    function unit(): Vector4;\n")
+	sb.WriteString("  }\n\n")
 
-    // Matrix4x4
-    sb.WriteString("  /** Represents a 4x4 matrix with transformation operations. */\n")
-    sb.WriteString("  export type Matrix4x4 = {\n")
-    sb.WriteString("    /** Matrix elements stored as a 2D array */\n")
-    sb.WriteString("    m: number[][];\n")
-    sb.WriteString("    /** Adds another matrix to this matrix */\n")
-    sb.WriteString("    add(matrix: Matrix4x4): Matrix4x4;\n")
-    sb.WriteString("    /** Subtracts another matrix from this matrix */\n")
-    sb.WriteString("    subtract(matrix: Matrix4x4): Matrix4x4;\n")
-    sb.WriteString("    /** Multiplies this matrix with another matrix */\n")
-    sb.WriteString("    multiply(matrix: Matrix4x4): Matrix4x4;\n")
-    sb.WriteString("    /** Multiplies this matrix with a Vector4 */\n")
-    sb.WriteString("    multiplyVector(vector: Vector4): Vector4;\n")
-    sb.WriteString("    /** Returns the transpose of this matrix */\n")
-    sb.WriteString("    transpose(): Matrix4x4;\n")
-    sb.WriteString("    /** Returns a string representation of the matrix */\n")
-    sb.WriteString("    toString(): string;\n")
-    sb.WriteString("  };\n\n")
+	// Matrix4x4
+	sb.WriteString("  /** Represents a 4x4 matrix with transformation operations. */\n")
+	sb.WriteString("  export type Matrix4x4 = {\n")
+	sb.WriteString("    /** Matrix elements stored as a 2D array */\n")
+	sb.WriteString("    m: number[][];\n")
+	sb.WriteString("    /** Adds another matrix to this matrix */\n")
+	sb.WriteString("    add(matrix: Matrix4x4): Matrix4x4;\n")
+	sb.WriteString("    /** Subtracts another matrix from this matrix */\n")
+	sb.WriteString("    subtract(matrix: Matrix4x4): Matrix4x4;\n")
+	sb.WriteString("    /** Multiplies this matrix with another matrix */\n")
+	sb.WriteString("    multiply(matrix: Matrix4x4): Matrix4x4;\n")
+	sb.WriteString("    /** Multiplies this matrix with a Vector4 */\n")
+	sb.WriteString("    multiplyVector(vector: Vector4): Vector4;\n")
+	sb.WriteString("    /** Returns the transpose of this matrix */\n")
+	sb.WriteString("    transpose(): Matrix4x4;\n")
+	sb.WriteString("    /** Returns a string representation of the matrix */\n")
+	sb.WriteString("    toString(): string;\n")
+	sb.WriteString("  };\n\n")
 
-    sb.WriteString("  export namespace Matrix4x4 {\n")
-    sb.WriteString("    /** Returns an identity matrix. */\n")
-    sb.WriteString("    function identity(): Matrix4x4;\n")
-    sb.WriteString("    /** Returns a zero matrix (all values set to 0). */\n")
-    sb.WriteString("    function zero(): Matrix4x4;\n")
-    sb.WriteString("    /** Creates a scaling matrix with scale factors for each axis. */\n")
-    sb.WriteString("    function scaling(sx: number, sy: number, sz: number): Matrix4x4;\n")
-    sb.WriteString("    /** Creates a translation matrix using given translation values. */\n")
-    sb.WriteString("    function translation(tx: number, ty: number, tz: number): Matrix4x4;\n")
-    sb.WriteString("    /** Creates a rotation matrix around the X-axis. */\n")
-    sb.WriteString("    function rotationX(angle: number): Matrix4x4;\n")
-    sb.WriteString("    /** Creates a rotation matrix around the Y-axis. */\n")
-    sb.WriteString("    function rotationY(angle: number): Matrix4x4;\n")
-    sb.WriteString("    /** Creates a rotation matrix around the Z-axis. */\n")
-    sb.WriteString("    function rotationZ(angle: number): Matrix4x4;\n")
-    sb.WriteString("  }\n")
-    sb.WriteString("}\n\n")
+	sb.WriteString("  export namespace Matrix4x4 {\n")
+	sb.WriteString("    /** Returns an identity matrix. */\n")
+	sb.WriteString("    function identity(): Matrix4x4;\n")
+	sb.WriteString("    /** Returns a zero matrix (all values set to 0). */\n")
+	sb.WriteString("    function zero(): Matrix4x4;\n")
+	sb.WriteString("    /** Creates a scaling matrix with scale factors for each axis. */\n")
+	sb.WriteString("    function scaling(sx: number, sy: number, sz: number): Matrix4x4;\n")
+	sb.WriteString("    /** Creates a translation matrix using given translation values. */\n")
+	sb.WriteString("    function translation(tx: number, ty: number, tz: number): Matrix4x4;\n")
+	sb.WriteString("    /** Creates a rotation matrix around the X-axis. */\n")
+	sb.WriteString("    function rotationX(angle: number): Matrix4x4;\n")
+	sb.WriteString("    /** Creates a rotation matrix around the Y-axis. */\n")
+	sb.WriteString("    function rotationY(angle: number): Matrix4x4;\n")
+	sb.WriteString("    /** Creates a rotation matrix around the Z-axis. */\n")
+	sb.WriteString("    function rotationZ(angle: number): Matrix4x4;\n")
+	sb.WriteString("  }\n")
+	sb.WriteString("}\n\n")
 
 	// Module declaration
 	sb.WriteString(fmt.Sprintf("declare module \":%s\" {\n", m.Name))
@@ -328,10 +328,10 @@ func (g *V8Generator) generateDelegate(proto *manifest.Prototype) (string, error
 	}
 
 	// Generate return type (with tuple for ref parameters)
-    retType, err := g.generateReturnType(&proto.RetType, proto.ParamTypes)
-    if err != nil {
-        return "", err
-    }
+	retType, err := g.generateReturnType(&proto.RetType, proto.ParamTypes)
+	if err != nil {
+		return "", err
+	}
 
 	// Generate parameters (TypeScript style: name: type)
 	params, err := g.formatTSParameters(proto.ParamTypes)
@@ -427,10 +427,10 @@ func (g *V8Generator) generateMethod(method *manifest.Method) (string, error) {
 	sb.WriteString("   */\n")
 
 	// Generate return type (with tuple for ref parameters)
-    retType, err := g.generateReturnType(&method.RetType, method.ParamTypes)
-    if err != nil {
-        return "", err
-    }
+	retType, err := g.generateReturnType(&method.RetType, method.ParamTypes)
+	if err != nil {
+		return "", err
+	}
 
 	params, err := g.formatTSParameters(method.ParamTypes)
 	if err != nil {
@@ -451,27 +451,27 @@ func NewV8TypeMapper() *V8TypeMapper {
 
 func (m *V8TypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
 	typeMap := map[string]string{
-		"void":    "void",
-		"bool":    "boolean",
-		"char8":   "number",
-		"char16":  "number",
-		"int8":    "number",
-		"int16":   "number",
-		"int32":   "number",
-		"int64":   "number",
-		"uint8":   "number",
-		"uint16":  "number",
-		"uint32":  "number",
-		"uint64":  "bigint",
-		"ptr64":   "bigint",
-		"float":   "number",
-		"double":  "number",
-		"string":  "string",
-		"any":     "any",
-		"vec2":    "Vector2",
-		"vec3":    "Vector3",
-		"vec4":    "Vector4",
-		"mat4x4":  "Matrix4x4",
+		"void":   "void",
+		"bool":   "boolean",
+		"char8":  "number",
+		"char16": "number",
+		"int8":   "number",
+		"int16":  "number",
+		"int32":  "number",
+		"int64":  "number",
+		"uint8":  "number",
+		"uint16": "number",
+		"uint32": "number",
+		"uint64": "bigint",
+		"ptr64":  "bigint",
+		"float":  "number",
+		"double": "number",
+		"string": "string",
+		"any":    "any",
+		"vec2":   "Vector2",
+		"vec3":   "Vector3",
+		"vec4":   "Vector4",
+		"mat4x4": "Matrix4x4",
 	}
 
 	mapped, ok := typeMap[baseType]

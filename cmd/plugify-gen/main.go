@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/generator"
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/generator"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 var version = "dev" // Version is set via -ldflags during build
@@ -28,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("plugify-generator v%s\n", version)
+		fmt.Printf("plugify-gen v%s\n", version)
 		os.Exit(0)
 	}
 
