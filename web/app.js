@@ -209,12 +209,40 @@ convertBtn.addEventListener('click', () => {
     performConversion();
 });
 
+// Get appropriate syntax highlighting language based on file extension
+function getHighlightLanguage(filename, defaultLang) {
+    const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+
+    // Map file extensions to highlight.js languages
+    const extMap = {
+        '.h': 'c',
+        '.c': 'c',
+        '.hpp': 'cpp',
+        '.cpp': 'cpp',
+        '.go': 'go',
+        '.cs': 'csharp',
+        '.py': 'python',
+        '.pyi': 'python',
+        '.lua': 'lua',
+        '.js': 'javascript',
+        '.ts': 'typescript',
+        '.d.ts': 'typescript'
+    };
+
+    // Check for .d.ts first (before .ts)
+    if (filename.endsWith('.d.ts')) {
+        return 'typescript';
+    }
+
+    return extMap[ext] || defaultLang || 'plaintext';
+}
+
 // Display results
 function displayResults() {
     fileList.innerHTML = '';
 
-    // Get the highlight.js language name
-    const hlLanguage = languageMap[selectedLanguage] || 'plaintext';
+    // Get the default highlight.js language name for this generator
+    const defaultLang = languageMap[selectedLanguage] || 'plaintext';
 
     for (const [filename, content] of Object.entries(generatedFiles)) {
         const fileItem = document.createElement('div');
@@ -245,6 +273,9 @@ function displayResults() {
 
         header.appendChild(name);
         header.appendChild(actions);
+
+        // Determine the appropriate language for this file
+        const hlLanguage = getHighlightLanguage(filename, defaultLang);
 
         // Create code block with syntax highlighting
         const pre = document.createElement('pre');
