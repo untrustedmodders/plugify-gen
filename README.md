@@ -156,4 +156,4 @@ See [WASM.md](./WASM.md) for complete integration guide with Nuxt, React, and va
 
 ## License
 
-Same license as Plugify project (GPLv3)
+Same license as Plugify project (MIT)
