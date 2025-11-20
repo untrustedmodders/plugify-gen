@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.1.0](https://github.com/untrustedmodders/plugify-gen/compare/v1.0.2...v1.1.0) (2025-11-20)
+
+
+### Features
+
+* **claude:** add webassembly version ([fb63b32](https://github.com/untrustedmodders/plugify-gen/commit/fb63b32c8f3d70f6bf94fd53dace3906e98c0802))
+
+
+### Bug Fixes
+
+* add dotnet class generation ([c743f61](https://github.com/untrustedmodders/plugify-gen/commit/c743f6139132116cafb239544244fabd04624962))
+* add jszip ([c25b46b](https://github.com/untrustedmodders/plugify-gen/commit/c25b46b6be42f0814fe908272839d0e61882c64c))
+* **claude:** add caching for tickbox ([be3f5d3](https://github.com/untrustedmodders/plugify-gen/commit/be3f5d38c0781d7d1e988e84deb7d8dbcc57c4c0))
+* **claude:** add code highlight ([bfcc503](https://github.com/untrustedmodders/plugify-gen/commit/bfcc50336c3bf8ab73e4c9ff1d8060378b713038))
+* **claude:** add dropzone area ([54277a1](https://github.com/untrustedmodders/plugify-gen/commit/54277a137e4c200c504de31b809e0923e1b595af))
+* **claude:** add dropzone checkbox ([7e1b701](https://github.com/untrustedmodders/plugify-gen/commit/7e1b701f681405d3ba3bae80863bbd1b7d42f214))
+* **claude:** add github pages publishing action ([f77da27](https://github.com/untrustedmodders/plugify-gen/commit/f77da273ca77de7b3c95d44b6dfd4cb9c2d43346))
+* **claude:** add lua class generation ([0f547c1](https://github.com/untrustedmodders/plugify-gen/commit/0f547c1dc14a9a2acecb88b0ebc0fab37994b768))
+* **claude:** add OG image ([823eeef](https://github.com/untrustedmodders/plugify-gen/commit/823eeefa7e6ed9565b0cf282456fdea2bc298853))
+* **claude:** add proper versioning ([e2122b7](https://github.com/untrustedmodders/plugify-gen/commit/e2122b7e3f270b3bd03ca8a8ae0fc5a1122acb8f))
+* **claude:** add python class generation ([14b8ebe](https://github.com/untrustedmodders/plugify-gen/commit/14b8ebe153458f1651346872e5b36974fdc315f8))
+* **claude:** add v8 class generation ([00d7e25](https://github.com/untrustedmodders/plugify-gen/commit/00d7e25f186cb60190aabd9c199acbadb4f3a914))
+* **claude:** add wasm build ([ae7b17a](https://github.com/untrustedmodders/plugify-gen/commit/ae7b17afe6ce9443b6e07bff6c64ffedae9a8a60))
+* **claude:** download simple filename ([785b490](https://github.com/untrustedmodders/plugify-gen/commit/785b490328c2ef1b8b92c6b8a9d09ae02c3ce53a))
+* **claude:** improve code highlight ([63fe167](https://github.com/untrustedmodders/plugify-gen/commit/63fe1675a64be7c357bc25a21054bd45e9fb27f9))
+* rename projects to current one ([5a8fbe6](https://github.com/untrustedmodders/plugify-gen/commit/5a8fbe69fdec5d2b811b060d782631e0233ec915))
+
 ## [1.0.2](https://github.com/untrustedmodders/plugify-gen/compare/v1.0.1...v1.0.2) (2025-11-13)
 
 
