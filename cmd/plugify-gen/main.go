@@ -4,14 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
+	"path/filepath"
 
-	"github.com/untrustedmodders/plugify-gen/pkg/generator"
-	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
+	"github.com/untrustedmodders/plugify-generator/pkg/generator"
+	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
 )
 
-var version = "dev" // Version is set via -ldflags during build
+// version is set via ldflags during build
+var version = "dev"
 
 func main() {
 	start := time.Now()
@@ -28,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("plugify-gen v%s\n", version)
+		fmt.Printf("plugify-generator v%s\n", version)
 		os.Exit(0)
 	}
 
@@ -105,9 +106,9 @@ func main() {
 		}
 	}
 
-	elapsed := time.Since(start)
+    elapsed := time.Since(start)
 	fmt.Printf("✓ Successfully generated %s bindings in %s\n", *language, *outputDir)
 	if *verbose {
-		fmt.Printf("Execution time: %s\n", elapsed)
+	    fmt.Printf("Execution time: %s\n", elapsed)
 	}
 }

@@ -73,6 +73,11 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		sb.WriteString("\n")
 	}
 
+	// Ownership enum (if any class has destructor)
+	if g.needsOwnershipEnum(m) {
+		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
+	}
+
 	// Class containing methods
 	sb.WriteString(fmt.Sprintf("\tinternal static unsafe class %s {\n\n", m.Name))
 
@@ -86,7 +91,17 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\t}\n")
+	sb.WriteString("\t}\n\n")
+
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return nil, err
+		}
+		sb.WriteString(classesCode)
+	}
+
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")
 
@@ -653,4 +668,456 @@ func (g *DotnetGenerator) generateCleanup(method *manifest.Method, indent string
 	}
 
 	return sb.String()
+}
+
+func (g *DotnetGenerator) needsOwnershipEnum(m *manifest.Manifest) bool {
+	for _, class := range m.Classes {
+		if class.Destructor != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *DotnetGenerator) generateClasses(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for i, class := range m.Classes {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		classCode, err := g.generateClass(m, &class)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+		}
+		sb.WriteString(classCode)
+	}
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+	var sb strings.Builder
+
+	// Map handle type
+	handleType, err := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
+	if err != nil {
+		return "", err
+	}
+
+	invalidValue := class.InvalidValue
+	if invalidValue == "" || invalidValue == "0" {
+		if class.HandleType == "ptr64" {
+			invalidValue = "nint.Zero"
+		} else {
+			invalidValue = "0"
+		}
+	}
+
+	hasDtor := class.Destructor != ""
+
+	// Class documentation
+	sb.WriteString("\t/// <summary>\n")
+	if class.Description != "" {
+		sb.WriteString(fmt.Sprintf("\t/// %s\n", class.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("\t/// %s wrapper\n", class.Name))
+	}
+	sb.WriteString("\t/// </summary>\n")
+
+	// Class declaration
+	if hasDtor {
+		sb.WriteString(fmt.Sprintf("\tpublic sealed class %s : SafeHandle\n\t{\n", class.Name))
+	} else {
+		sb.WriteString(fmt.Sprintf("\tpublic sealed class %s\n\t{\n", class.Name))
+		sb.WriteString(fmt.Sprintf("\t\tprivate %s handle;\n\n", handleType))
+	}
+
+	// Generate constructors
+	for _, ctorName := range class.Constructors {
+		ctorCode, err := g.generateClassConstructor(m, class, ctorName, handleType, hasDtor)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(ctorCode)
+	}
+
+	// Internal constructor for handle wrapping
+	if hasDtor {
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership) : base(handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType))
+		sb.WriteString("\t\t{\n\t\t}\n\n")
+
+		// ReleaseHandle override
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Releases the handle (called automatically by SafeHandle)\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString("\t\tprotected override bool ReleaseHandle()\n")
+		sb.WriteString("\t\t{\n")
+		sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(handle);\n", m.Name, class.Destructor))
+		sb.WriteString("\t\t\treturn true;\n")
+		sb.WriteString("\t\t}\n\n")
+
+		// IsInvalid override
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\t/// Checks if the %s has a valid handle\n", class.Name))
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic override bool IsInvalid => handle == %s;\n\n", invalidValue))
+	} else {
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership)\n", class.Name, handleType))
+		sb.WriteString("\t\t{\n")
+		sb.WriteString("\t\t\tthis.handle = handle;\n")
+		sb.WriteString("\t\t}\n\n")
+	}
+
+	// Utility properties and methods
+	if hasDtor {
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Gets the underlying handle\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s Handle => (%s)handle;\n\n", handleType, handleType))
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Checks if the handle is valid\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic bool IsValid => handle != %s;\n\n", invalidValue))
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Gets the underlying handle\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s Get() => (%s)handle;\n\n", handleType, handleType))
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Releases ownership of the handle and returns it\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s Release()\n", handleType))
+		sb.WriteString("\t\t{\n")
+		sb.WriteString("\t\t\tvar h = handle;\n")
+		sb.WriteString("\t\t\tSetHandleAsInvalid();\n")
+		sb.WriteString("\t\t\treturn h;\n")
+		sb.WriteString("\t\t}\n\n")
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Disposes the handle\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString("\t\tpublic void Reset()\n")
+		sb.WriteString("\t\t{\n")
+		sb.WriteString("\t\t\tDispose();\n")
+		sb.WriteString("\t\t}\n\n")
+	} else {
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Gets the underlying handle\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s Handle => handle;\n\n", handleType))
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Checks if the handle is valid\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic bool IsValid => handle != %s;\n\n", invalidValue))
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Gets the underlying handle\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s Get() => handle;\n\n", handleType))
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Releases ownership of the handle and returns it\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s Release()\n", handleType))
+		sb.WriteString("\t\t{\n")
+		sb.WriteString("\t\t\tvar h = handle;\n")
+		sb.WriteString(fmt.Sprintf("\t\t\thandle = %s;\n", invalidValue))
+		sb.WriteString("\t\t\treturn h;\n")
+		sb.WriteString("\t\t}\n\n")
+
+		sb.WriteString("\t\t/// <summary>\n")
+		sb.WriteString("\t\t/// Resets the handle to invalid\n")
+		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString("\t\tpublic void Reset()\n")
+		sb.WriteString("\t\t{\n")
+		sb.WriteString(fmt.Sprintf("\t\t\thandle = %s;\n", invalidValue))
+		sb.WriteString("\t\t}\n\n")
+	}
+
+	// Generate class bindings
+	for _, binding := range class.Bindings {
+		bindingCode, err := g.generateClassBinding(m, class, &binding, handleType, invalidValue, hasDtor)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(bindingCode)
+	}
+
+	sb.WriteString("\t}\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *manifest.Class, methodName string, handleType string, hasDtor bool) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("constructor method %s not found", methodName)
+	}
+
+	var sb strings.Builder
+
+	// Generate documentation
+	sb.WriteString("\t\t/// <summary>\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("\t\t/// Creates a new %s instance\n", class.Name))
+	}
+	sb.WriteString("\t\t/// </summary>\n")
+
+	// Document parameters
+	for _, param := range method.ParamTypes {
+		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
+			g.SanitizeName(param.Name), param.Description))
+	}
+
+	// Generate constructor signature
+	params, err := g.formatMethodParameters(method.ParamTypes)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("\t\tpublic %s(%s)", class.Name, params))
+
+	// Generate initialization
+	paramNames := []string{}
+	for _, param := range method.ParamTypes {
+		paramNames = append(paramNames, g.SanitizeName(param.Name))
+	}
+
+	if hasDtor {
+		sb.WriteString(fmt.Sprintf(" : this(%s.%s(%s), Ownership.Owned)\n",
+			m.Name, g.SanitizeName(method.Name), strings.Join(paramNames, ", ")))
+		sb.WriteString("\t\t{\n\t\t}\n\n")
+	} else {
+		sb.WriteString("\n\t\t{\n")
+		sb.WriteString(fmt.Sprintf("\t\t\tthis.handle = %s.%s(%s);\n",
+			m.Name, g.SanitizeName(method.Name), strings.Join(paramNames, ", ")))
+		sb.WriteString("\t\t}\n\n")
+	}
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, handleType string, invalidValue string, hasDtor bool) (string, error) {
+	// Find the underlying method
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("method %s not found", binding.Method)
+	}
+
+	var sb strings.Builder
+
+	// Determine parameters (skip first if bindSelf)
+	params := method.ParamTypes
+	startIdx := 0
+	if binding.BindSelf && len(params) > 0 {
+		startIdx = 1
+	}
+	methodParams := params[startIdx:]
+
+	// Generate documentation
+	sb.WriteString("\t\t/// <summary>\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", binding.Name))
+	}
+	sb.WriteString("\t\t/// </summary>\n")
+
+	// Document parameters (excluding self if bindSelf)
+	for i, param := range methodParams {
+		// Check if this parameter has an alias
+		aliasName := ""
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			aliasName = binding.ParamAliases[i].Name
+		}
+
+		desc := param.Description
+		if desc == "" && aliasName != "" {
+			desc = aliasName + " parameter"
+		}
+
+		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
+			g.SanitizeName(param.Name), desc))
+	}
+
+	// Document return type
+	if method.RetType.Type != "void" {
+		returnDesc := method.RetType.Description
+		if returnDesc == "" {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				returnDesc = binding.RetAlias.Name + " instance"
+			} else {
+				returnDesc = "Return value"
+			}
+		}
+		sb.WriteString(fmt.Sprintf("\t\t/// <returns>%s</returns>\n", returnDesc))
+	}
+
+	// Generate method signature
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+
+	// Handle return type alias
+	if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+		retType = binding.RetAlias.Name
+	}
+
+	// Format parameters with aliases
+	formattedParams := ""
+	for i, param := range methodParams {
+		if i > 0 {
+			formattedParams += ", "
+		}
+
+		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		if err != nil {
+			return "", err
+		}
+
+		// Apply parameter alias if exists
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			paramType = binding.ParamAliases[i].Name
+		}
+
+		formattedParams += paramType + " " + g.SanitizeName(param.Name)
+
+		// Add default value if present
+		if param.Default != nil {
+			formattedParams += fmt.Sprintf(" = %d", *param.Default)
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("\t\tpublic %s %s(%s)\n", retType, binding.Name, formattedParams))
+	sb.WriteString("\t\t{\n")
+
+	// Add validity check for instance methods
+	if binding.BindSelf {
+		if hasDtor {
+			sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(IsInvalid, this);\n")
+		} else {
+			sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(!IsValid, this);\n")
+		}
+	}
+
+	// Generate method body for SafeHandle classes (need ref counting)
+	if hasDtor && binding.BindSelf {
+		sb.WriteString("\t\t\tbool success = false;\n")
+		sb.WriteString("\t\t\tDangerousAddRef(ref success);\n")
+		sb.WriteString("\t\t\ttry\n")
+		sb.WriteString("\t\t\t{\n")
+
+		// Build call arguments
+		callArgs := g.buildCallArguments(binding, methodParams, "handle")
+
+		// Generate call
+		if method.RetType.Type == "void" {
+			sb.WriteString(fmt.Sprintf("\t\t\t\t%s.%s(%s);\n",
+				m.Name, g.SanitizeName(method.Name), callArgs))
+		} else {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				ownership := "Ownership.Borrowed"
+				if binding.RetAlias.Owner {
+					ownership = "Ownership.Owned"
+				}
+				sb.WriteString(fmt.Sprintf("\t\t\t\treturn new %s(%s.%s(%s), %s);\n",
+					binding.RetAlias.Name, m.Name, g.SanitizeName(method.Name), callArgs, ownership))
+			} else {
+				sb.WriteString(fmt.Sprintf("\t\t\t\treturn %s.%s(%s);\n",
+					m.Name, g.SanitizeName(method.Name), callArgs))
+			}
+		}
+
+		sb.WriteString("\t\t\t}\n")
+		sb.WriteString("\t\t\tfinally\n")
+		sb.WriteString("\t\t\t{\n")
+		sb.WriteString("\t\t\t\tif (success) DangerousRelease();\n")
+		sb.WriteString("\t\t\t}\n")
+	} else {
+		// Build call arguments for non-SafeHandle or static methods
+		handleParam := "handle"
+		if !hasDtor {
+			handleParam = "handle"
+		}
+		callArgs := g.buildCallArguments(binding, methodParams, handleParam)
+
+		// Generate call
+		if method.RetType.Type == "void" {
+			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(%s);\n",
+				m.Name, g.SanitizeName(method.Name), callArgs))
+		} else {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				ownership := "Ownership.Borrowed"
+				if binding.RetAlias.Owner {
+					ownership = "Ownership.Owned"
+				}
+				sb.WriteString(fmt.Sprintf("\t\t\treturn new %s(%s.%s(%s), %s);\n",
+					binding.RetAlias.Name, m.Name, g.SanitizeName(method.Name), callArgs, ownership))
+			} else {
+				sb.WriteString(fmt.Sprintf("\t\t\treturn %s.%s(%s);\n",
+					m.Name, g.SanitizeName(method.Name), callArgs))
+			}
+		}
+	}
+
+	sb.WriteString("\t\t}\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodParams []manifest.ParamType, handleParam string) string {
+	callArgs := ""
+
+	// Add self handle if bindSelf
+	if binding.BindSelf {
+		callArgs = handleParam
+	}
+
+	// Add other parameters
+	for i, param := range methodParams {
+		if callArgs != "" {
+			callArgs += ", "
+		}
+
+		paramName := g.SanitizeName(param.Name)
+
+		// Check if parameter has alias and needs .Release() or .Get()
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			if binding.ParamAliases[i].Owner {
+				callArgs += paramName + ".Release()"
+			} else {
+				callArgs += paramName + ".Get()"
+			}
+		} else {
+			callArgs += paramName
+		}
+	}
+
+	return callArgs
 }

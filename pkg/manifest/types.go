@@ -80,8 +80,8 @@ type Prototype struct {
 type Class struct {
 	Name             string        `json:"name"`
 	Description      string        `json:"description,omitempty"`
-	HandleType       string        `json:"handleType"`
-	InvalidValue     string        `json:"invalidValue"`
+	HandleType       string        `json:"handleType,omitempty"`
+	InvalidValue     string        `json:"invalidValue,omitempty"`
 	NullPolicy       string        `json:"nullPolicy,omitempty"`
 	Constructors     []string      `json:"constructors,omitempty"`
 	Destructor       string        `json:"destructor,omitempty"`
