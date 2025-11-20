@@ -7,8 +7,8 @@ import (
 	"time"
 	"path/filepath"
 
-	"github.com/untrustedmodders/plugify-generator/pkg/generator"
-	"github.com/untrustedmodders/plugify-generator/pkg/manifest"
+	"github.com/untrustedmodders/plugify-gen/pkg/generator"
+	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
 // version is set via ldflags during build

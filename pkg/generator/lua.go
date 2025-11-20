@@ -54,6 +54,16 @@ func (g *LuaGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) 
 		sb.WriteString("\n")
 	}
 
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return nil, err
+		}
+		sb.WriteString(classesCode)
+		sb.WriteString("\n")
+	}
+
 	result := &GeneratorResult{
 		Files: map[string]string{
 			fmt.Sprintf("pps/%s.lua", m.Name): sb.String(),
@@ -141,6 +151,182 @@ func (g *LuaGenerator) generateEnum(enum *manifest.EnumType) string {
 	sb.WriteString("}\n")
 
 	return sb.String()
+}
+
+func (g *LuaGenerator) generateClasses(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for i, class := range m.Classes {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		classCode, err := g.generateClass(m, &class)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+		}
+		sb.WriteString(classCode)
+	}
+
+	return sb.String(), nil
+}
+
+func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+	var sb strings.Builder
+
+	// Class comment
+	if class.Description != "" {
+		sb.WriteString(fmt.Sprintf("--- %s\n", class.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("--- Class: %s\n", class.Name))
+	}
+
+	// Class table declaration
+	sb.WriteString(fmt.Sprintf("%s = {}\n\n", class.Name))
+
+	// Generate constructors
+	if len(class.Constructors) > 0 {
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
+			sb.WriteString("\n")
+		}
+	} else {
+		// Default constructor if no constructors specified
+		sb.WriteString(fmt.Sprintf("--- Constructor for %s\n", class.Name))
+		sb.WriteString(fmt.Sprintf("function %s.new() end\n\n", class.Name))
+	}
+
+	// Generate bindings (methods)
+	for _, binding := range class.Bindings {
+		methodCode, err := g.generateBinding(m, class, &binding)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(methodCode)
+		sb.WriteString("\n")
+	}
+
+	return sb.String(), nil
+}
+
+func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("constructor method %s not found", methodName)
+	}
+
+	var sb strings.Builder
+
+	// Constructor documentation
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("--- %s\n", method.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("--- Constructor for %s\n", class.Name))
+	}
+
+	// Parameters
+	for _, param := range method.ParamTypes {
+		paramName := param.Name
+		if paramName == "" {
+			paramName = "unnamed"
+		}
+		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
+			g.SanitizeName(paramName), param.Type, param.Description))
+	}
+
+	// Return type (the class instance)
+	sb.WriteString(fmt.Sprintf("-- @return %s\n", class.Name))
+
+	// Constructor signature (using .new convention)
+	params := g.formatParameters(method.ParamTypes)
+	sb.WriteString(fmt.Sprintf("function %s.new(%s) end\n", class.Name, params))
+
+	return sb.String(), nil
+}
+
+func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("method %s not found", binding.Method)
+	}
+
+	var sb strings.Builder
+
+	// Determine parameters (skip first if bindSelf)
+	params := method.ParamTypes
+	startIdx := 0
+	if binding.BindSelf && len(params) > 0 {
+		startIdx = 1
+	}
+	methodParams := params[startIdx:]
+
+	// Method documentation
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("--- %s\n", method.Description))
+	} else {
+		sb.WriteString(fmt.Sprintf("--- %s\n", binding.Name))
+	}
+
+	// Parameters (excluding self if bindSelf)
+	for _, param := range methodParams {
+		paramName := param.Name
+		if paramName == "" {
+			paramName = "unnamed"
+		}
+		// Check if this parameter has an alias
+		paramType := param.Type
+		for i, alias := range binding.ParamAliases {
+			if i < len(methodParams) && methodParams[i].Name == param.Name && alias.Name != "" {
+				paramType = alias.Name
+				break
+			}
+		}
+		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
+			g.SanitizeName(paramName), paramType, param.Description))
+	}
+
+	// Return type
+	if method.RetType.Type != "void" {
+		retType := method.RetType.Type
+		// Handle return alias
+		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+			retType = binding.RetAlias.Name
+		}
+		sb.WriteString(fmt.Sprintf("-- @return %s %s\n", retType, method.RetType.Description))
+	}
+
+	// Determine if method is static or instance
+	isStatic := !binding.BindSelf
+
+	// Method signature
+	formattedParams := g.formatParameters(methodParams)
+
+	if isStatic {
+		// Static method: ClassName.method()
+		sb.WriteString(fmt.Sprintf("function %s.%s(%s) end\n", class.Name, binding.Name, formattedParams))
+	} else {
+		// Instance method: ClassName:method() (colon notation includes implicit self)
+		sb.WriteString(fmt.Sprintf("function %s:%s(%s) end\n", class.Name, binding.Name, formattedParams))
+	}
+
+	return sb.String(), nil
 }
 
 func (g *LuaGenerator) generateMethod(method *manifest.Method) (string, error) {
