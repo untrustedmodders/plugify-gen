@@ -66,6 +66,16 @@ func (g *PythonGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		sb.WriteString("\n")
 	}
 
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return nil, err
+		}
+		sb.WriteString(classesCode)
+		sb.WriteString("\n")
+	}
+
 	result := &GeneratorResult{
 		Files: map[string]string{
 			fmt.Sprintf("pps/%s.pyi", m.Name): sb.String(),
@@ -162,6 +172,254 @@ func (g *PythonGenerator) generateEnum(enum *manifest.EnumType) string {
 	}
 
 	return sb.String()
+}
+
+func (g *PythonGenerator) generateClasses(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for i, class := range m.Classes {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		classCode, err := g.generateClass(m, &class)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+		}
+		sb.WriteString(classCode)
+	}
+
+	return sb.String(), nil
+}
+
+func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+	var sb strings.Builder
+
+	// Class declaration with docstring
+	sb.WriteString(fmt.Sprintf("class %s:\n", class.Name))
+	if class.Description != "" {
+		sb.WriteString(fmt.Sprintf("    \"\"\"\n    %s\n    \"\"\"\n", class.Description))
+	}
+
+	// Generate constructors
+	if len(class.Constructors) > 0 {
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
+			sb.WriteString("\n")
+		}
+	} else {
+		// Default constructor if no constructors specified
+		sb.WriteString("    def __init__(self) -> None:\n")
+		sb.WriteString("        ...\n\n")
+	}
+
+	// Generate bindings (methods)
+	for _, binding := range class.Bindings {
+		methodCode, err := g.generateBinding(m, class, &binding)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(methodCode)
+		sb.WriteString("\n")
+	}
+
+	return sb.String(), nil
+}
+
+func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("constructor method %s not found", methodName)
+	}
+
+	var sb strings.Builder
+
+	// Generate __init__ signature
+	params, err := g.formatParameters(method.ParamTypes)
+	if err != nil {
+		return "", err
+	}
+
+	if params != "" {
+		sb.WriteString(fmt.Sprintf("    def __init__(self, %s) -> None:\n", params))
+	} else {
+		sb.WriteString("    def __init__(self) -> None:\n")
+	}
+
+	// Generate docstring
+	if method.Description != "" {
+		sb.WriteString("        \"\"\"\n")
+		sb.WriteString(fmt.Sprintf("        %s\n", method.Description))
+		if len(method.ParamTypes) > 0 {
+			sb.WriteString("\n        Args:\n")
+			for _, param := range method.ParamTypes {
+				paramName := param.Name
+				if paramName == "" {
+					paramName = "unnamed"
+				}
+				sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
+					g.SanitizeName(paramName), param.Type, param.Description))
+			}
+		}
+		sb.WriteString("        \"\"\"\n")
+	}
+
+	// Stub body
+	sb.WriteString("        ...\n")
+
+	return sb.String(), nil
+}
+
+func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("method %s not found", binding.Method)
+	}
+
+	var sb strings.Builder
+
+	// Determine parameters (skip first if bindSelf)
+	params := method.ParamTypes
+	startIdx := 0
+	if binding.BindSelf && len(params) > 0 {
+		startIdx = 1
+	}
+	methodParams := params[startIdx:]
+
+	// Format parameters
+	formattedParams, err := g.formatParameters(methodParams)
+	if err != nil {
+		return "", err
+	}
+
+	// Apply parameter aliases (replace types with class names)
+	if len(binding.ParamAliases) > 0 {
+		formattedParams = g.applyParamAliases(formattedParams, methodParams, binding.ParamAliases)
+	}
+
+	// Generate return type
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+
+	// Handle return alias
+	if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+		retType = binding.RetAlias.Name
+	}
+
+	// Determine if method is static
+	isStatic := !binding.BindSelf
+	decorator := ""
+	if isStatic {
+		decorator = "    @staticmethod\n"
+	}
+
+	// Generate method signature
+	if decorator != "" {
+		sb.WriteString(decorator)
+	}
+
+	if isStatic {
+		if formattedParams != "" {
+			sb.WriteString(fmt.Sprintf("    def %s(%s) -> %s:\n", binding.Name, formattedParams, retType))
+		} else {
+			sb.WriteString(fmt.Sprintf("    def %s() -> %s:\n", binding.Name, retType))
+		}
+	} else {
+		if formattedParams != "" {
+			sb.WriteString(fmt.Sprintf("    def %s(self, %s) -> %s:\n", binding.Name, formattedParams, retType))
+		} else {
+			sb.WriteString(fmt.Sprintf("    def %s(self) -> %s:\n", binding.Name, retType))
+		}
+	}
+
+	// Generate docstring
+	if method.Description != "" {
+		sb.WriteString("        \"\"\"\n")
+		sb.WriteString(fmt.Sprintf("        %s\n", method.Description))
+
+		if len(methodParams) > 0 {
+			sb.WriteString("\n        Args:\n")
+			for i, param := range methodParams {
+				paramName := param.Name
+				if paramName == "" {
+					paramName = "unnamed"
+				}
+
+				// Check if this parameter has an alias
+				paramType := param.Type
+				if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+					paramType = binding.ParamAliases[i].Name
+				}
+
+				sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
+					g.SanitizeName(paramName), paramType, param.Description))
+			}
+		}
+
+		if method.RetType.Type != "void" {
+			returnType := method.RetType.Type
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				returnType = binding.RetAlias.Name
+			}
+			sb.WriteString(fmt.Sprintf("\n        Returns:\n            %s: %s\n",
+				returnType, method.RetType.Description))
+		}
+
+		sb.WriteString("        \"\"\"\n")
+	}
+
+	// Stub body
+	sb.WriteString("        ...\n")
+
+	return sb.String(), nil
+}
+
+func (g *PythonGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []manifest.ParamAlias) string {
+	result := formattedParams
+	for i, alias := range aliases {
+		if i < len(params) && alias.Name != "" {
+			paramName := params[i].Name
+			if paramName == "" {
+				paramName = fmt.Sprintf("p%d", i)
+			}
+			paramName = g.SanitizeName(paramName)
+
+			// Find and replace the type for this parameter
+			// Look for "paramName: OldType" and replace with "paramName: NewType"
+			oldPattern := paramName + ": "
+			idx := strings.Index(result, oldPattern)
+			if idx != -1 {
+				// Find the end of the type (either comma or end of string)
+				start := idx + len(oldPattern)
+				end := start
+				for end < len(result) && result[end] != ',' {
+					end++
+				}
+				// Replace the type
+				result = result[:start] + alias.Name + result[end:]
+			}
+		}
+	}
+	return result
 }
 
 func (g *PythonGenerator) generateMethod(method *manifest.Method) (string, error) {
