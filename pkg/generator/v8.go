@@ -240,6 +240,15 @@ func (g *V8Generator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 		sb.WriteString(methodCode)
 	}
 
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return nil, err
+		}
+		sb.WriteString(classesCode)
+	}
+
 	// Close module
 	sb.WriteString("}\n")
 
@@ -341,6 +350,222 @@ func (g *V8Generator) generateDelegate(proto *manifest.Prototype) (string, error
 
 	sb.WriteString(fmt.Sprintf("  export type %s = (%s) => %s;\n\n", proto.Name, params, retType))
 	return sb.String(), nil
+}
+
+func (g *V8Generator) generateClasses(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for i, class := range m.Classes {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		classCode, err := g.generateClass(m, &class)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+		}
+		sb.WriteString(classCode)
+	}
+
+	return sb.String(), nil
+}
+
+func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+	var sb strings.Builder
+
+	// Class JSDoc comment
+	if class.Description != "" {
+		sb.WriteString(fmt.Sprintf("  /** %s */\n", class.Description))
+	}
+
+	// Class declaration
+	sb.WriteString(fmt.Sprintf("  export class %s {\n", class.Name))
+
+	// Generate constructors
+	if len(class.Constructors) > 0 {
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
+		}
+	} else {
+		// Default constructor if no constructors specified
+		sb.WriteString("    constructor();\n\n")
+	}
+
+	// Generate bindings (methods)
+	for _, binding := range class.Bindings {
+		methodCode, err := g.generateBinding(m, class, &binding)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(methodCode)
+	}
+
+	sb.WriteString("  }\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *V8Generator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("constructor method %s not found", methodName)
+	}
+
+	var sb strings.Builder
+
+	// JSDoc comment
+	sb.WriteString("    /**\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("     * %s\n", method.Description))
+	}
+	for _, param := range method.ParamTypes {
+		sb.WriteString(fmt.Sprintf("     * @param %s", g.SanitizeName(param.Name)))
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf(" - %s", param.Description))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("     */\n")
+
+	// Constructor signature
+	params, err := g.formatTSParameters(method.ParamTypes)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("    constructor(%s);\n\n", params))
+
+	return sb.String(), nil
+}
+
+func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
+	// Find the method in the manifest
+	var method *manifest.Method
+	for i := range m.Methods {
+		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
+			method = &m.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		return "", fmt.Errorf("method %s not found", binding.Method)
+	}
+
+	var sb strings.Builder
+
+	// Determine parameters (skip first if bindSelf)
+	params := method.ParamTypes
+	startIdx := 0
+	if binding.BindSelf && len(params) > 0 {
+		startIdx = 1
+	}
+	methodParams := params[startIdx:]
+
+	// Format parameters
+	formattedParams, err := g.formatTSParameters(methodParams)
+	if err != nil {
+		return "", err
+	}
+
+	// Apply parameter aliases (replace types with class names)
+	if len(binding.ParamAliases) > 0 {
+		formattedParams = g.applyParamAliases(formattedParams, methodParams, binding.ParamAliases)
+	}
+
+	// Generate return type
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	if err != nil {
+		return "", err
+	}
+
+	// Handle return alias
+	if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+		retType = binding.RetAlias.Name
+	}
+
+	// Determine if method is static
+	isStatic := !binding.BindSelf
+
+	// JSDoc comment
+	sb.WriteString("    /**\n")
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("     * %s\n", method.Description))
+	}
+
+	if len(methodParams) > 0 {
+		for i, param := range methodParams {
+			sb.WriteString(fmt.Sprintf("     * @param %s", g.SanitizeName(param.Name)))
+
+			// Check if this parameter has an alias
+			if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+				if param.Description != "" {
+					sb.WriteString(fmt.Sprintf(" - %s", param.Description))
+				}
+			} else {
+				if param.Description != "" {
+					sb.WriteString(fmt.Sprintf(" - %s", param.Description))
+				}
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	if method.RetType.Type != "void" {
+		if method.RetType.Description != "" {
+			sb.WriteString(fmt.Sprintf("     * @returns %s\n", method.RetType.Description))
+		}
+	}
+
+	sb.WriteString("     */\n")
+
+	// Method signature
+	staticKeyword := ""
+	if isStatic {
+		staticKeyword = "static "
+	}
+
+	sb.WriteString(fmt.Sprintf("    %s%s(%s): %s;\n\n", staticKeyword, binding.Name, formattedParams, retType))
+
+	return sb.String(), nil
+}
+
+func (g *V8Generator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []manifest.ParamAlias) string {
+	result := formattedParams
+	for i, alias := range aliases {
+		if i < len(params) && alias.Name != "" {
+			paramName := params[i].Name
+			if paramName == "" {
+				paramName = fmt.Sprintf("p%d", i)
+			}
+			paramName = g.SanitizeName(paramName)
+
+			// Find and replace the type for this parameter
+			// Look for "paramName: OldType" and replace with "paramName: NewType"
+			oldPattern := paramName + ": "
+			idx := strings.Index(result, oldPattern)
+			if idx != -1 {
+				// Find the end of the type (either comma or end of string)
+				start := idx + len(oldPattern)
+				end := start
+				for end < len(result) && result[end] != ',' {
+					end++
+				}
+				// Replace the type
+				result = result[:start] + alias.Name + result[end:]
+			}
+		}
+	}
+	return result
 }
 
 func (g *V8Generator) generateReturnType(retType *manifest.TypeInfo, params []manifest.ParamType) (string, error) {
