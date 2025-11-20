@@ -607,6 +607,11 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 	if g.typeMapper.isObjectReturn(method.RetType.Type) {
 		converter := g.typeMapper.getDataConverter(method.RetType.Type)
 		if converter != "" {
+		    // Use NativeMethodsT for enum parameters
+            if method.RetType.Enum != nil {
+                converter = strings.Replace(converter, "NativeMethods.", "NativeMethodsT.", 1)
+            }
+
 			if strings.Contains(converter, "VectorData") {
 				sizeFunc := g.typeMapper.getSizeFunction(method.RetType.Type)
 				retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
@@ -632,6 +637,11 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 		}
 
 		paramName := g.SanitizeName(param.Name)
+
+        // Use NativeMethodsT for enum parameters
+        if param.Enum != nil {
+            converter = strings.Replace(converter, "NativeMethods.", "NativeMethodsT.", 1)
+        }
 
 		if strings.Contains(converter, "VectorData") {
 			sizeFunc := g.typeMapper.getSizeFunction(param.Type)
@@ -727,9 +737,9 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Class declaration
 	if hasDtor {
-		sb.WriteString(fmt.Sprintf("\tpublic sealed class %s : SafeHandle\n\t{\n", class.Name))
+		sb.WriteString(fmt.Sprintf("\tinternal sealed unsafe class %s : SafeHandle\n\t{\n", class.Name))
 	} else {
-		sb.WriteString(fmt.Sprintf("\tpublic sealed class %s\n\t{\n", class.Name))
+		sb.WriteString(fmt.Sprintf("\tinternal sealed unsafe class %s\n\t{\n", class.Name))
 		sb.WriteString(fmt.Sprintf("\t\tprivate %s handle;\n\n", handleType))
 	}
 
