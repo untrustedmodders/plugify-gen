@@ -607,10 +607,10 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 	if g.typeMapper.isObjectReturn(method.RetType.Type) {
 		converter := g.typeMapper.getDataConverter(method.RetType.Type)
 		if converter != "" {
-		    // Use NativeMethodsT for enum parameters
-            if method.RetType.Enum != nil {
-                converter = strings.Replace(converter, "NativeMethods.", "NativeMethodsT.", 1)
-            }
+			// Use NativeMethodsT for enum parameters
+			if method.RetType.Enum != nil {
+				converter = strings.Replace(converter, "NativeMethods.", "NativeMethodsT.", 1)
+			}
 
 			if strings.Contains(converter, "VectorData") {
 				sizeFunc := g.typeMapper.getSizeFunction(method.RetType.Type)
@@ -638,10 +638,10 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 
 		paramName := g.SanitizeName(param.Name)
 
-        // Use NativeMethodsT for enum parameters
-        if param.Enum != nil {
-            converter = strings.Replace(converter, "NativeMethods.", "NativeMethodsT.", 1)
-        }
+		// Use NativeMethodsT for enum parameters
+		if param.Enum != nil {
+			converter = strings.Replace(converter, "NativeMethods.", "NativeMethodsT.", 1)
+		}
 
 		if strings.Contains(converter, "VectorData") {
 			sizeFunc := g.typeMapper.getSizeFunction(param.Type)
@@ -1024,7 +1024,12 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\t\tpublic %s %s(%s)\n", retType, binding.Name, formattedParams))
+	staticKeyword := ""
+	if !binding.BindSelf {
+		staticKeyword = "static "
+	}
+
+	sb.WriteString(fmt.Sprintf("\t\tpublic %s%s %s(%s)\n", staticKeyword, retType, binding.Name, formattedParams))
 	sb.WriteString("\t\t{\n")
 
 	// Add validity check for instance methods
