@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.0...v1.1.1) (2025-11-21)
+
+
+### Bug Fixes
+
+* add enum convertion and unsafe context for dotnet wrappers ([d614569](https://github.com/untrustedmodders/plugify-gen/commit/d614569824ca4bd77d781accede4bf82d6e5ea4a))
+* add missing ref to c# arrays ([e649bb2](https://github.com/untrustedmodders/plugify-gen/commit/e649bb23808c396b0bc4af969e5d7ca869cbea88))
+* add static keyword to non bind methods for dotnet ([3c46da4](https://github.com/untrustedmodders/plugify-gen/commit/3c46da4bdd1fe05f2876881a28a96b9b92f1599b))
+
 ## [1.1.0](https://github.com/untrustedmodders/plugify-gen/compare/v1.0.2...v1.1.0) (2025-11-20)
 
 
