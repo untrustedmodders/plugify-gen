@@ -272,7 +272,7 @@ func (m *DotnetTypeMapper) MapParamType(param *manifest.ParamType, context TypeC
 	}
 
 	// Apply ref modifier for all types when ref is true
-	if param.Ref && !strings.Contains(typeName, "[]") {
+	if param.Ref {
 		return "ref " + typeName, nil
 	}
 

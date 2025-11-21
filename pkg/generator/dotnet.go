@@ -1029,11 +1029,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 
 	// Add validity check for instance methods
 	if binding.BindSelf {
-		if hasDtor {
-			sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(IsInvalid, this);\n")
-		} else {
-			sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(!IsValid, this);\n")
-		}
+		sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(!IsValid, this);\n")
 	}
 
 	// Generate method body for SafeHandle classes (need ref counting)
