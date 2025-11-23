@@ -194,6 +194,8 @@ func (g *PythonGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasDtor := class.Destructor != ""
+
 	// Class declaration with docstring
 	sb.WriteString(fmt.Sprintf("class %s:\n", class.Name))
 	if class.Description != "" {
@@ -216,6 +218,14 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		sb.WriteString("        ...\n\n")
 	}
 
+	// Generate destructor and context manager methods for classes with destructors
+	if hasDtor {
+		sb.WriteString(g.generateDestructorMethods(class))
+	}
+
+	// Generate utility methods (get, release, reset, valid) for all classes
+	sb.WriteString(g.generateUtilityMethods(class))
+
 	// Generate bindings (methods)
 	for _, binding := range class.Bindings {
 		methodCode, err := g.generateBinding(m, class, &binding)
@@ -227,6 +237,89 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	return sb.String(), nil
+}
+
+func (g *PythonGenerator) generateDestructorMethods(class *manifest.Class) string {
+	var sb strings.Builder
+
+	// __del__ method
+	sb.WriteString("    def __del__(self) -> None:\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Destructor. Releases the underlying handle if owned.\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	// close method
+	sb.WriteString("    def close(self) -> None:\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Close/destroy the handle if owned.\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	// __enter__ method for context manager
+	sb.WriteString(fmt.Sprintf("    def __enter__(self) -> \"%s\":\n", class.Name))
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Enter the runtime context for this object.\n\n")
+	sb.WriteString("        Returns:\n")
+	sb.WriteString(fmt.Sprintf("            %s: self\n", class.Name))
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	// __exit__ method for context manager
+	sb.WriteString("    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Exit the runtime context and release resources.\n\n")
+	sb.WriteString("        Args:\n")
+	sb.WriteString("            exc_type (type[BaseException] | None): Exception type if an exception was raised\n")
+	sb.WriteString("            exc_val (BaseException | None): Exception value if an exception was raised\n")
+	sb.WriteString("            exc_tb (object): Traceback if an exception was raised\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	return sb.String()
+}
+
+func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) string {
+	var sb strings.Builder
+
+	// Get the handle type mapped to Python
+	handleType, _ := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
+
+	// get() method
+	sb.WriteString(fmt.Sprintf("    def get(self) -> %s:\n", handleType))
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Get the raw handle value without transferring ownership.\n\n")
+	sb.WriteString("        Returns:\n")
+	sb.WriteString(fmt.Sprintf("            %s: The underlying handle value\n", handleType))
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	// release() method
+	sb.WriteString(fmt.Sprintf("    def release(self) -> %s:\n", handleType))
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Release ownership of the handle and return it.\n\n")
+	sb.WriteString("        Returns:\n")
+	sb.WriteString(fmt.Sprintf("            %s: The released handle value\n", handleType))
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	// reset() method
+	sb.WriteString("    def reset(self) -> None:\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Reset the handle by closing it.\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	// valid() method
+	sb.WriteString("    def valid(self) -> bool:\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        Check if the handle is valid.\n\n")
+	sb.WriteString("        Returns:\n")
+	sb.WriteString("            bool: True if the handle is valid, False otherwise\n")
+	sb.WriteString("        \"\"\"\n")
+	sb.WriteString("        ...\n\n")
+
+	return sb.String()
 }
 
 func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
