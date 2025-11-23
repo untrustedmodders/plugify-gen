@@ -173,6 +173,8 @@ func (g *LuaGenerator) generateClasses(m *manifest.Manifest) (string, error) {
 func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasDtor := class.Destructor != ""
+
 	// Class comment
 	if class.Description != "" {
 		sb.WriteString(fmt.Sprintf("--- %s\n", class.Description))
@@ -199,6 +201,9 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		sb.WriteString(fmt.Sprintf("function %s.new() end\n\n", class.Name))
 	}
 
+	// Generate utility methods (valid, get, release, and close if destructor exists)
+	sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+
 	// Generate bindings (methods)
 	for _, binding := range class.Bindings {
 		methodCode, err := g.generateBinding(m, class, &binding)
@@ -210,6 +215,33 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	}
 
 	return sb.String(), nil
+}
+
+func (g *LuaGenerator) generateUtilityMethods(class *manifest.Class, hasDtor bool) string {
+	var sb strings.Builder
+
+	// valid() method
+	sb.WriteString("--- Check if the handle is valid.\n")
+	sb.WriteString("-- @return boolean True if the handle is valid, false otherwise\n")
+	sb.WriteString(fmt.Sprintf("function %s:valid() end\n\n", class.Name))
+
+	// get() method
+	sb.WriteString("--- Get the raw handle value without transferring ownership.\n")
+	sb.WriteString(fmt.Sprintf("-- @return %s The underlying handle value\n", class.HandleType))
+	sb.WriteString(fmt.Sprintf("function %s:get() end\n\n", class.Name))
+
+	// release() method
+	sb.WriteString("--- Release ownership of the handle and return it.\n")
+	sb.WriteString(fmt.Sprintf("-- @return %s The released handle value\n", class.HandleType))
+	sb.WriteString(fmt.Sprintf("function %s:release() end\n\n", class.Name))
+
+	// close() method - only if destructor exists
+	if hasDtor {
+		sb.WriteString("--- Close and destroy the handle if owned.\n")
+		sb.WriteString(fmt.Sprintf("function %s:close() end\n\n", class.Name))
+	}
+
+	return sb.String()
 }
 
 func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
