@@ -302,13 +302,32 @@ function displayResults() {
 // Copy to clipboard
 async function copyToClipboard(text, button) {
     try {
-        await navigator.clipboard.writeText(text);
+        // Try modern clipboard API first (requires HTTPS or localhost)
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for non-secure contexts (HTTP, file://)
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            textArea.style.top = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
         const originalText = button.textContent;
         button.textContent = 'Copied!';
         setTimeout(() => {
             button.textContent = originalText;
         }, 2000);
     } catch (err) {
+        console.error('Copy failed:', err);
         showStatus('Failed to copy to clipboard', 'error');
     }
 }
