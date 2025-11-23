@@ -440,6 +440,12 @@ func (g *V8Generator) generateUtilityMethods(class *manifest.Class, hasDtor bool
 	sb.WriteString("     */\n")
 	sb.WriteString(fmt.Sprintf("    release(): %s;\n\n", handleType))
 
+	// reset() method
+	sb.WriteString("    /**\n")
+	sb.WriteString("     * Reset the handle by closing it.\n")
+	sb.WriteString("     */\n")
+	sb.WriteString("    reset(): void;\n\n")
+
 	// close() method - only if destructor exists
 	if hasDtor {
 		sb.WriteString("    /**\n")

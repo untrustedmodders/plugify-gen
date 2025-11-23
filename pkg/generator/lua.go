@@ -235,6 +235,10 @@ func (g *LuaGenerator) generateUtilityMethods(class *manifest.Class, hasDtor boo
 	sb.WriteString(fmt.Sprintf("-- @return %s The released handle value\n", class.HandleType))
 	sb.WriteString(fmt.Sprintf("function %s:release() end\n\n", class.Name))
 
+	// reset() method
+	sb.WriteString("--- Reset the handle by closing it.\n")
+	sb.WriteString(fmt.Sprintf("function %s:reset() end\n\n", class.Name))
+
 	// close() method - only if destructor exists
 	if hasDtor {
 		sb.WriteString("--- Close and destroy the handle if owned.\n")
