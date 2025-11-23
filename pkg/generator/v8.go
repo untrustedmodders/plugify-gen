@@ -372,6 +372,8 @@ func (g *V8Generator) generateClasses(m *manifest.Manifest) (string, error) {
 func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasDtor := class.Destructor != ""
+
 	// Class JSDoc comment
 	if class.Description != "" {
 		sb.WriteString(fmt.Sprintf("  /** %s */\n", class.Description))
@@ -394,6 +396,9 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 		sb.WriteString("    constructor();\n\n")
 	}
 
+	// Generate utility methods (valid, get, release, and close if destructor exists)
+	sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+
 	// Generate bindings (methods)
 	for _, binding := range class.Bindings {
 		methodCode, err := g.generateBinding(m, class, &binding)
@@ -406,6 +411,44 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	sb.WriteString("  }\n\n")
 
 	return sb.String(), nil
+}
+
+func (g *V8Generator) generateUtilityMethods(class *manifest.Class, hasDtor bool) string {
+	var sb strings.Builder
+
+	// Get the handle type mapped to TypeScript
+	handleType, _ := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
+
+	// valid() method
+	sb.WriteString("    /**\n")
+	sb.WriteString("     * Check if the handle is valid.\n")
+	sb.WriteString("     * @returns True if the handle is valid, false otherwise\n")
+	sb.WriteString("     */\n")
+	sb.WriteString("    valid(): boolean;\n\n")
+
+	// get() method
+	sb.WriteString("    /**\n")
+	sb.WriteString("     * Get the raw handle value without transferring ownership.\n")
+	sb.WriteString(fmt.Sprintf("     * @returns The underlying handle value\n"))
+	sb.WriteString("     */\n")
+	sb.WriteString(fmt.Sprintf("    get(): %s;\n\n", handleType))
+
+	// release() method
+	sb.WriteString("    /**\n")
+	sb.WriteString("     * Release ownership of the handle and return it.\n")
+	sb.WriteString(fmt.Sprintf("     * @returns The released handle value\n"))
+	sb.WriteString("     */\n")
+	sb.WriteString(fmt.Sprintf("    release(): %s;\n\n", handleType))
+
+	// close() method - only if destructor exists
+	if hasDtor {
+		sb.WriteString("    /**\n")
+		sb.WriteString("     * Close and destroy the handle if owned.\n")
+		sb.WriteString("     */\n")
+		sb.WriteString("    close(): void;\n\n")
+	}
+
+	return sb.String()
 }
 
 func (g *V8Generator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
