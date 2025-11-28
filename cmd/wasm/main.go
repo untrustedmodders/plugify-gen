@@ -70,7 +70,7 @@ func convertManifest(this js.Value, args []js.Value) interface{} {
 
 // getSupportedLanguages returns list of supported languages
 func getSupportedLanguages(this js.Value, args []js.Value) interface{} {
-	languages := []interface{}{"cpp", "v8", "golang", "dotnet", "python", "lua"}
+	languages := []interface{}{"cpp", "v8", "golang", "dotnet", "python", "lua", "dlang"}
 	return languages
 }
 

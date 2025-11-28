@@ -40,4 +40,5 @@ func init() {
 	Register(NewLuaGenerator())
 	Register(NewDotnetGenerator())
 	Register(NewGolangGenerator())
+	Register(NewDlangGenerator())
 }
