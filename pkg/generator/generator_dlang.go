@@ -42,33 +42,25 @@ func NewDlangGenerator() *DlangGenerator {
 func (g *DlangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 	g.ResetCaches()
 
-	var sb strings.Builder
-
 	// Module declaration
 	moduleName := strings.ToLower(m.Name)
-	for _, method := range m.Methods {
-		groupName := strings.ToLower(method.Group)
-		if groupName == "" {
-			continue
-		}
-
-		// Generate one file per module/group
-		moduleCode, err := g.generateModule(m, groupName)
-		if err != nil {
-			return nil, err
-		}
-
-		// Store the generated code (we'll collect all groups first)
-		sb.WriteString(moduleCode)
-	}
 
 	// Collect all unique groups
 	groups := make(map[string]bool)
+	hasUngroupedMethods := false
+
 	for _, method := range m.Methods {
 		groupName := strings.ToLower(method.Group)
 		if groupName != "" {
 			groups[groupName] = true
+		} else {
+			hasUngroupedMethods = true
 		}
+	}
+
+	// Add default group for methods without a group
+	if hasUngroupedMethods {
+		groups["main"] = true
 	}
 
 	// Generate files for each group
@@ -214,7 +206,12 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	for i := range m.Methods {
 		method := &m.Methods[i]
-		if strings.ToLower(method.Group) == groupName {
+		methodGroup := strings.ToLower(method.Group)
+		// Map empty groups to "main"
+		if methodGroup == "" {
+			methodGroup = "main"
+		}
+		if methodGroup == groupName {
 			methods = append(methods, method)
 
 			// Collect delegates from parameters
