@@ -186,6 +186,12 @@ func (g *GolangGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 				return "", err
 			}
 		}
+		// Check return type prototype
+		if method.RetType.Prototype != nil {
+			if err := processPrototype(method.RetType.Prototype); err != nil {
+				return "", err
+			}
+		}
 		// Check parameters
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil {

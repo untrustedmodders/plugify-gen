@@ -94,6 +94,11 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 			g.CacheEnum(method.RetType.Enum.Name)
 		}
 
+		// Check return type prototype
+		if method.RetType.Prototype != nil {
+			g.processPrototypeEnums(method.RetType.Prototype, &sb)
+		}
+
 		// Check parameters
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
@@ -102,10 +107,36 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 				sb.WriteString("\n")
 				g.CacheEnum(param.Enum.Name)
 			}
+
+			// Check nested prototypes
+			if param.Prototype != nil {
+				g.processPrototypeEnums(param.Prototype, &sb)
+			}
 		}
 	}
 
 	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
+	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
+		enumCode := g.generateEnum(proto.RetType.Enum)
+		sb.WriteString(enumCode)
+		sb.WriteString("\n")
+		g.CacheEnum(proto.RetType.Enum.Name)
+	}
+
+	for _, param := range proto.ParamTypes {
+		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
+			enumCode := g.generateEnum(param.Enum)
+			sb.WriteString(enumCode)
+			sb.WriteString("\n")
+			g.CacheEnum(param.Enum.Name)
+		}
+		if param.Prototype != nil {
+			g.processPrototypeEnums(param.Prototype, sb)
+		}
+	}
 }
 
 func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType) string {

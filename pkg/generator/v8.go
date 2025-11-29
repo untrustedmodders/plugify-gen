@@ -271,13 +271,10 @@ func (g *V8Generator) generateEnumsAndDelegates(m *manifest.Manifest) (string, e
 			sb.WriteString(enumCode)
 			g.CacheEnum(method.RetType.Enum.Name)
 		}
-		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
-			delegateCode, err := g.generateDelegate(method.RetType.Prototype)
-			if err != nil {
+		if method.RetType.Prototype != nil {
+			if err := g.processPrototypeEnumsAndDelegates(method.RetType.Prototype, &sb); err != nil {
 				return "", err
 			}
-			sb.WriteString(delegateCode)
-			g.CacheDelegate(method.RetType.Prototype.Name)
 		}
 
 		// Check parameters
@@ -287,13 +284,10 @@ func (g *V8Generator) generateEnumsAndDelegates(m *manifest.Manifest) (string, e
 				sb.WriteString(enumCode)
 				g.CacheEnum(param.Enum.Name)
 			}
-			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
-				delegateCode, err := g.generateDelegate(param.Prototype)
-				if err != nil {
+			if param.Prototype != nil {
+				if err := g.processPrototypeEnumsAndDelegates(param.Prototype, &sb); err != nil {
 					return "", err
 				}
-				sb.WriteString(delegateCode)
-				g.CacheDelegate(param.Prototype.Name)
 			}
 		}
 	}
@@ -303,6 +297,49 @@ func (g *V8Generator) generateEnumsAndDelegates(m *manifest.Manifest) (string, e
 	}
 
 	return sb.String(), nil
+}
+
+func (g *V8Generator) processPrototypeEnumsAndDelegates(proto *manifest.Prototype, sb *strings.Builder) error {
+	// Process the delegate itself
+	if !g.IsDelegateCached(proto.Name) {
+		delegateCode, err := g.generateDelegate(proto)
+		if err != nil {
+			return err
+		}
+		sb.WriteString(delegateCode)
+		g.CacheDelegate(proto.Name)
+	}
+
+	// Process enums in return type
+	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
+		enumCode := g.generateEnum(proto.RetType.Enum)
+		sb.WriteString(enumCode)
+		g.CacheEnum(proto.RetType.Enum.Name)
+	}
+
+	// Recursively process nested prototypes in return type
+	if proto.RetType.Prototype != nil {
+		if err := g.processPrototypeEnumsAndDelegates(proto.RetType.Prototype, sb); err != nil {
+			return err
+		}
+	}
+
+	// Process parameters
+	for _, param := range proto.ParamTypes {
+		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
+			enumCode := g.generateEnum(param.Enum)
+			sb.WriteString(enumCode)
+			g.CacheEnum(param.Enum.Name)
+		}
+		// Recursively process nested prototypes
+		if param.Prototype != nil {
+			if err := g.processPrototypeEnumsAndDelegates(param.Prototype, sb); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (g *V8Generator) generateEnum(enum *manifest.EnumType) string {
