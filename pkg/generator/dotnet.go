@@ -426,8 +426,18 @@ func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, e
 	isObjectReturn := g.typeMapper.isObjectReturn(method.RetType.Type)
 	isFunctionReturn := g.typeMapper.isFunction(method.RetType.Type)
 
-	// Declare return variable if needed
-	if hasReturn && (isObjectReturn || needsMarshaling) {
+	// Check if we'll have fixed blocks
+	hasFixedBlocks := false
+	for _, param := range method.ParamTypes {
+		if param.Ref && !g.typeMapper.isObjectReturn(param.Type) {
+			hasFixedBlocks = true
+			break
+		}
+	}
+
+	// Declare return variable if needed (before fixed blocks to avoid scope issues)
+	declareRetVal := hasReturn && (isObjectReturn || needsMarshaling || hasFixedBlocks)
+	if declareRetVal {
 		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
 		sb.WriteString(fmt.Sprintf("%s%s __retVal;\n", indent, retTypeName))
 	}
@@ -465,7 +475,7 @@ func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, e
 	callParams := g.generateCallParameters(method)
 	if isObjectReturn {
 		sb.WriteString(fmt.Sprintf("%s__retVal_native = __%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
-	} else if hasTry {
+	} else if hasTry || declareRetVal {
 		sb.WriteString(fmt.Sprintf("%s__retVal = __%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
 	} else if hasReturn {
 		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
