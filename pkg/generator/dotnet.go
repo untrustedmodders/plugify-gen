@@ -154,27 +154,27 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 
 	// XML documentation
 	if enum.Description != "" {
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", enum.Description))
-		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString("\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t/// %s\n", enum.Description))
+		sb.WriteString("\t/// </summary>\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("\t\tpublic enum %s : %s\n\t\t{\n", enum.Name, underlyingType))
+	sb.WriteString(fmt.Sprintf("\tpublic enum %s : %s\n\t{\n", enum.Name, underlyingType))
 
 	for i, val := range enum.Values {
 		if val.Description != "" {
-			sb.WriteString("\t\t\t/// <summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\t\t/// %s\n", val.Description))
-			sb.WriteString("\t\t\t/// </summary>\n")
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\t/// %s\n", val.Description))
+			sb.WriteString("\t\t/// </summary>\n")
 		}
-		sb.WriteString(fmt.Sprintf("\t\t\t%s = %d", val.Name, val.Value))
+		sb.WriteString(fmt.Sprintf("\t\t%s = %d", val.Name, val.Value))
 		if i < len(enum.Values)-1 {
 			sb.WriteString(",")
 		}
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\t\t}\n")
+	sb.WriteString("\t}\n")
 	return sb.String()
 }
 
@@ -215,9 +215,9 @@ func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 
 	// XML documentation
 	if proto.Description != "" {
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", proto.Description))
-		sb.WriteString("\t\t/// </summary>\n")
+		sb.WriteString("\t/// <summary>\n")
+		sb.WriteString(fmt.Sprintf("\t/// %s\n", proto.Description))
+		sb.WriteString("\t/// </summary>\n")
 	}
 
 	// Return type
@@ -232,7 +232,7 @@ func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("\t\tpublic delegate %s %s(%s);\n", retType, proto.Name, params))
+	sb.WriteString(fmt.Sprintf("\tpublic delegate %s %s(%s);\n", retType, proto.Name, params))
 
 	return sb.String(), nil
 }
