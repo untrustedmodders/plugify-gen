@@ -222,16 +222,10 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	// Module declaration
 	sb.WriteString(fmt.Sprintf("module imported.%s.%s;\n\n", moduleName, groupName))
 
-	// Imports
-	sb.WriteString("import plugify.internals;\n")
-	sb.WriteString("public import plugify;\n")
-	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
-	sb.WriteString("import std.exception : enforce;\n")
-	sb.WriteString("import std.algorithm.mutation : swap;\n\n")
-
-	// Collect methods and delegates for this group
+	// Collect methods for this group first (needed to determine imports)
 	var methods []*manifest.Method
 	delegates := make(map[string]*manifest.Prototype)
+	methodToGroup := make(map[string]string) // Track which group each method belongs to
 
 	for i := range m.Methods {
 		method := &m.Methods[i]
@@ -240,6 +234,11 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 		if methodGroup == "" {
 			methodGroup = "main"
 		}
+
+		// Track all methods and their groups
+		methodToGroup[method.Name] = methodGroup
+		methodToGroup[method.FuncName] = methodGroup
+
 		if methodGroup == groupName {
 			methods = append(methods, method)
 
@@ -255,6 +254,48 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 			}
 		}
 	}
+
+	// Collect groups referenced by classes in this group
+	referencedGroups := make(map[string]bool)
+	for _, class := range m.Classes {
+		classGroup := strings.ToLower(class.Group)
+		if classGroup == "" {
+			classGroup = "main"
+		}
+		if classGroup == groupName {
+			// Check constructors
+			for _, ctorName := range class.Constructors {
+				if refGroup, ok := methodToGroup[ctorName]; ok && refGroup != groupName {
+					referencedGroups[refGroup] = true
+				}
+			}
+			// Check destructor
+			if class.Destructor != "" {
+				if refGroup, ok := methodToGroup[class.Destructor]; ok && refGroup != groupName {
+					referencedGroups[refGroup] = true
+				}
+			}
+			// Check bindings
+			for _, binding := range class.Bindings {
+				if refGroup, ok := methodToGroup[binding.Method]; ok && refGroup != groupName {
+					referencedGroups[refGroup] = true
+				}
+			}
+		}
+	}
+
+	// Imports
+	sb.WriteString("import plugify.internals;\n")
+	sb.WriteString("public import plugify;\n")
+	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+
+	// Import other group modules if classes reference methods from them
+	for refGroup := range referencedGroups {
+		sb.WriteString(fmt.Sprintf("import imported.%s.%s;\n", moduleName, refGroup))
+	}
+
+	sb.WriteString("import std.exception : enforce;\n")
+	sb.WriteString("import std.algorithm.mutation : swap;\n\n")
 
 	// Generate delegate aliases
 	for _, proto := range delegates {
