@@ -41,9 +41,10 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 
 	files := make(map[string]string)
 
-	// Collect all unique groups
+	// Collect all unique groups from methods and classes
 	groups := make(map[string]bool)
 	hasUngroupedMethods := false
+	hasUngroupedClasses := false
 
 	for _, method := range m.Methods {
 		groupName := strings.ToLower(method.Group)
@@ -54,19 +55,28 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		}
 	}
 
-	// Add default group for methods without a group
-	if hasUngroupedMethods {
+	for _, class := range m.Classes {
+		groupName := strings.ToLower(class.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedClasses = true
+		}
+	}
+
+	// Add default group for methods/classes without a group
+	if hasUngroupedMethods || hasUngroupedClasses {
 		groups["main"] = true
 	}
 
-	// Generate shared types file (enums, delegates, classes, ownership)
+	// Generate shared types file (enums, delegates, ownership only - no classes)
 	sharedCode, err := g.generateSharedTypesFile(m)
 	if err != nil {
 		return nil, err
 	}
 	files[fmt.Sprintf("pps/%s/%s.cs", m.Name, m.Name)] = sharedCode
 
-	// Generate group-specific files
+	// Generate group-specific files (methods and classes)
 	for groupName := range groups {
 		groupCode, err := g.generateGroupFile(m, groupName)
 		if err != nil {
@@ -1173,14 +1183,7 @@ func (g *DotnetGenerator) generateSharedTypesFile(m *manifest.Manifest) (string,
 		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
 	}
 
-	// Generate classes
-	if len(m.Classes) > 0 {
-		classesCode, err := g.generateClasses(m)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(classesCode)
-	}
+	// Note: Classes are generated in group-specific files
 
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")
@@ -1225,6 +1228,23 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 	}
 
 	sb.WriteString("\t}\n\n")
+
+	// Generate classes for this group
+	for _, class := range m.Classes {
+		classGroup := strings.ToLower(class.Group)
+		// Map empty groups to "main"
+		if classGroup == "" {
+			classGroup = "main"
+		}
+		if classGroup == groupName {
+			classCode, err := g.generateClass(m, &class)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+			}
+			sb.WriteString(classCode)
+		}
+	}
+
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")
 

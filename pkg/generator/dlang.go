@@ -71,7 +71,7 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error
 	if err != nil {
 		return nil, err
 	}
-	files[fmt.Sprintf("source/imported/%s/enums.d", moduleName)] = enumsCode
+	files[fmt.Sprintf("source/imported/%s/%s.d", moduleName, moduleName)] = enumsCode
 
 	// Generate a file for each group
 	for groupName := range groups {

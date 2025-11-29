@@ -42,9 +42,10 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 
 	files := make(map[string]string)
 
-	// Collect all unique groups
+	// Collect all unique groups from methods and classes
 	groups := make(map[string]bool)
 	hasUngroupedMethods := false
+	hasUngroupedClasses := false
 
 	for _, method := range m.Methods {
 		groupName := strings.ToLower(method.Group)
@@ -55,12 +56,21 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		}
 	}
 
-	// Add default group for methods without a group
-	if hasUngroupedMethods {
+	for _, class := range m.Classes {
+		groupName := strings.ToLower(class.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedClasses = true
+		}
+	}
+
+	// Add default group for methods/classes without a group
+	if hasUngroupedMethods || hasUngroupedClasses {
 		groups["main"] = true
 	}
 
-	// Generate shared types file (enums, delegates, classes)
+	// Generate shared types file (enums, delegates only - no classes)
 	sharedGoCode, err := g.generateSharedGoFile(m)
 	if err != nil {
 		return nil, err
@@ -1346,14 +1356,7 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 		sb.WriteString("\n")
 	}
 
-	// Generate classes
-	if len(m.Classes) > 0 {
-		classesCode, err := g.generateClasses(m)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(classesCode)
-	}
+	// Note: Classes are generated in group-specific files
 
 	return sb.String(), nil
 }
@@ -1384,12 +1387,16 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	sb.WriteString("*/\n")
 	sb.WriteString("import \"C\"\n")
 	sb.WriteString("import (\n")
+	sb.WriteString("\t\"errors\"\n")
 	sb.WriteString("\t\"reflect\"\n")
+	sb.WriteString("\t\"runtime\"\n")
 	sb.WriteString("\t\"unsafe\"\n")
 	sb.WriteString("\t\"github.com/untrustedmodders/go-plugify\"\n")
 	sb.WriteString(")\n\n")
 
+	sb.WriteString("var _ = errors.New(\"\")\n")
 	sb.WriteString("var _ = reflect.TypeOf(0)\n")
+	sb.WriteString("var _ = runtime.GOOS\n")
 	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
 	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
 
@@ -1411,6 +1418,52 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 			}
 			sb.WriteString(methodCode)
 			sb.WriteString("\n")
+		}
+	}
+
+	// Generate classes for this group
+	hasClassesInGroup := false
+	for _, class := range m.Classes {
+		classGroup := strings.ToLower(class.Group)
+		// Map empty groups to "main"
+		if classGroup == "" {
+			classGroup = "main"
+		}
+		if classGroup == groupName {
+			if !hasClassesInGroup {
+				// Generate shared types if any class has a destructor (once per group)
+				hasDestructor := false
+				for _, c := range m.Classes {
+					cg := strings.ToLower(c.Group)
+					if cg == "" {
+						cg = "main"
+					}
+					if cg == groupName && c.Destructor != "" {
+						hasDestructor = true
+						break
+					}
+				}
+
+				if hasDestructor {
+					sb.WriteString("// noCopy prevents copying via go vet\n")
+					sb.WriteString("type noCopy struct{}\n\n")
+					sb.WriteString("func (*noCopy) Lock()   {}\n")
+					sb.WriteString("func (*noCopy) Unlock() {}\n\n")
+					sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
+					sb.WriteString("type ownership bool\n\n")
+					sb.WriteString("const (\n")
+					sb.WriteString("\tOwned    ownership = true\n")
+					sb.WriteString("\tBorrowed ownership = false\n")
+					sb.WriteString(")\n\n")
+				}
+				hasClassesInGroup = true
+			}
+
+			classCode, err := g.generateClass(m, &class)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+			}
+			sb.WriteString(classCode)
 		}
 	}
 
