@@ -527,10 +527,10 @@ func (g *DlangGenerator) toCType(nativeType string, typeInfo *manifest.TypeInfo,
 
 	// Check for vector types
 	vectorTypes := map[string]string{
-		"Vec2":    "ref Vec2",
-		"Vec3":    "ref Vec3",
-		"Vec4":    "ref Vec4",
-		"Mat4x4":  "ref Mat4x4",
+		"Vec2":   "ref Vec2",
+		"Vec3":   "ref Vec3",
+		"Vec4":   "ref Vec4",
+		"Mat4x4": "ref Mat4x4",
 	}
 
 	if cType, ok := vectorTypes[nativeType]; ok {
