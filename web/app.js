@@ -13,6 +13,7 @@ const languageMap = {
     'dotnet': 'csharp',
     'python': 'python',
     'lua': 'lua',
+    'd': 'd',
 };
 
 // DOM elements
@@ -217,6 +218,7 @@ function getHighlightLanguage(filename, defaultLang) {
     const extMap = {
         '.h': 'c',
         '.c': 'c',
+        '.d': 'd',
         '.hpp': 'cpp',
         '.cpp': 'cpp',
         '.go': 'go',
