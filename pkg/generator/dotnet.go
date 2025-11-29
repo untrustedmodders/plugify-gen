@@ -39,76 +39,44 @@ func NewDotnetGenerator() *DotnetGenerator {
 func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 	g.ResetCaches()
 
-	var sb strings.Builder
+	files := make(map[string]string)
 
-	// Using statements
-	sb.WriteString("using System;\n")
-	sb.WriteString("using System.Numerics;\n")
-	sb.WriteString("using System.Runtime.CompilerServices;\n")
-	sb.WriteString("using System.Runtime.InteropServices;\n")
-	sb.WriteString("using Plugify;\n\n")
-	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	// Collect all unique groups
+	groups := make(map[string]bool)
+	hasUngroupedMethods := false
 
-	// Namespace
-	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
-	sb.WriteString("#pragma warning disable CS0649\n\n")
-
-	// Generate enums
-	enumsCode, err := g.generateEnums(m)
-	if err != nil {
-		return nil, err
-	}
-	if enumsCode != "" {
-		sb.WriteString(enumsCode)
-		sb.WriteString("\n")
-	}
-
-	// Generate delegates
-	delegatesCode, err := g.generateDelegates(m)
-	if err != nil {
-		return nil, err
-	}
-	if delegatesCode != "" {
-		sb.WriteString(delegatesCode)
-		sb.WriteString("\n")
-	}
-
-	// Ownership enum (if any class has destructor)
-	if g.needsOwnershipEnum(m) {
-		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
-	}
-
-	// Class containing methods
-	sb.WriteString(fmt.Sprintf("\tinternal static unsafe class %s {\n\n", m.Name))
-
-	// Generate methods
 	for _, method := range m.Methods {
-		methodCode, err := g.generateMethod(&method, m.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+		groupName := strings.ToLower(method.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedMethods = true
 		}
-		sb.WriteString(methodCode)
-		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\t}\n\n")
-
-	// Generate classes
-	if len(m.Classes) > 0 {
-		classesCode, err := g.generateClasses(m)
-		if err != nil {
-			return nil, err
-		}
-		sb.WriteString(classesCode)
+	// Add default group for methods without a group
+	if hasUngroupedMethods {
+		groups["main"] = true
 	}
 
-	sb.WriteString("#pragma warning restore CS0649\n")
-	sb.WriteString("}\n")
+	// Generate shared types file (enums, delegates, classes, ownership)
+	sharedCode, err := g.generateSharedTypesFile(m)
+	if err != nil {
+		return nil, err
+	}
+	files[fmt.Sprintf("pps/%s/%s.cs", m.Name, m.Name)] = sharedCode
+
+	// Generate group-specific files
+	for groupName := range groups {
+		groupCode, err := g.generateGroupFile(m, groupName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
+		}
+		files[fmt.Sprintf("pps/%s/%s.cs", m.Name, groupName)] = groupCode
+	}
 
 	result := &GeneratorResult{
-		Files: map[string]string{
-			fmt.Sprintf("pps/%s.cs", m.Name): sb.String(),
-		},
+		Files: files,
 	}
 
 	return result, nil
@@ -1131,4 +1099,103 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 	}
 
 	return callArgs
+}
+
+// generateSharedTypesFile generates the shared types file (enums, delegates, classes, ownership)
+func (g *DotnetGenerator) generateSharedTypesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Using statements
+	sb.WriteString("using System;\n")
+	sb.WriteString("using System.Numerics;\n")
+	sb.WriteString("using System.Runtime.CompilerServices;\n")
+	sb.WriteString("using System.Runtime.InteropServices;\n")
+	sb.WriteString("using Plugify;\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
+	sb.WriteString("#pragma warning disable CS0649\n\n")
+
+	// Generate enums
+	enumsCode, err := g.generateEnums(m)
+	if err != nil {
+		return "", err
+	}
+	if enumsCode != "" {
+		sb.WriteString(enumsCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return "", err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+		sb.WriteString("\n")
+	}
+
+	// Ownership enum (if any class has destructor)
+	if g.needsOwnershipEnum(m) {
+		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
+	}
+
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(classesCode)
+	}
+
+	sb.WriteString("#pragma warning restore CS0649\n")
+	sb.WriteString("}\n")
+
+	return sb.String(), nil
+}
+
+// generateGroupFile generates a group-specific file containing methods for that group
+func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName string) (string, error) {
+	var sb strings.Builder
+
+	// Using statements
+	sb.WriteString("using System;\n")
+	sb.WriteString("using System.Numerics;\n")
+	sb.WriteString("using System.Runtime.CompilerServices;\n")
+	sb.WriteString("using System.Runtime.InteropServices;\n")
+	sb.WriteString("using Plugify;\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
+	sb.WriteString("#pragma warning disable CS0649\n\n")
+
+	// Class containing methods for this group
+	sb.WriteString(fmt.Sprintf("\tinternal static unsafe partial class %s {\n\n", m.Name))
+
+	// Generate methods for this group
+	for _, method := range m.Methods {
+		methodGroup := strings.ToLower(method.Group)
+		// Map empty groups to "main"
+		if methodGroup == "" {
+			methodGroup = "main"
+		}
+		if methodGroup == groupName {
+			methodCode, err := g.generateMethod(&method, m.Name)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+			}
+			sb.WriteString(methodCode)
+			sb.WriteString("\n")
+		}
+	}
+
+	sb.WriteString("\t}\n\n")
+	sb.WriteString("#pragma warning restore CS0649\n")
+	sb.WriteString("}\n")
+
+	return sb.String(), nil
 }
