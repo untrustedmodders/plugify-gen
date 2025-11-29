@@ -1356,6 +1356,28 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 		sb.WriteString("\n")
 	}
 
+	// Generate ownership types if any class has a destructor
+	hasDestructor := false
+	for _, class := range m.Classes {
+		if class.Destructor != "" {
+			hasDestructor = true
+			break
+		}
+	}
+
+	if hasDestructor {
+		sb.WriteString("// noCopy prevents copying via go vet\n")
+		sb.WriteString("type noCopy struct{}\n\n")
+		sb.WriteString("func (*noCopy) Lock()   {}\n")
+		sb.WriteString("func (*noCopy) Unlock() {}\n\n")
+		sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
+		sb.WriteString("type ownership bool\n\n")
+		sb.WriteString("const (\n")
+		sb.WriteString("\tOwned    ownership = true\n")
+		sb.WriteString("\tBorrowed ownership = false\n")
+		sb.WriteString(")\n\n")
+	}
+
 	// Note: Classes are generated in group-specific files
 
 	return sb.String(), nil
@@ -1422,7 +1444,6 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	}
 
 	// Generate classes for this group
-	hasClassesInGroup := false
 	for _, class := range m.Classes {
 		classGroup := strings.ToLower(class.Group)
 		// Map empty groups to "main"
@@ -1430,35 +1451,6 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 			classGroup = "main"
 		}
 		if classGroup == groupName {
-			if !hasClassesInGroup {
-				// Generate shared types if any class has a destructor (once per group)
-				hasDestructor := false
-				for _, c := range m.Classes {
-					cg := strings.ToLower(c.Group)
-					if cg == "" {
-						cg = "main"
-					}
-					if cg == groupName && c.Destructor != "" {
-						hasDestructor = true
-						break
-					}
-				}
-
-				if hasDestructor {
-					sb.WriteString("// noCopy prevents copying via go vet\n")
-					sb.WriteString("type noCopy struct{}\n\n")
-					sb.WriteString("func (*noCopy) Lock()   {}\n")
-					sb.WriteString("func (*noCopy) Unlock() {}\n\n")
-					sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
-					sb.WriteString("type ownership bool\n\n")
-					sb.WriteString("const (\n")
-					sb.WriteString("\tOwned    ownership = true\n")
-					sb.WriteString("\tBorrowed ownership = false\n")
-					sb.WriteString(")\n\n")
-				}
-				hasClassesInGroup = true
-			}
-
 			classCode, err := g.generateClass(m, &class)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
