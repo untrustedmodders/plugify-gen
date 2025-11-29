@@ -83,6 +83,10 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error
 	}
 	files[fmt.Sprintf("source/imported/%s/enums.d", moduleName)] = enumsCode
 
+	// Generate package.d file with all public imports
+	packageCode := g.generatePackageFile(m, moduleName, groups)
+	files[fmt.Sprintf("source/imported/%s/package.d", moduleName)] = packageCode
+
 	// Generate a file for each group
 	for groupName := range groups {
 		groupCode, err := g.generateModuleFile(m, moduleName, groupName)
@@ -154,6 +158,40 @@ func (g *DlangGenerator) generateEnumsFile(m *manifest.Manifest) (string, error)
 	}
 
 	return sb.String(), nil
+}
+
+func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName string, groups map[string]bool) string {
+	var sb strings.Builder
+
+	// Module declaration
+	sb.WriteString(fmt.Sprintf("module imported.%s;\n\n", moduleName))
+
+	// Always import enums first
+	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+
+	// Import all group modules in sorted order for consistency
+	if len(groups) > 0 {
+		// Collect group names into a slice and sort them
+		groupNames := make([]string, 0, len(groups))
+		for groupName := range groups {
+			groupNames = append(groupNames, groupName)
+		}
+		// Sort alphabetically
+		for i := 0; i < len(groupNames); i++ {
+			for j := i + 1; j < len(groupNames); j++ {
+				if groupNames[i] > groupNames[j] {
+					groupNames[i], groupNames[j] = groupNames[j], groupNames[i]
+				}
+			}
+		}
+
+		// Generate public imports
+		for _, groupName := range groupNames {
+			sb.WriteString(fmt.Sprintf("public import imported.%s.%s;\n", moduleName, groupName))
+		}
+	}
+
+	return sb.String()
 }
 
 func (g *DlangGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
@@ -971,6 +1009,8 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	for i, param := range methodParams {
 		paramName := g.SanitizeName(param.Name)
 		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramRef := param.Ref
+		paramMode := "ref"
 		if err != nil {
 			return "", err
 		}
@@ -978,10 +1018,14 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		// Check if this parameter has an alias
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
 			paramType = binding.ParamAliases[i].Name
+			paramRef = true
+			if !binding.ParamAliases[i].Owner {
+				paramMode = "const ref"
+			}
 		}
 
-		if param.Ref {
-			paramStrs = append(paramStrs, fmt.Sprintf("ref %s %s", paramType, paramName))
+		if paramRef {
+			paramStrs = append(paramStrs, fmt.Sprintf("%s %s %s", paramMode, paramType, paramName))
 		} else {
 			paramStrs = append(paramStrs, fmt.Sprintf("%s %s", paramType, paramName))
 		}
@@ -1008,9 +1052,19 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		callArgs = append(callArgs, "_handle")
 	}
 
-	for _, param := range methodParams {
+	for i, param := range methodParams {
 		paramName := g.SanitizeName(param.Name)
-		callArgs = append(callArgs, paramName)
+
+		// Check if parameter has alias and needs .release() or .get()
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			if binding.ParamAliases[i].Owner {
+				callArgs = append(callArgs, paramName+".release()")
+			} else {
+				callArgs = append(callArgs, paramName+".get()")
+			}
+		} else {
+			callArgs = append(callArgs, paramName)
+		}
 	}
 
 	// Function call
