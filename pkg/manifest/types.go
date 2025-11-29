@@ -78,14 +78,15 @@ type Prototype struct {
 
 // Class represents an RAII wrapper class for handle-based APIs
 type Class struct {
-	Name             string        `json:"name"`
-	Description      string        `json:"description,omitempty"`
-	HandleType       string        `json:"handleType,omitempty"`
-	InvalidValue     string        `json:"invalidValue,omitempty"`
-	NullPolicy       string        `json:"nullPolicy,omitempty"`
-	Constructors     []string      `json:"constructors,omitempty"`
-	Destructor       string        `json:"destructor,omitempty"`
-	Bindings         []Binding     `json:"bindings"`
+	Name         string    `json:"name"`
+	Group        string    `json:"group,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	HandleType   string    `json:"handleType,omitempty"`
+	InvalidValue string    `json:"invalidValue,omitempty"`
+	NullPolicy   string    `json:"nullPolicy,omitempty"`
+	Constructors []string  `json:"constructors,omitempty"`
+	Destructor   string    `json:"destructor,omitempty"`
+	Bindings     []Binding `json:"bindings"`
 }
 
 // Binding represents a method in a wrapper class
