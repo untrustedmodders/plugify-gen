@@ -40,98 +40,60 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 	g.ResetCaches()
 	g.usedNames = make(map[string]bool)
 
-	// Generate .go file
-	goCode, err := g.generateGoFile(m)
+	files := make(map[string]string)
+
+	// Collect all unique groups
+	groups := make(map[string]bool)
+	hasUngroupedMethods := false
+
+	for _, method := range m.Methods {
+		groupName := strings.ToLower(method.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedMethods = true
+		}
+	}
+
+	// Add default group for methods without a group
+	if hasUngroupedMethods {
+		groups["main"] = true
+	}
+
+	// Generate shared types file (enums, delegates, classes)
+	sharedGoCode, err := g.generateSharedGoFile(m)
 	if err != nil {
 		return nil, err
 	}
+	files[fmt.Sprintf("%s/%s.go", m.Name, m.Name)] = sharedGoCode
 
 	// Generate .h file
-	hCode, err := g.generateHFile(m)
+	hCode, err := g.generateSharedHFile(m)
 	if err != nil {
 		return nil, err
+	}
+	files[fmt.Sprintf("%s/%s.h", m.Name, m.Name)] = hCode
+
+	// Generate group-specific files
+	for groupName := range groups {
+		goCode, err := g.generateGroupGoFile(m, groupName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
+		}
+		files[fmt.Sprintf("%s/%s.go", m.Name, groupName)] = goCode
+
+		hCode, err := g.generateGroupHFile(m, groupName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate group %s header: %w", groupName, err)
+		}
+		files[fmt.Sprintf("%s/%s.h", m.Name, groupName)] = hCode
 	}
 
 	result := &GeneratorResult{
-		Files: map[string]string{
-			fmt.Sprintf("%s/%s.go", m.Name, m.Name): goCode,
-			fmt.Sprintf("%s/%s.h", m.Name, m.Name):  hCode,
-		},
+		Files: files,
 	}
 
 	return result, nil
-}
-
-// generateGoFile generates the .go file content
-func (g *GolangGenerator) generateGoFile(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	// Package declaration
-	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
-
-	// CGo comment block
-	sb.WriteString("/*\n")
-	sb.WriteString(fmt.Sprintf("#include \"%s.h\"\n", m.Name))
-
-	// Add noescape directives for each method
-	for _, method := range m.Methods {
-		sb.WriteString(fmt.Sprintf("#cgo noescape %s\n", method.Name))
-	}
-
-	sb.WriteString("*/\n")
-	sb.WriteString("import \"C\"\n")
-	sb.WriteString("import (\n")
-	sb.WriteString("\t\"errors\"\n")
-	sb.WriteString("\t\"runtime\"\n")
-	sb.WriteString("\t\"unsafe\"\n")
-	sb.WriteString("\t_ \"reflect\"\n")
-	sb.WriteString("\t\"github.com/untrustedmodders/go-plugify\"\n")
-	sb.WriteString(")\n\n")
-
-	// Add comment header
-	link := "https://github.com/untrustedmodders/plugify-module-golang/blob/main/generator/generator.py"
-	sb.WriteString(fmt.Sprintf("// Generated with %s from %s\n\n", link, m.Name))
-
-	// Generate enums
-	enumsCode, err := g.generateEnums(m)
-	if err != nil {
-		return "", err
-	}
-	if enumsCode != "" {
-		sb.WriteString(enumsCode)
-		sb.WriteString("\n")
-	}
-
-	// Generate delegates
-	delegatesCode, err := g.generateDelegates(m)
-	if err != nil {
-		return "", err
-	}
-	if delegatesCode != "" {
-		sb.WriteString(delegatesCode)
-		sb.WriteString("\n")
-	}
-
-	// Generate methods
-	for _, method := range m.Methods {
-		methodCode, err := g.generateMethod(&method)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
-		}
-		sb.WriteString(methodCode)
-		sb.WriteString("\n")
-	}
-
-	// Generate classes
-	if len(m.Classes) > 0 {
-		classesCode, err := g.generateClasses(m)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(classesCode)
-	}
-
-	return sb.String(), nil
 }
 
 // generateEnums generates enum definitions
@@ -725,8 +687,8 @@ func (g *GolangGenerator) formatCastParams(params []manifest.ParamType) (string,
 	return strings.Join(parts, ", "), nil
 }
 
-// generateHFile generates the .h C header file
-func (g *GolangGenerator) generateHFile(m *manifest.Manifest) (string, error) {
+// generateSharedHFile generates the .h C header file
+func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
 	// Header guard and includes
@@ -773,16 +735,6 @@ func (g *GolangGenerator) generateHFile(m *manifest.Manifest) (string, error) {
 	// External declarations
 	sb.WriteString("extern void* Plugify_GetMethodPtr(const char* methodName);\n")
 	sb.WriteString("extern void Plugify_GetMethodPtr2(const char* methodName, void** addressDest);\n\n")
-
-	// Method implementations
-	for _, method := range m.Methods {
-		methodCode, err := g.generateHMethod(&method, m.Name)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(methodCode)
-		sb.WriteString("\n")
-	}
 
 	return sb.String(), nil
 }
@@ -1340,4 +1292,149 @@ func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, bindi
 	}
 
 	return strings.Join(parts, ", "), nil
+}
+
+// generateSharedGoFile generates the shared types file (enums, delegates, classes)
+func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	// Imports
+	sb.WriteString("import (\n")
+	sb.WriteString("\t\"errors\"\n")
+	sb.WriteString("\t\"reflect\"\n")
+	sb.WriteString("\t\"runtime\"\n")
+	sb.WriteString("\t\"unsafe\"\n")
+	sb.WriteString("\t\"github.com/untrustedmodders/go-plugify\"\n")
+	sb.WriteString(")\n\n")
+
+	sb.WriteString("var _ = errors.New(\"\")\n")
+	sb.WriteString("var _ = runtime.GOOS\n")
+	sb.WriteString("var _ = reflect.TypeOf(0)\n")
+	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
+	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
+
+	// Add comment header
+	link := "https://github.com/untrustedmodders/plugify-module-golang/blob/main/generator/generator.py"
+	sb.WriteString(fmt.Sprintf("// Generated with %s from %s\n\n", link, m.Name))
+
+	// Generate enums
+	enumsCode, err := g.generateEnums(m)
+	if err != nil {
+		return "", err
+	}
+	if enumsCode != "" {
+		sb.WriteString(enumsCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return "", err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(classesCode)
+	}
+
+	return sb.String(), nil
+}
+
+// generateGroupGoFile generates a group-specific Go file
+func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName string) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	// CGo comment block
+	sb.WriteString("/*\n")
+	sb.WriteString(fmt.Sprintf("#include \"%s.h\"\n", groupName))
+
+	// Add noescape directives for methods in this group
+	for _, method := range m.Methods {
+		methodGroup := strings.ToLower(method.Group)
+		// Map empty groups to "main"
+		if methodGroup == "" {
+			methodGroup = "main"
+		}
+		if methodGroup == groupName {
+			sb.WriteString(fmt.Sprintf("#cgo noescape %s\n", method.Name))
+		}
+	}
+
+	sb.WriteString("*/\n")
+	sb.WriteString("import \"C\"\n")
+	sb.WriteString("import (\n")
+	sb.WriteString("\t\"reflect\"\n")
+	sb.WriteString("\t\"unsafe\"\n")
+	sb.WriteString("\t\"github.com/untrustedmodders/go-plugify\"\n")
+	sb.WriteString(")\n\n")
+
+	sb.WriteString("var _ = reflect.TypeOf(0)\n")
+	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
+	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
+
+	// Add comment header
+	link := "https://github.com/untrustedmodders/plugify-module-golang/blob/main/generator/generator.py"
+	sb.WriteString(fmt.Sprintf("// Generated with %s from %s (group: %s)\n\n", link, m.Name, groupName))
+
+	// Generate methods for this group
+	for _, method := range m.Methods {
+		methodGroup := strings.ToLower(method.Group)
+		// Map empty groups to "main"
+		if methodGroup == "" {
+			methodGroup = "main"
+		}
+		if methodGroup == groupName {
+			methodCode, err := g.generateMethod(&method)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+			}
+			sb.WriteString(methodCode)
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String(), nil
+}
+
+// generateGroupHFile generates a group-specific C header file
+func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName string) (string, error) {
+	var sb strings.Builder
+
+	// Header guard and includes
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString(fmt.Sprintf("#include \"%s.h\"\n\n", m.Name))
+
+	// Method implementations for this group
+	for _, method := range m.Methods {
+		methodGroup := strings.ToLower(method.Group)
+		// Map empty groups to "main"
+		if methodGroup == "" {
+			methodGroup = "main"
+		}
+		if methodGroup == groupName {
+			methodCode, err := g.generateHMethod(&method, m.Name)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(methodCode)
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String(), nil
 }
