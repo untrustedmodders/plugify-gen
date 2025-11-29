@@ -40,42 +40,24 @@ func (g *CppGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) 
 	g.ResetCaches()
 
 	// Collect all unique groups from both methods and classes
-	groups := make(map[string]bool)
-	hasUngroupedMethods := false
-	hasUngroupedClasses := false
-
-	for _, method := range m.Methods {
-		groupName := strings.ToLower(method.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedMethods = true
-		}
-	}
-
-	for _, class := range m.Classes {
-		groupName := strings.ToLower(class.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedClasses = true
-		}
-	}
-
-	// Add default group for methods/classes without a group
-	if hasUngroupedMethods || hasUngroupedClasses {
-		groups["main"] = true
-	}
+	groups := g.GetGroups(m)
 
 	files := make(map[string]string)
 	folder := fmt.Sprintf("external/plugify/include/%s", m.Name)
 
-	// Generate shared enums and delegates file
-	sharedCode, err := g.generateSharedTypesFile(m)
+	// Generate separate enums file
+	enumsCode, err := g.generateEnumsFile(m)
 	if err != nil {
 		return nil, err
 	}
-	files[fmt.Sprintf("%s/%s/%s.hpp", folder, m.Name, m.Name)] = sharedCode
+	files[fmt.Sprintf("%s/%s/enums.hpp", folder, m.Name)] = enumsCode
+
+	// Generate separate delegates file
+	delegatesCode, err := g.generateDelegatesFile(m)
+	if err != nil {
+		return nil, err
+	}
+	files[fmt.Sprintf("%s/%s/delegates.hpp", folder, m.Name)] = delegatesCode
 
 	// Generate a file for each group
 	for groupName := range groups {
@@ -728,21 +710,13 @@ func (g *CppGenerator) needsOwnershipEnum(m *manifest.Manifest) bool {
 	return false
 }
 
-// generateSharedTypesFile generates a file with shared enums and delegates
-func (g *CppGenerator) generateSharedTypesFile(m *manifest.Manifest) (string, error) {
+// generateEnumsFile generates a file containing all enums
+func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
-
-	// Check if we need stdexcept import
-	needsExceptions := len(m.Classes) > 0
 
 	// Header guard and includes
 	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include <cstdint>\n")
-	if needsExceptions {
-		sb.WriteString("#include <stdexcept>\n")
-	}
-	sb.WriteString("#include <plg/plugin.hpp>\n")
-	sb.WriteString("#include <plg/any.hpp>\n\n")
+	sb.WriteString("#include <cstdint>\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 
 	// Namespace
@@ -758,6 +732,32 @@ func (g *CppGenerator) generateSharedTypesFile(m *manifest.Manifest) (string, er
 		sb.WriteString("\n")
 	}
 
+	// Ownership enum (if any class has destructor)
+	if g.needsOwnershipEnum(m) {
+		sb.WriteString("  /// Ownership type for RAII wrappers\n")
+		sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
+	}
+
+	// Close namespace
+	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
+
+	return sb.String(), nil
+}
+
+// generateDelegatesFile generates a file containing all delegate typedefs
+func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Header guard and includes
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString("#include \"enums.hpp\"\n")
+	sb.WriteString("#include <plg/plugin.hpp>\n")
+	sb.WriteString("#include <plg/any.hpp>\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+
 	// Generate delegates
 	delegatesCode, err := g.generateDelegates(m)
 	if err != nil {
@@ -765,13 +765,6 @@ func (g *CppGenerator) generateSharedTypesFile(m *manifest.Manifest) (string, er
 	}
 	if delegatesCode != "" {
 		sb.WriteString(delegatesCode)
-		sb.WriteString("\n")
-	}
-
-	// Ownership enum (if any class has destructor)
-	if g.needsOwnershipEnum(m) {
-		sb.WriteString("  /// Ownership type for RAII wrappers\n")
-		sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
 	}
 
 	// Close namespace
@@ -795,7 +788,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := strings.ToLower(method.Group)
+		methodGroup := g.SanitizeGroup(method.Group)
 		if methodGroup == "" {
 			methodGroup = "main"
 		}
@@ -811,7 +804,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := strings.ToLower(class.Group)
+		classGroup := g.SanitizeGroup(class.Group)
 		if classGroup == "" {
 			classGroup = "main"
 		}
@@ -840,8 +833,9 @@ func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[strin
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n", m.Name))
 	sb.WriteString("// This header includes all generated components\n\n")
 
-	// Include enums first
-	sb.WriteString(fmt.Sprintf("#include \"%s/%s.hpp\"\n", m.Name, m.Name))
+	// Include enums and delegates first
+	sb.WriteString(fmt.Sprintf("#include \"%s/enums.hpp\"\n", m.Name))
+	sb.WriteString(fmt.Sprintf("#include \"%s/delegates.hpp\"\n", m.Name))
 
 	// Include all group files
 	// Convert map to sorted slice for deterministic output

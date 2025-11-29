@@ -60,6 +60,46 @@ func (g *BaseGenerator) SanitizeName(name string) string {
 	return name
 }
 
+// SanitizeName handles reserved keywords by appending underscore
+func (g *BaseGenerator) SanitizeGroup(name string) string {
+	if g.invalidNames[name] {
+		return strings.ToLower(name + "_")
+	}
+	return strings.ToLower(name)
+}
+
+func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
+	// Collect all unique groups from both methods and classes
+	groups := make(map[string]bool)
+	hasUngroupedMethods := false
+	hasUngroupedClasses := false
+
+	for _, method := range m.Methods {
+		groupName := g.SanitizeGroup(method.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedMethods = true
+		}
+	}
+
+	for _, class := range m.Classes {
+		groupName := g.SanitizeGroup(class.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedClasses = true
+		}
+	}
+
+	// Add default group for methods/classes without a group
+	if hasUngroupedMethods || hasUngroupedClasses {
+		groups["main"] = true
+	}
+
+	return groups
+}
+
 // IsEnumCached checks if an enum has already been generated
 func (g *BaseGenerator) IsEnumCached(name string) bool {
 	return g.enumCache[name]

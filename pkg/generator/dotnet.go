@@ -42,39 +42,21 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 	files := make(map[string]string)
 
 	// Collect all unique groups from methods and classes
-	groups := make(map[string]bool)
-	hasUngroupedMethods := false
-	hasUngroupedClasses := false
+	groups := g.GetGroups(m)
 
-	for _, method := range m.Methods {
-		groupName := strings.ToLower(method.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedMethods = true
-		}
-	}
-
-	for _, class := range m.Classes {
-		groupName := strings.ToLower(class.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedClasses = true
-		}
-	}
-
-	// Add default group for methods/classes without a group
-	if hasUngroupedMethods || hasUngroupedClasses {
-		groups["main"] = true
-	}
-
-	// Generate shared types file (enums, delegates, ownership only - no classes)
-	sharedCode, err := g.generateSharedTypesFile(m)
+	// Generate separate enums file
+	enumsCode, err := g.generateEnumsFile(m)
 	if err != nil {
 		return nil, err
 	}
-	files[fmt.Sprintf("imported/%s/%s.cs", m.Name, m.Name)] = sharedCode
+	files[fmt.Sprintf("imported/%s/enums.cs", m.Name)] = enumsCode
+
+	// Generate separate delegates file
+	delegatesCode, err := g.generateDelegatesFile(m)
+	if err != nil {
+		return nil, err
+	}
+	files[fmt.Sprintf("imported/%s/delegates.cs", m.Name)] = delegatesCode
 
 	// Generate group-specific files (methods and classes)
 	for groupName := range groups {
@@ -1146,16 +1128,12 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 	return callArgs
 }
 
-// generateSharedTypesFile generates the shared types file (enums, delegates, classes, ownership)
-func (g *DotnetGenerator) generateSharedTypesFile(m *manifest.Manifest) (string, error) {
+// generateEnumsFile generates a file containing all enums
+func (g *DotnetGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
 	// Using statements
-	sb.WriteString("using System;\n")
-	sb.WriteString("using System.Numerics;\n")
-	sb.WriteString("using System.Runtime.CompilerServices;\n")
-	sb.WriteString("using System.Runtime.InteropServices;\n")
-	sb.WriteString("using Plugify;\n\n")
+	sb.WriteString("using System;\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 
 	// Namespace
@@ -1172,16 +1150,6 @@ func (g *DotnetGenerator) generateSharedTypesFile(m *manifest.Manifest) (string,
 		sb.WriteString("\n")
 	}
 
-	// Generate delegates
-	delegatesCode, err := g.generateDelegates(m)
-	if err != nil {
-		return "", err
-	}
-	if delegatesCode != "" {
-		sb.WriteString(delegatesCode)
-		sb.WriteString("\n")
-	}
-
 	// Ownership enum (if any class has destructor)
 	if g.needsOwnershipEnum(m) {
 		sb.WriteString("\t/// <summary>\n")
@@ -1190,7 +1158,34 @@ func (g *DotnetGenerator) generateSharedTypesFile(m *manifest.Manifest) (string,
 		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
 	}
 
-	// Note: Classes are generated in group-specific files
+	sb.WriteString("#pragma warning restore CS0649\n")
+	sb.WriteString("}\n")
+
+	return sb.String(), nil
+}
+
+// generateDelegatesFile generates a file containing all delegate definitions
+func (g *DotnetGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Using statements
+	sb.WriteString("using System;\n")
+	sb.WriteString("using System.Numerics;\n\n")
+	sb.WriteString("using Plugify;\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
+	sb.WriteString("#pragma warning disable CS0649\n\n")
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return "", err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+	}
 
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")
@@ -1219,7 +1214,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := strings.ToLower(method.Group)
+		methodGroup := g.SanitizeGroup(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -1238,7 +1233,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := strings.ToLower(class.Group)
+		classGroup := g.SanitizeGroup(class.Group)
 		// Map empty groups to "main"
 		if classGroup == "" {
 			classGroup = "main"

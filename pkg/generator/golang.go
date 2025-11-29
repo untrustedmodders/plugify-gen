@@ -43,46 +43,28 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 	files := make(map[string]string)
 
 	// Collect all unique groups from methods and classes
-	groups := make(map[string]bool)
-	hasUngroupedMethods := false
-	hasUngroupedClasses := false
+	groups := g.GetGroups(m)
 
-	for _, method := range m.Methods {
-		groupName := strings.ToLower(method.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedMethods = true
-		}
-	}
-
-	for _, class := range m.Classes {
-		groupName := strings.ToLower(class.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedClasses = true
-		}
-	}
-
-	// Add default group for methods/classes without a group
-	if hasUngroupedMethods || hasUngroupedClasses {
-		groups["main"] = true
-	}
-
-	// Generate shared types file (enums, delegates only - no classes)
-	sharedGoCode, err := g.generateSharedGoFile(m)
+	// Generate separate enums file
+	enumsGoCode, err := g.generateEnumsGoFile(m)
 	if err != nil {
 		return nil, err
 	}
-	files[fmt.Sprintf("%s/%s.go", m.Name, m.Name)] = sharedGoCode
+	files[fmt.Sprintf("%s/enums.go", m.Name)] = enumsGoCode
 
-	// Generate .h file
-	hCode, err := g.generateSharedHFile(m)
+	// Generate separate delegates file
+	delegatesGoCode, err := g.generateDelegatesGoFile(m)
 	if err != nil {
 		return nil, err
 	}
-	files[fmt.Sprintf("%s/%s.h", m.Name, m.Name)] = hCode
+	files[fmt.Sprintf("%s/delegates.go", m.Name)] = delegatesGoCode
+
+	// Generate .h file for enums
+	sharedHCode, err := g.generateSharedHFile(m)
+	if err != nil {
+		return nil, err
+	}
+	files[fmt.Sprintf("%s/shared.h", m.Name)] = sharedHCode
 
 	// Generate group-specific files
 	for groupName := range groups {
@@ -703,58 +685,6 @@ func (g *GolangGenerator) formatCastParams(params []manifest.ParamType) (string,
 	return strings.Join(parts, ", "), nil
 }
 
-// generateSharedHFile generates the .h C header file
-func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	// Header guard and includes
-	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include <stdlib.h>\n")
-	sb.WriteString("#include <stdint.h>\n")
-	sb.WriteString("#include <stdbool.h>\n\n")
-
-	// Type definitions
-	sb.WriteString("typedef struct String { char* data; size_t size; size_t cap; } String;\n")
-	sb.WriteString("typedef struct Vector { void* begin; void* end; void* capacity; } Vector;\n")
-	sb.WriteString("typedef struct Vector2 { float x, y; } Vector2;\n")
-	sb.WriteString("typedef struct Vector3 { float x, y, z; } Vector3;\n")
-	sb.WriteString("typedef struct Vector4 { float x, y, z, w; } Vector4;\n")
-	sb.WriteString("typedef struct Matrix4x4 { float m[4][4]; } Matrix4x4;\n")
-	sb.WriteString("typedef struct Variant {\n")
-	sb.WriteString("\tunion {\n")
-	sb.WriteString("\tbool boolean;\n")
-	sb.WriteString("\tchar char8;\n")
-	sb.WriteString("\twchar_t char16;\n")
-	sb.WriteString("\tint8_t int8;\n")
-	sb.WriteString("\tint16_t int16;\n")
-	sb.WriteString("\tint32_t int32;\n")
-	sb.WriteString("\tint64_t int64;\n")
-	sb.WriteString("\tuint8_t uint8;\n")
-	sb.WriteString("\tuint16_t uint16;\n")
-	sb.WriteString("\tuint32_t uint32;\n")
-	sb.WriteString("\tuint64_t uint64;\n")
-	sb.WriteString("\tvoid* ptr;\n")
-	sb.WriteString("\tfloat flt;\n")
-	sb.WriteString("\tdouble dbl;\n")
-	sb.WriteString("\tString str;\n")
-	sb.WriteString("\tVector vec;\n")
-	sb.WriteString("\tVector2 vec2;\n")
-	sb.WriteString("\tVector3 vec3;\n")
-	sb.WriteString("\tVector4 vec4;\n")
-	sb.WriteString("\t};\n")
-	sb.WriteString("#if INTPTR_MAX == INT32_MAX\n")
-	sb.WriteString("\tvolatile char pad[8];\n")
-	sb.WriteString("#endif\n")
-	sb.WriteString("\tuint8_t current;\n")
-	sb.WriteString("} Variant;\n\n")
-
-	// External declarations
-	sb.WriteString("extern void* Plugify_GetMethodPtr(const char* methodName);\n")
-	sb.WriteString("extern void Plugify_GetMethodPtr2(const char* methodName, void** addressDest);\n\n")
-
-	return sb.String(), nil
-}
-
 // generateHMethod generates a single C method in the .h file
 func (g *GolangGenerator) generateHMethod(method *manifest.Method, pluginName string) (string, error) {
 	var sb strings.Builder
@@ -1310,27 +1240,12 @@ func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, bindi
 	return strings.Join(parts, ", "), nil
 }
 
-// generateSharedGoFile generates the shared types file (enums, delegates, classes)
-func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, error) {
+// generateEnumsGoFile generates a file containing all enums
+func (g *GolangGenerator) generateEnumsGoFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
 	// Package declaration
 	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
-
-	// Imports
-	sb.WriteString("import (\n")
-	sb.WriteString("\t\"errors\"\n")
-	sb.WriteString("\t\"reflect\"\n")
-	sb.WriteString("\t\"runtime\"\n")
-	sb.WriteString("\t\"unsafe\"\n")
-	sb.WriteString("\t\"github.com/untrustedmodders/go-plugify\"\n")
-	sb.WriteString(")\n\n")
-
-	sb.WriteString("var _ = errors.New(\"\")\n")
-	sb.WriteString("var _ = runtime.GOOS\n")
-	sb.WriteString("var _ = reflect.TypeOf(0)\n")
-	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
-	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
@@ -1342,16 +1257,6 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 	}
 	if enumsCode != "" {
 		sb.WriteString(enumsCode)
-		sb.WriteString("\n")
-	}
-
-	// Generate delegates
-	delegatesCode, err := g.generateDelegates(m)
-	if err != nil {
-		return "", err
-	}
-	if delegatesCode != "" {
-		sb.WriteString(delegatesCode)
 		sb.WriteString("\n")
 	}
 
@@ -1377,7 +1282,79 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 		sb.WriteString(")\n\n")
 	}
 
-	// Note: Classes are generated in group-specific files
+	return sb.String(), nil
+}
+
+// generateDelegatesGoFile generates a file containing all delegate types
+func (g *GolangGenerator) generateDelegatesGoFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	// Add comment header
+	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return "", err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+	}
+
+	return sb.String(), nil
+}
+
+// generateSharedHFile generates the .h file for types
+func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Header guard and includes
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString("#include <stdlib.h>\n")
+	sb.WriteString("#include <stdint.h>\n")
+	sb.WriteString("#include <stdbool.h>\n\n")
+
+	// Type definitions
+	sb.WriteString("typedef struct String { char* data; size_t size; size_t cap; } String;\n")
+	sb.WriteString("typedef struct Vector { void* begin; void* end; void* capacity; } Vector;\n")
+	sb.WriteString("typedef struct Vector2 { float x, y; } Vector2;\n")
+	sb.WriteString("typedef struct Vector3 { float x, y, z; } Vector3;\n")
+	sb.WriteString("typedef struct Vector4 { float x, y, z, w; } Vector4;\n")
+	sb.WriteString("typedef struct Matrix4x4 { float m[4][4]; } Matrix4x4;\n")
+	sb.WriteString("typedef struct Variant {\n")
+	sb.WriteString("\tunion {\n")
+	sb.WriteString("\tbool boolean;\n")
+	sb.WriteString("\tchar char8;\n")
+	sb.WriteString("\twchar_t char16;\n")
+	sb.WriteString("\tint8_t int8;\n")
+	sb.WriteString("\tint16_t int16;\n")
+	sb.WriteString("\tint32_t int32;\n")
+	sb.WriteString("\tint64_t int64;\n")
+	sb.WriteString("\tuint8_t uint8;\n")
+	sb.WriteString("\tuint16_t uint16;\n")
+	sb.WriteString("\tuint32_t uint32;\n")
+	sb.WriteString("\tuint64_t uint64;\n")
+	sb.WriteString("\tvoid* ptr;\n")
+	sb.WriteString("\tfloat flt;\n")
+	sb.WriteString("\tdouble dbl;\n")
+	sb.WriteString("\tString str;\n")
+	sb.WriteString("\tVector vec;\n")
+	sb.WriteString("\tVector2 vec2;\n")
+	sb.WriteString("\tVector3 vec3;\n")
+	sb.WriteString("\tVector4 vec4;\n")
+	sb.WriteString("\t};\n")
+	sb.WriteString("#if INTPTR_MAX == INT32_MAX\n")
+	sb.WriteString("\tvolatile char pad[8];\n")
+	sb.WriteString("#endif\n")
+	sb.WriteString("\tuint8_t current;\n")
+	sb.WriteString("} Variant;\n\n")
+
+	// External declarations
+	sb.WriteString("extern void* Plugify_GetMethodPtr(const char* methodName);\n")
+	sb.WriteString("extern void Plugify_GetMethodPtr2(const char* methodName, void** addressDest);\n\n")
 
 	return sb.String(), nil
 }
@@ -1395,7 +1372,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Add noescape directives for methods in this group
 	for _, method := range m.Methods {
-		methodGroup := strings.ToLower(method.Group)
+		methodGroup := g.SanitizeGroup(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -1426,7 +1403,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := strings.ToLower(method.Group)
+		methodGroup := g.SanitizeGroup(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -1443,7 +1420,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := strings.ToLower(class.Group)
+		classGroup := g.SanitizeGroup(class.Group)
 		// Map empty groups to "main"
 		if classGroup == "" {
 			classGroup = "main"
@@ -1466,11 +1443,11 @@ func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName str
 
 	// Header guard and includes
 	sb.WriteString("#pragma once\n\n")
-	sb.WriteString(fmt.Sprintf("#include \"%s.h\"\n\n", m.Name))
+	sb.WriteString("#include \"shared.h\"\n\n")
 
 	// Method implementations for this group
 	for _, method := range m.Methods {
-		methodGroup := strings.ToLower(method.Group)
+		methodGroup := g.SanitizeGroup(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"

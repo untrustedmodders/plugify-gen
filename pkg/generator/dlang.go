@@ -46,33 +46,7 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error
 	moduleName := strings.ToLower(m.Name)
 
 	// Collect all unique groups from both methods and classes
-	groups := make(map[string]bool)
-	hasUngroupedMethods := false
-	hasUngroupedClasses := false
-
-	for _, method := range m.Methods {
-		groupName := strings.ToLower(method.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedMethods = true
-		}
-	}
-
-	for _, class := range m.Classes {
-		groupName := strings.ToLower(class.Group)
-		if groupName != "" {
-			groups[groupName] = true
-		} else {
-			hasUngroupedClasses = true
-		}
-	}
-
-	// Add default group for methods/classes without a group
-	if hasUngroupedMethods || hasUngroupedClasses {
-		groups["main"] = true
-	}
-
+	groups := g.GetGroups(m)
 	// Generate files for each group
 	files := make(map[string]string)
 
@@ -258,7 +232,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	for i := range m.Methods {
 		method := &m.Methods[i]
-		methodGroup := strings.ToLower(method.Group)
+		methodGroup := g.SanitizeGroup(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -287,7 +261,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	// Collect groups referenced by classes in this group
 	referencedGroups := make(map[string]bool)
 	for _, class := range m.Classes {
-		classGroup := strings.ToLower(class.Group)
+		classGroup := g.SanitizeGroup(class.Group)
 		if classGroup == "" {
 			classGroup = "main"
 		}
@@ -351,7 +325,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := strings.ToLower(class.Group)
+		classGroup := g.SanitizeGroup(class.Group)
 		if classGroup == "" {
 			classGroup = "main"
 		}
