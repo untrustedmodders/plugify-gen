@@ -74,7 +74,7 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 	if err != nil {
 		return nil, err
 	}
-	files[fmt.Sprintf("pps/%s/%s.cs", m.Name, m.Name)] = sharedCode
+	files[fmt.Sprintf("imported/%s/%s.cs", m.Name, m.Name)] = sharedCode
 
 	// Generate group-specific files (methods and classes)
 	for groupName := range groups {
@@ -82,7 +82,7 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
 		}
-		files[fmt.Sprintf("pps/%s/%s.cs", m.Name, groupName)] = groupCode
+		files[fmt.Sprintf("imported/%s/%s.cs", m.Name, groupName)] = groupCode
 	}
 
 	result := &GeneratorResult{
@@ -98,7 +98,7 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	for _, method := range m.Methods {
 		// Check return type
 		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
-			enumCode := g.generateEnum(method.RetType.Enum)
+			enumCode := g.generateEnum(method.RetType.Enum, method.RetType.Type)
 			sb.WriteString(enumCode)
 			sb.WriteString("\n")
 			g.CacheEnum(method.RetType.Enum.Name)
@@ -112,7 +112,7 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 		// Check parameters
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumCode := g.generateEnum(param.Enum)
+				enumCode := g.generateEnum(param.Enum, param.Type)
 				sb.WriteString(enumCode)
 				sb.WriteString("\n")
 				g.CacheEnum(param.Enum.Name)
@@ -130,7 +130,7 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 
 func (g *DotnetGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
 	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
-		enumCode := g.generateEnum(proto.RetType.Enum)
+		enumCode := g.generateEnum(proto.RetType.Enum, proto.RetType.Type)
 		sb.WriteString(enumCode)
 		sb.WriteString("\n")
 		g.CacheEnum(proto.RetType.Enum.Name)
@@ -138,7 +138,7 @@ func (g *DotnetGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *s
 
 	for _, param := range proto.ParamTypes {
 		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-			enumCode := g.generateEnum(param.Enum)
+			enumCode := g.generateEnum(param.Enum, param.Type)
 			sb.WriteString(enumCode)
 			sb.WriteString("\n")
 			g.CacheEnum(param.Enum.Name)
@@ -149,7 +149,7 @@ func (g *DotnetGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *s
 	}
 }
 
-func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType) string {
+func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) string {
 	var sb strings.Builder
 
 	// XML documentation
@@ -157,12 +157,6 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType) string {
 		sb.WriteString("\t\t/// <summary>\n")
 		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", enum.Description))
 		sb.WriteString("\t\t/// </summary>\n")
-	}
-
-	// Underlying type
-	underlyingType := "int"
-	if enum.Type != "" {
-		underlyingType, _ = g.typeMapper.MapType(enum.Type, TypeContextValue, false)
 	}
 
 	sb.WriteString(fmt.Sprintf("\t\tpublic enum %s : %s\n\t\t{\n", enum.Name, underlyingType))
@@ -1190,6 +1184,9 @@ func (g *DotnetGenerator) generateSharedTypesFile(m *manifest.Manifest) (string,
 
 	// Ownership enum (if any class has destructor)
 	if g.needsOwnershipEnum(m) {
+		sb.WriteString("\t/// <summary>\n")
+		sb.WriteString("\t/// Ownership type for RAII wrappers\n")
+		sb.WriteString("\t/// </summary>\n")
 		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
 	}
 

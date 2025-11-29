@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/untrustedmodders/plugify/refs/heads/main/schemas/plugin.schema.json",
   "version": "${S2SDK_VERSION}",
-  "name": "${S2SDK_PACKAGE}",
+  "name": "s2sdk",
   "description": "Provides functionality for other plugins from Source 2 engine",
   "author": "untrustedmodders",
   "website": "https://github.com/untrustedmodders/",
@@ -32536,7 +32536,7 @@
         "Kv1Create"
       ],
       "destructor": "Kv1Destroy",
-      "methods": [
+      "bindings": [
         {
           "name": "GetName",
           "method": "Kv1GetName",

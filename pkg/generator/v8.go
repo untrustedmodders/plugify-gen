@@ -44,6 +44,65 @@ func (g *V8Generator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 	// Add static methods and namespaces for plugify types
 	sb.WriteString("declare module \"plugify\" {\n")
 
+	sb.WriteString(g.generatePlugify())
+
+	// Module declaration
+	sb.WriteString(fmt.Sprintf("declare module \":%s\" {\n", m.Name))
+	sb.WriteString("  import { Vector2, Vector3, Vector4, Matrix4x4 } from \"plugify\";\n\n")
+
+	// Generate enums
+	enumsCode, err := g.generateEnums(m)
+	if err != nil {
+		return nil, err
+	}
+	if enumsCode != "" {
+		sb.WriteString(enumsCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return nil, err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate methods
+	for _, method := range m.Methods {
+		methodCode, err := g.generateMethod(&method)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+		}
+		sb.WriteString(methodCode)
+	}
+
+	// Generate classes
+	if len(m.Classes) > 0 {
+		classesCode, err := g.generateClasses(m)
+		if err != nil {
+			return nil, err
+		}
+		sb.WriteString(classesCode)
+	}
+
+	// Close module
+	sb.WriteString("}\n")
+
+	result := &GeneratorResult{
+		Files: map[string]string{
+			fmt.Sprintf("pps/%s.d.ts", m.Name): sb.String(),
+		},
+	}
+
+	return result, nil
+}
+
+func (g *V8Generator) generatePlugify() string {
+	var sb strings.Builder
+
 	// Plugin
 	sb.WriteString("  /** Represents a plugin with metadata information. */\n")
 	sb.WriteString("  type Plugin = {\n")
@@ -220,48 +279,10 @@ func (g *V8Generator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 	sb.WriteString("  }\n")
 	sb.WriteString("}\n\n")
 
-	// Module declaration
-	sb.WriteString(fmt.Sprintf("declare module \":%s\" {\n", m.Name))
-	sb.WriteString("  import { Vector2, Vector3, Vector4, Matrix4x4 } from \"plugify\";\n\n")
-
-	// Generate enums and delegates
-	enumsCode, err := g.generateEnumsAndDelegates(m)
-	if err != nil {
-		return nil, err
-	}
-	sb.WriteString(enumsCode)
-
-	// Generate methods
-	for _, method := range m.Methods {
-		methodCode, err := g.generateMethod(&method)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate method %s: %w", method.Name, err)
-		}
-		sb.WriteString(methodCode)
-	}
-
-	// Generate classes
-	if len(m.Classes) > 0 {
-		classesCode, err := g.generateClasses(m)
-		if err != nil {
-			return nil, err
-		}
-		sb.WriteString(classesCode)
-	}
-
-	// Close module
-	sb.WriteString("}\n")
-
-	result := &GeneratorResult{
-		Files: map[string]string{
-			fmt.Sprintf("%s.d.ts", m.Name): sb.String(),
-		},
-	}
-
-	return result, nil
+	return sb.String()
 }
 
-func (g *V8Generator) generateEnumsAndDelegates(m *manifest.Manifest) (string, error) {
+func (g *V8Generator) generateEnums(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
 	for _, method := range m.Methods {
@@ -269,12 +290,13 @@ func (g *V8Generator) generateEnumsAndDelegates(m *manifest.Manifest) (string, e
 		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
 			enumCode := g.generateEnum(method.RetType.Enum)
 			sb.WriteString(enumCode)
+			sb.WriteString("\n")
 			g.CacheEnum(method.RetType.Enum.Name)
 		}
+
+		// Check return type prototype
 		if method.RetType.Prototype != nil {
-			if err := g.processPrototypeEnumsAndDelegates(method.RetType.Prototype, &sb); err != nil {
-				return "", err
-			}
+			g.processPrototypeEnums(method.RetType.Prototype, &sb)
 		}
 
 		// Check parameters
@@ -282,64 +304,39 @@ func (g *V8Generator) generateEnumsAndDelegates(m *manifest.Manifest) (string, e
 			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
 				enumCode := g.generateEnum(param.Enum)
 				sb.WriteString(enumCode)
+				sb.WriteString("\n")
 				g.CacheEnum(param.Enum.Name)
 			}
+
+			// Check nested prototypes
 			if param.Prototype != nil {
-				if err := g.processPrototypeEnumsAndDelegates(param.Prototype, &sb); err != nil {
-					return "", err
-				}
+				g.processPrototypeEnums(param.Prototype, &sb)
 			}
 		}
-	}
-
-	if sb.Len() > 0 {
-		sb.WriteString("\n")
 	}
 
 	return sb.String(), nil
 }
 
-func (g *V8Generator) processPrototypeEnumsAndDelegates(proto *manifest.Prototype, sb *strings.Builder) error {
-	// Process the delegate itself
-	if !g.IsDelegateCached(proto.Name) {
-		delegateCode, err := g.generateDelegate(proto)
-		if err != nil {
-			return err
-		}
-		sb.WriteString(delegateCode)
-		g.CacheDelegate(proto.Name)
-	}
-
-	// Process enums in return type
+func (g *V8Generator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
 	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
 		enumCode := g.generateEnum(proto.RetType.Enum)
 		sb.WriteString(enumCode)
+		sb.WriteString("\n")
 		g.CacheEnum(proto.RetType.Enum.Name)
 	}
 
-	// Recursively process nested prototypes in return type
-	if proto.RetType.Prototype != nil {
-		if err := g.processPrototypeEnumsAndDelegates(proto.RetType.Prototype, sb); err != nil {
-			return err
-		}
-	}
-
-	// Process parameters
 	for _, param := range proto.ParamTypes {
 		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
 			enumCode := g.generateEnum(param.Enum)
 			sb.WriteString(enumCode)
+			sb.WriteString("\n")
 			g.CacheEnum(param.Enum.Name)
 		}
-		// Recursively process nested prototypes
 		if param.Prototype != nil {
-			if err := g.processPrototypeEnumsAndDelegates(param.Prototype, sb); err != nil {
-				return err
-			}
+			g.processPrototypeEnums(param.Prototype, sb)
 		}
 	}
-
-	return nil
 }
 
 func (g *V8Generator) generateEnum(enum *manifest.EnumType) string {
@@ -362,8 +359,40 @@ func (g *V8Generator) generateEnum(enum *manifest.EnumType) string {
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("  }\n\n")
+	sb.WriteString("  }\n")
 	return sb.String()
+}
+
+func (g *V8Generator) generateDelegates(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for _, method := range m.Methods {
+		// Check return type
+		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
+			delegateCode, err := g.generateDelegate(method.RetType.Prototype)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(delegateCode)
+			sb.WriteString("\n")
+			g.CacheDelegate(method.RetType.Prototype.Name)
+		}
+
+		// Check parameters
+		for _, param := range method.ParamTypes {
+			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
+				delegateCode, err := g.generateDelegate(param.Prototype)
+				if err != nil {
+					return "", err
+				}
+				sb.WriteString(delegateCode)
+				sb.WriteString("\n")
+				g.CacheDelegate(param.Prototype.Name)
+			}
+		}
+	}
+
+	return sb.String(), nil
 }
 
 func (g *V8Generator) generateDelegate(proto *manifest.Prototype) (string, error) {
@@ -385,7 +414,7 @@ func (g *V8Generator) generateDelegate(proto *manifest.Prototype) (string, error
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("  export type %s = (%s) => %s;\n\n", proto.Name, params, retType))
+	sb.WriteString(fmt.Sprintf("  export type %s = (%s) => %s;\n", proto.Name, params, retType))
 	return sb.String(), nil
 }
 

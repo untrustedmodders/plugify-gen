@@ -1333,8 +1333,7 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
 
 	// Add comment header
-	link := "https://github.com/untrustedmodders/plugify-module-golang/blob/main/generator/generator.py"
-	sb.WriteString(fmt.Sprintf("// Generated with %s from %s\n\n", link, m.Name))
+	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
 
 	// Generate enums
 	enumsCode, err := g.generateEnums(m)
@@ -1423,8 +1422,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
 
 	// Add comment header
-	link := "https://github.com/untrustedmodders/plugify-module-golang/blob/main/generator/generator.py"
-	sb.WriteString(fmt.Sprintf("// Generated with %s from %s (group: %s)\n\n", link, m.Name, groupName))
+	sb.WriteString(fmt.Sprintf("// Generated from %s (group: %s)\n\n", m.Name, groupName))
 
 	// Generate methods for this group
 	for _, method := range m.Methods {

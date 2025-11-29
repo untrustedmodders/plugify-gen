@@ -39,153 +39,129 @@ func NewCppGenerator() *CppGenerator {
 func (g *CppGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 	g.ResetCaches()
 
-	var sb strings.Builder
+	// Collect all unique groups from both methods and classes
+	groups := make(map[string]bool)
+	hasUngroupedMethods := false
+	hasUngroupedClasses := false
 
-	// Header guard and includes
-	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include <plg/plugin.hpp>\n")
-	sb.WriteString("#include <plg/any.hpp>\n")
-	sb.WriteString("#include <cstdint>\n")
-	sb.WriteString("#include <stdexcept>\n\n")
-	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	for _, method := range m.Methods {
+		groupName := strings.ToLower(method.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedMethods = true
+		}
+	}
 
-	// Namespace
-	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+	for _, class := range m.Classes {
+		groupName := strings.ToLower(class.Group)
+		if groupName != "" {
+			groups[groupName] = true
+		} else {
+			hasUngroupedClasses = true
+		}
+	}
 
-	// Generate enums and delegates first
-	enumsCode, err := g.generateEnumsAndDelegates(m)
+	// Add default group for methods/classes without a group
+	if hasUngroupedMethods || hasUngroupedClasses {
+		groups["main"] = true
+	}
+
+	files := make(map[string]string)
+	folder := fmt.Sprintf("external/plugify/include/%s", m.Name)
+
+	// Generate shared enums and delegates file
+	sharedCode, err := g.generateSharedTypesFile(m)
 	if err != nil {
 		return nil, err
 	}
-	sb.WriteString(enumsCode)
+	files[fmt.Sprintf("%s/%s/%s.hpp", folder, m.Name, m.Name)] = sharedCode
 
-	// Generate methods
-	for _, method := range m.Methods {
-		methodCode, err := g.generateMethod(m.Name, &method)
+	// Generate a file for each group
+	for groupName := range groups {
+		groupCode, err := g.generateGroupFile(m, groupName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
 		}
-		sb.WriteString(methodCode)
-		sb.WriteString("\n")
+		files[fmt.Sprintf("%s/%s/%s.hpp", folder, m.Name, groupName)] = groupCode
 	}
 
-	// Ownership enum
-	sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
-
-	// Generate classes
-	if len(m.Classes) > 0 {
-		classesCode, err := g.generateClasses(m)
-		if err != nil {
-			return nil, err
-		}
-		sb.WriteString(classesCode)
+	// Generate main header that includes all pieces
+	mainHeader, err := g.generateMainHeader(m, groups)
+	if err != nil {
+		return nil, err
 	}
-
-	// Close namespace
-	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
+	files[fmt.Sprintf("%s/%s.hpp", folder, m.Name)] = mainHeader
 
 	result := &GeneratorResult{
-		Files: map[string]string{
-			fmt.Sprintf("%s.hpp", m.Name): sb.String(),
-		},
+		Files: files,
 	}
 
 	return result, nil
 }
 
-func (g *CppGenerator) generateEnumsAndDelegates(m *manifest.Manifest) (string, error) {
+func (g *CppGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
-	// Collect all enums and delegates
 	for _, method := range m.Methods {
 		// Check return type
 		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
-			enumCode := g.generateEnum(method.RetType.Enum)
+			enumCode := g.generateEnum(method.RetType.Enum, method.RetType.Type)
 			sb.WriteString(enumCode)
+			sb.WriteString("\n")
 			g.CacheEnum(method.RetType.Enum.Name)
 		}
+
+		// Check return type prototype
 		if method.RetType.Prototype != nil {
-			if err := g.processPrototypeEnumsAndDelegates(method.RetType.Prototype, &sb); err != nil {
-				return "", err
-			}
+			g.processPrototypeEnums(method.RetType.Prototype, &sb)
 		}
 
 		// Check parameters
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumCode := g.generateEnum(param.Enum)
+				enumCode := g.generateEnum(param.Enum, param.Type)
 				sb.WriteString(enumCode)
+				sb.WriteString("\n")
 				g.CacheEnum(param.Enum.Name)
 			}
+
+			// Check nested prototypes
 			if param.Prototype != nil {
-				if err := g.processPrototypeEnumsAndDelegates(param.Prototype, &sb); err != nil {
-					return "", err
-				}
+				g.processPrototypeEnums(param.Prototype, &sb)
 			}
 		}
-	}
-
-	if sb.Len() > 0 {
-		sb.WriteString("\n")
 	}
 
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) processPrototypeEnumsAndDelegates(proto *manifest.Prototype, sb *strings.Builder) error {
-	// Process the delegate itself
-	if !g.IsDelegateCached(proto.Name) {
-		delegateCode, err := g.generateDelegate(proto)
-		if err != nil {
-			return err
-		}
-		sb.WriteString(delegateCode)
-		g.CacheDelegate(proto.Name)
-	}
-
-	// Process enums in return type
+func (g *CppGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
 	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
-		enumCode := g.generateEnum(proto.RetType.Enum)
+		enumCode := g.generateEnum(proto.RetType.Enum, proto.RetType.Type)
 		sb.WriteString(enumCode)
+		sb.WriteString("\n")
 		g.CacheEnum(proto.RetType.Enum.Name)
 	}
 
-	// Recursively process nested prototypes in return type
-	if proto.RetType.Prototype != nil {
-		if err := g.processPrototypeEnumsAndDelegates(proto.RetType.Prototype, sb); err != nil {
-			return err
-		}
-	}
-
-	// Process parameters
 	for _, param := range proto.ParamTypes {
 		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-			enumCode := g.generateEnum(param.Enum)
+			enumCode := g.generateEnum(param.Enum, param.Type)
 			sb.WriteString(enumCode)
+			sb.WriteString("\n")
 			g.CacheEnum(param.Enum.Name)
 		}
-		// Recursively process nested prototypes
 		if param.Prototype != nil {
-			if err := g.processPrototypeEnumsAndDelegates(param.Prototype, sb); err != nil {
-				return err
-			}
+			g.processPrototypeEnums(param.Prototype, sb)
 		}
 	}
-
-	return nil
 }
 
-func (g *CppGenerator) generateEnum(enum *manifest.EnumType) string {
+func (g *CppGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) string {
 	var sb strings.Builder
 
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("  // %s\n", enum.Description))
-	}
-
-	underlyingType := "int32_t"
-	if enum.Type != "" {
-		mapped, _ := g.typeMapper.MapType(enum.Type, TypeContextValue, false)
-		underlyingType = mapped
 	}
 
 	sb.WriteString(fmt.Sprintf("  enum class %s : %s {\n", enum.Name, underlyingType))
@@ -202,8 +178,38 @@ func (g *CppGenerator) generateEnum(enum *manifest.EnumType) string {
 		}
 	}
 
-	sb.WriteString("  };\n\n")
+	sb.WriteString("  };\n")
 	return sb.String()
+}
+
+func (g *CppGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	for _, method := range m.Methods {
+		// Check return type
+		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
+			delegateCode, err := g.generateDelegate(method.RetType.Prototype)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(delegateCode)
+			g.CacheDelegate(method.RetType.Prototype.Name)
+		}
+
+		// Check parameters
+		for _, param := range method.ParamTypes {
+			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
+				delegateCode, err := g.generateDelegate(param.Prototype)
+				if err != nil {
+					return "", err
+				}
+				sb.WriteString(delegateCode)
+				g.CacheDelegate(param.Prototype.Name)
+			}
+		}
+	}
+
+	return sb.String(), nil
 }
 
 func (g *CppGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
@@ -237,7 +243,6 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	if method.Description != "" {
 		sb.WriteString(fmt.Sprintf("   * @brief %s\n", method.Description))
 	}
-	sb.WriteString(fmt.Sprintf("   * @function %s\n", method.Name))
 	for _, param := range method.ParamTypes {
 		paramType := param.Type
 		if param.Ref {
@@ -712,6 +717,152 @@ func (g *CppGenerator) applyParamAliases(formattedParams string, params []manife
 	}
 
 	return result
+}
+
+func (g *CppGenerator) needsOwnershipEnum(m *manifest.Manifest) bool {
+	for _, class := range m.Classes {
+		if class.Destructor != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// generateSharedTypesFile generates a file with shared enums and delegates
+func (g *CppGenerator) generateSharedTypesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Check if we need stdexcept import
+	needsExceptions := len(m.Classes) > 0
+
+	// Header guard and includes
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString("#include <cstdint>\n")
+	if needsExceptions {
+		sb.WriteString("#include <stdexcept>\n")
+	}
+	sb.WriteString("#include <plg/plugin.hpp>\n")
+	sb.WriteString("#include <plg/any.hpp>\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+
+	// Generate enums
+	enumsCode, err := g.generateEnums(m)
+	if err != nil {
+		return "", err
+	}
+	if enumsCode != "" {
+		sb.WriteString(enumsCode)
+		sb.WriteString("\n")
+	}
+
+	// Generate delegates
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return "", err
+	}
+	if delegatesCode != "" {
+		sb.WriteString(delegatesCode)
+		sb.WriteString("\n")
+	}
+
+	// Ownership enum (if any class has destructor)
+	if g.needsOwnershipEnum(m) {
+		sb.WriteString("  /// Ownership type for RAII wrappers\n")
+		sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
+	}
+
+	// Close namespace
+	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
+
+	return sb.String(), nil
+}
+
+// generateGroupFile generates a file for a specific group containing methods and classes
+func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string) (string, error) {
+	var sb strings.Builder
+
+	// Header guard and includes
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString(fmt.Sprintf("#include \"%s.hpp\"\n", m.Name))
+
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+
+	// Generate methods for this group
+	for _, method := range m.Methods {
+		methodGroup := strings.ToLower(method.Group)
+		if methodGroup == "" {
+			methodGroup = "main"
+		}
+		if methodGroup == groupName {
+			methodCode, err := g.generateMethod(m.Name, &method)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+			}
+			sb.WriteString(methodCode)
+			sb.WriteString("\n")
+		}
+	}
+
+	// Generate classes for this group
+	for _, class := range m.Classes {
+		classGroup := strings.ToLower(class.Group)
+		if classGroup == "" {
+			classGroup = "main"
+		}
+		if classGroup == groupName {
+			classCode, err := g.generateClass(m, &class)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+			}
+			sb.WriteString(classCode)
+			sb.WriteString("\n")
+		}
+	}
+
+	// Close namespace
+	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
+
+	return sb.String(), nil
+}
+
+// generateMainHeader generates the main header file that includes all group files
+func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]bool) (string, error) {
+	var sb strings.Builder
+
+	// Header guard
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n", m.Name))
+	sb.WriteString("// This header includes all generated components\n\n")
+
+	// Include enums first
+	sb.WriteString(fmt.Sprintf("#include \"%s/%s.hpp\"\n", m.Name, m.Name))
+
+	// Include all group files
+	// Convert map to sorted slice for deterministic output
+	var groupNames []string
+	for groupName := range groups {
+		groupNames = append(groupNames, groupName)
+	}
+	// Sort the group names for consistent order
+	for i := 0; i < len(groupNames); i++ {
+		for j := i + 1; j < len(groupNames); j++ {
+			if groupNames[i] > groupNames[j] {
+				groupNames[i], groupNames[j] = groupNames[j], groupNames[i]
+			}
+		}
+	}
+
+	for _, groupName := range groupNames {
+		sb.WriteString(fmt.Sprintf("#include \"%s/%s.hpp\"\n", m.Name, groupName))
+	}
+
+	return sb.String(), nil
 }
 
 // CppTypeMapper implements type mapping for C++
