@@ -353,8 +353,8 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	// Generate static initialization
 	sb.WriteString("shared static this() {\n")
 	for _, method := range methods {
-		sb.WriteString(fmt.Sprintf("\t__%s = cast(_%s)_MethodPointer(\"%s\");\n",
-			method.Name, method.Name, method.FuncName))
+		sb.WriteString(fmt.Sprintf("\t__%s = cast(_%s)_MethodPointer(\"%s.%s\");\n",
+			method.Name, method.Name, moduleName, method.FuncName))
 	}
 	sb.WriteString("}\n")
 
