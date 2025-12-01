@@ -557,7 +557,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 
 		// Check if this parameter has an alias
 		var aliasName string
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			aliasName = binding.ParamAliases[i].Name
 		}
 
@@ -646,7 +646,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		paramName := g.SanitizeName(param.Name)
 
 		// Check if parameter has alias and needs .release() or .get()
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			if binding.ParamAliases[i].Owner {
 				callArgs += paramName + ".release()"
 			} else {
@@ -678,13 +678,13 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []manifest.ParamAlias) string {
+func (g *CppGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []*manifest.ParamAlias) string {
 	// This is a simplified implementation
 	// In reality, you might need more sophisticated parsing
 	result := formattedParams
 
 	for i, param := range params {
-		if i < len(aliases) && aliases[i].Name != "" {
+		if i < len(aliases) && aliases[i] != nil {
 			// Build the parameter type to search for
 			paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
 

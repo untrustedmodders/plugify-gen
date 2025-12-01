@@ -995,7 +995,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		}
 
 		// Check if this parameter has an alias
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			paramType = binding.ParamAliases[i].Name
 			paramRef = true
 			if !binding.ParamAliases[i].Owner {
@@ -1035,7 +1035,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		paramName := g.SanitizeName(param.Name)
 
 		// Check if parameter has alias and needs .release() or .get()
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			if binding.ParamAliases[i].Owner {
 				callArgs = append(callArgs, paramName+".release()")
 			} else {

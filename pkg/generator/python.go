@@ -466,7 +466,7 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 
 				// Check if this parameter has an alias
 				paramType := param.Type
-				if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+				if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 					paramType = binding.ParamAliases[i].Name
 				}
 

@@ -1207,7 +1207,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	return sb.String(), nil
 }
 
-func (g *GolangGenerator) formatClassParams(params []manifest.ParamType, aliases []manifest.ParamAlias, withTypes bool) (string, error) {
+func (g *GolangGenerator) formatClassParams(params []manifest.ParamType, aliases []*manifest.ParamAlias, withTypes bool) (string, error) {
 	if len(params) == 0 {
 		return "", nil
 	}
@@ -1221,7 +1221,7 @@ func (g *GolangGenerator) formatClassParams(params []manifest.ParamType, aliases
 			var err error
 
 			// Check if this parameter has an alias
-			if i < len(aliases) && aliases[i].Name != "" {
+			if i < len(aliases) && aliases[i] != nil {
 				typeName = fmt.Sprintf("*%s", aliases[i].Name)
 			} else {
 				typeName, err = g.typeMapper.MapParamType(&param, TypeContextValue)
@@ -1251,7 +1251,7 @@ func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, bindi
 		name := g.SanitizeName(param.Name)
 
 		// Check if parameter has alias
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			if binding.ParamAliases[i].Owner {
 				parts = append(parts, fmt.Sprintf("%s.Release()", name))
 			} else {

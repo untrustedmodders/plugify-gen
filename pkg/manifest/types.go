@@ -91,11 +91,11 @@ type Class struct {
 
 // Binding represents a method in a wrapper class
 type Binding struct {
-	Name         string       `json:"name"`
-	Method       string       `json:"method"`
-	BindSelf     bool         `json:"bindSelf,omitempty"`
-	ParamAliases []ParamAlias `json:"paramAliases,omitempty"`
-	RetAlias     *RetAlias    `json:"retAlias,omitempty"`
+	Name         string        `json:"name"`
+	Method       string        `json:"method"`
+	BindSelf     bool          `json:"bindSelf,omitempty"`
+	ParamAliases []*ParamAlias `json:"paramAliases,omitempty"`
+	RetAlias     *RetAlias     `json:"retAlias,omitempty"`
 }
 
 // ParamAlias represents a parameter that should be treated as a class type

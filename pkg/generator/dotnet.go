@@ -962,7 +962,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 	for i, param := range methodParams {
 		// Check if this parameter has an alias
 		aliasName := ""
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			aliasName = binding.ParamAliases[i].Name
 		}
 
@@ -1012,7 +1012,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		}
 
 		// Apply parameter alias if exists
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			paramType = binding.ParamAliases[i].Name
 		}
 
@@ -1119,7 +1119,7 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 		paramName := g.SanitizeName(param.Name)
 
 		// Check if parameter has alias and needs .Release() or .Get()
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			if binding.ParamAliases[i].Owner {
 				callArgs += paramName + ".Release()"
 			} else {

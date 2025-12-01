@@ -628,7 +628,7 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 			sb.WriteString(fmt.Sprintf("     * @param %s", g.SanitizeName(param.Name)))
 
 			// Check if this parameter has an alias
-			if i < len(binding.ParamAliases) && binding.ParamAliases[i].Name != "" {
+			if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 				if param.Description != "" {
 					sb.WriteString(fmt.Sprintf(" - %s", param.Description))
 				}
