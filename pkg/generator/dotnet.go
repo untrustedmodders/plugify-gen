@@ -719,6 +719,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		}
 	}
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Class documentation
@@ -771,10 +772,14 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		sb.WriteString("\t\t/// </summary>\n")
 		sb.WriteString(fmt.Sprintf("\t\tpublic override bool IsInvalid => handle == %s;\n\n", invalidValue))
 	} else {
+		ctorTag := ""
+		if hasCtor {
+			ctorTag = ", Ownership ownership"
+		}
 		sb.WriteString("\t\t/// <summary>\n")
 		sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership)\n", class.Name, handleType))
+		sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle%s)\n", class.Name, handleType, ctorTag))
 		sb.WriteString("\t\t{\n")
 		sb.WriteString("\t\t\tthis.handle = handle;\n")
 		sb.WriteString("\t\t}\n\n")
@@ -1214,7 +1219,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeGroup(method.Group)
+		methodGroup := g.SanitizeNameLower(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -1233,7 +1238,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeGroup(class.Group)
+		classGroup := g.SanitizeNameLower(class.Group)
 		// Map empty groups to "main"
 		if classGroup == "" {
 			classGroup = "main"

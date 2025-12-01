@@ -173,6 +173,7 @@ func (g *LuaGenerator) generateClasses(m *manifest.Manifest) (string, error) {
 func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Class comment
@@ -186,7 +187,7 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	sb.WriteString(fmt.Sprintf("%s = {}\n\n", class.Name))
 
 	// Generate constructors
-	if len(class.Constructors) > 0 {
+	if hasCtor {
 		for _, ctorName := range class.Constructors {
 			ctorCode, err := g.generateConstructor(m, class, ctorName)
 			if err != nil {
@@ -199,6 +200,12 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		// Default constructor if no constructors specified
 		sb.WriteString(fmt.Sprintf("--- Constructor for %s\n", class.Name))
 		sb.WriteString(fmt.Sprintf("function %s.new() end\n\n", class.Name))
+
+		// Main constructor if no constructors and destructors specified
+		if !hasDtor {
+			sb.WriteString(fmt.Sprintf("--- Constructor for %s from existing handle\n", class.Name))
+			sb.WriteString(fmt.Sprintf("function %s.new(handle) end\n\n", class.Name))
+		}
 	}
 
 	// Generate utility methods (valid, get, release, and close if destructor exists)

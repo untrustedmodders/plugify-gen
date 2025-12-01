@@ -438,6 +438,7 @@ func (g *V8Generator) generateClasses(m *manifest.Manifest) (string, error) {
 func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Class JSDoc comment
@@ -449,7 +450,7 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	sb.WriteString(fmt.Sprintf("  export class %s {\n", class.Name))
 
 	// Generate constructors
-	if len(class.Constructors) > 0 {
+	if hasCtor {
 		for _, ctorName := range class.Constructors {
 			ctorCode, err := g.generateConstructor(m, class, ctorName)
 			if err != nil {
@@ -460,6 +461,11 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	} else {
 		// Default constructor if no constructors specified
 		sb.WriteString("    constructor();\n\n")
+
+		// Main constructor if no constructors and destructors specified
+		if !hasDtor {
+			sb.WriteString("    constructor(handle);\n\n")
+		}
 	}
 
 	// Generate utility methods (valid, get, release, and close if destructor exists)

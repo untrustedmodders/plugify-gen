@@ -60,14 +60,12 @@ func (g *BaseGenerator) SanitizeName(name string) string {
 	return name
 }
 
-// SanitizeName handles reserved keywords by appending underscore
-func (g *BaseGenerator) SanitizeGroup(name string) string {
-	if g.invalidNames[name] {
-		return strings.ToLower(name + "_")
-	}
-	return strings.ToLower(name)
+// SanitizeNameLower handles reserved keywords by appending underscore
+func (g *BaseGenerator) SanitizeNameLower(name string) string {
+	return strings.ToLower(g.SanitizeName(name))
 }
 
+// GetGroups gets the list of all groups from manifest
 func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	// Collect all unique groups from both methods and classes
 	groups := make(map[string]bool)
@@ -75,7 +73,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	hasUngroupedClasses := false
 
 	for _, method := range m.Methods {
-		groupName := g.SanitizeGroup(method.Group)
+		groupName := g.SanitizeNameLower(method.Group)
 		if groupName != "" {
 			groups[groupName] = true
 		} else {
@@ -84,7 +82,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	}
 
 	for _, class := range m.Classes {
-		groupName := g.SanitizeGroup(class.Group)
+		groupName := g.SanitizeNameLower(class.Group)
 		if groupName != "" {
 			groups[groupName] = true
 		} else {

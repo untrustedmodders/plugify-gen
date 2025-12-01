@@ -194,6 +194,7 @@ func (g *PythonGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Class declaration with docstring
@@ -203,7 +204,7 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	// Generate constructors
-	if len(class.Constructors) > 0 {
+	if hasCtor {
 		for _, ctorName := range class.Constructors {
 			ctorCode, err := g.generateConstructor(m, class, ctorName)
 			if err != nil {
@@ -216,6 +217,12 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		// Default constructor if no constructors specified
 		sb.WriteString("    def __init__(self) -> None:\n")
 		sb.WriteString("        ...\n\n")
+
+		// Main constructor if no constructors and destructors specified
+		if !hasDtor {
+			sb.WriteString("    def __init__(self, handle) -> None:\n")
+			sb.WriteString("        ...\n\n")
+		}
 	}
 
 	// Generate destructor and context manager methods for classes with destructors

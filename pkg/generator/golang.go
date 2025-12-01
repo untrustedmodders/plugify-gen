@@ -812,6 +812,7 @@ func (g *GolangGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Get handle type
@@ -851,6 +852,8 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	// Generate helper constructors (borrowed/owned)
 	if hasDtor {
 		sb.WriteString(g.generateHelperConstructors(class, handleType))
+	} else if !hasCtor {
+		sb.WriteString(g.generateDefaultConstructor(class, handleType))
 	}
 
 	// Generate finalizer
@@ -960,6 +963,28 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class, hand
 	sb.WriteString("\t}\n")
 	sb.WriteString("\tw.cleanup = runtime.AddCleanup(w, w.finalize, struct{}{})\n")
 	sb.WriteString("\treturn w\n")
+	sb.WriteString("}\n\n")
+
+	return sb.String()
+}
+
+func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class, handleType string) string {
+	var sb strings.Builder
+
+	invalidValue := class.InvalidValue
+	if class.HandleType == "ptr64" || handleType == "uintptr" {
+		invalidValue = "0"
+	}
+
+	// New helper
+	sb.WriteString(fmt.Sprintf("// New%s creates a %s from a handle\n", class.Name, class.Name))
+	sb.WriteString(fmt.Sprintf("func New%(handle %s) *%s {\n", class.Name, handleType, class.Name))
+	sb.WriteString(fmt.Sprintf("\tif handle == %s {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("\t\treturn &%s{}\n", class.Name))
+	sb.WriteString("\t}\n")
+	sb.WriteString(fmt.Sprintf("\treturn &%s{\n", class.Name))
+	sb.WriteString("\t\thandle:    handle,\n")
+	sb.WriteString("\t}\n")
 	sb.WriteString("}\n\n")
 
 	return sb.String()
@@ -1372,7 +1397,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Add noescape directives for methods in this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeGroup(method.Group)
+		methodGroup := g.SanitizeNameLower(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -1403,7 +1428,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeGroup(method.Group)
+		methodGroup := g.SanitizeNameLower(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -1420,7 +1445,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeGroup(class.Group)
+		classGroup := g.SanitizeNameLower(class.Group)
 		// Map empty groups to "main"
 		if classGroup == "" {
 			classGroup = "main"
@@ -1447,7 +1472,7 @@ func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName str
 
 	// Method implementations for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeGroup(method.Group)
+		methodGroup := g.SanitizeNameLower(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"

@@ -232,7 +232,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	for i := range m.Methods {
 		method := &m.Methods[i]
-		methodGroup := g.SanitizeGroup(method.Group)
+		methodGroup := g.SanitizeNameLower(method.Group)
 		// Map empty groups to "main"
 		if methodGroup == "" {
 			methodGroup = "main"
@@ -261,7 +261,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	// Collect groups referenced by classes in this group
 	referencedGroups := make(map[string]bool)
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeGroup(class.Group)
+		classGroup := g.SanitizeNameLower(class.Group)
 		if classGroup == "" {
 			classGroup = "main"
 		}
@@ -325,7 +325,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeGroup(class.Group)
+		classGroup := g.SanitizeNameLower(class.Group)
 		if classGroup == "" {
 			classGroup = "main"
 		}
@@ -664,6 +664,7 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 		}
 	}
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Class documentation
@@ -719,7 +720,11 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 		sb.WriteString("\t\t_ownership = ownership;\n")
 		sb.WriteString("\t}\n\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership) {\n", handleType))
+		ctorTag := ""
+		if hasCtor {
+			ctorTag = ", Ownership"
+		}
+		sb.WriteString(fmt.Sprintf("\tthis(%s handle%s) {\n", handleType, ctorTag))
 		sb.WriteString("\t\t_handle = handle;\n")
 		sb.WriteString("\t}\n\n")
 	}

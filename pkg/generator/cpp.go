@@ -319,6 +319,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		}
 	}
 
+	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
 	// Class documentation
@@ -381,7 +382,11 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	if hasDtor {
 		sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType))
 	} else {
-		sb.WriteString(fmt.Sprintf("    explicit %s(%s handle, Ownership) : _handle(handle) {}\n\n", class.Name, handleType))
+		ctorTag := ""
+		if hasCtor {
+			ctorTag = ", Ownership"
+		}
+		sb.WriteString(fmt.Sprintf("    explicit %s(%s handle%s) : _handle(handle) {}\n\n", class.Name, handleType, ctorTag))
 	}
 
 	// Utility methods
@@ -788,7 +793,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeGroup(method.Group)
+		methodGroup := g.SanitizeNameLower(method.Group)
 		if methodGroup == "" {
 			methodGroup = "main"
 		}
@@ -804,7 +809,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeGroup(class.Group)
+		classGroup := g.SanitizeNameLower(class.Group)
 		if classGroup == "" {
 			classGroup = "main"
 		}
