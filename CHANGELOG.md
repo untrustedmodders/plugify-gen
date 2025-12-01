@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.1.1](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.0...v1.1.1) (2025-12-01)
+
+
+### Bug Fixes
+
+* add enum convertion and unsafe context for dotnet wrappers ([d614569](https://github.com/untrustedmodders/plugify-gen/commit/d614569824ca4bd77d781accede4bf82d6e5ea4a))
+* add initial dlang generation ([1403927](https://github.com/untrustedmodders/plugify-gen/commit/1403927806daa8e5fb721fbf9021dc651ae8376e))
+* add missing ref to c# arrays ([e649bb2](https://github.com/untrustedmodders/plugify-gen/commit/e649bb23808c396b0bc4af969e5d7ca869cbea88))
+* add static keyword to non bind methods for dotnet ([3c46da4](https://github.com/untrustedmodders/plugify-gen/commit/3c46da4bdd1fe05f2876881a28a96b9b92f1599b))
+* **claude:** add class separation by groups too ([43ba4af](https://github.com/untrustedmodders/plugify-gen/commit/43ba4afe82bda80a1998334069f092e0a6e5f8f0))
+* **claude:** add dlang class generation ([a599360](https://github.com/untrustedmodders/plugify-gen/commit/a599360f771b6bacf8bac71e78f55fb52072153d))
+* **claude:** add dlang to generator ([b8d9b3c](https://github.com/untrustedmodders/plugify-gen/commit/b8d9b3cb6d00574e13eab59640290f4b4db00708))
+* **claude:** add dlang to generator (2) ([8c1c1ff](https://github.com/untrustedmodders/plugify-gen/commit/8c1c1ffcedb04ef9f3f8595a602e22ba5ceac7eb))
+* **claude:** add group for member ([02b8295](https://github.com/untrustedmodders/plugify-gen/commit/02b82956b518bf5c591693cc72b81a1d38a12b2e))
+* **claude:** add import of used method to classes for dlang ([abc9fdd](https://github.com/untrustedmodders/plugify-gen/commit/abc9fdd70aa1be48a4e663006abee557e2d85a0b))
+* **claude:** add reset methods to lua/v8 generators ([2706cc6](https://github.com/untrustedmodders/plugify-gen/commit/2706cc6ba430b2330aff664b38dae4b4a7dd4134))
+* **claude:** add support of groups to dotnet generation ([2bcae04](https://github.com/untrustedmodders/plugify-gen/commit/2bcae043e58429c827de508ad54b983f7ab1f1d0))
+* **claude:** add support of groups to golang generation ([ad38113](https://github.com/untrustedmodders/plugify-gen/commit/ad381133808335f4ac369ad77f512971ad501f46))
+* **claude:** add support to dlang when no groups available ([9f38908](https://github.com/untrustedmodders/plugify-gen/commit/9f38908000680afd05ae333c62a1c79d14899e6e))
+* **claude:** add support to dlang when no groups available ([883f45d](https://github.com/untrustedmodders/plugify-gen/commit/883f45d56ed94802e64c7b8272fa9629bd93acda))
+* **claude:** add support to dlang when no groups available ([4dc3c21](https://github.com/untrustedmodders/plugify-gen/commit/4dc3c2143c14ee44ee44ebc4782f124ca33ff293))
+* **claude:** add uniform module generation to dlang ([a861e86](https://github.com/untrustedmodders/plugify-gen/commit/a861e869675afa68f68f01670c8ea3642d0818d2))
+* **claude:** add utility methods to lua generator ([68db134](https://github.com/untrustedmodders/plugify-gen/commit/68db134280e910bd667a13f3eebf0fa313ed75ec))
+* **claude:** add utility methods to python generator ([35cec95](https://github.com/untrustedmodders/plugify-gen/commit/35cec95b2d87e50ea153ba090b6adb16c5866cac))
+* **claude:** add utility methods to v8 generator ([8b8e352](https://github.com/untrustedmodders/plugify-gen/commit/8b8e3525e4916627165f07673dc93dafe0eaf9e5))
+* **claude:** copy code button rework ([c0ef929](https://github.com/untrustedmodders/plugify-gen/commit/c0ef92937c651ae5a36111a98e119ef0cee07bda))
+* **claude:** fix enums/delagate generation for some languages where it was missing ([ff4eb0b](https://github.com/untrustedmodders/plugify-gen/commit/ff4eb0b9f3ced22a75abfa0d3bc6510faaa3a4cd))
+* **claude:** more fixes ([9172426](https://github.com/untrustedmodders/plugify-gen/commit/917242694b3aba8bbc89a0a1293ab3de8ccf4ad3))
+* **claude:** wrong dotnet methods with fixed only ([9d4a1ae](https://github.com/untrustedmodders/plugify-gen/commit/9d4a1ae270ca82e0af834e12b9f62245b0740608))
+* dlang module export names ([1c2aa05](https://github.com/untrustedmodders/plugify-gen/commit/1c2aa057fba306ac87e502a1bcdf6ae81fe3e825))
+* manual cleanup after chilling vibe coding ([d482745](https://github.com/untrustedmodders/plugify-gen/commit/d4827458751be3784d29f230f47a0036cb345674))
+* move group separation to base ([6950b8b](https://github.com/untrustedmodders/plugify-gen/commit/6950b8b03b90c1740f1bdfb64178329003da7ea3))
+* tabs in enums and any type in golang ([a413f1a](https://github.com/untrustedmodders/plugify-gen/commit/a413f1ade3c19494805a9e982daab4e90804c2d5))
+
 ## [1.1.0](https://github.com/untrustedmodders/plugify-gen/compare/v1.0.2...v1.1.0) (2025-11-20)
 
 
