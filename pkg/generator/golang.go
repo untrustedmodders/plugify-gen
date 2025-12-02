@@ -1141,20 +1141,37 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		return "", err
 	}
 
+	// Determine if method is static
+	isStatic := !binding.BindSelf
+
 	// Build return type
 	returnSignature := ""
-	if method.RetType.Type != "void" {
-		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-			returnSignature = fmt.Sprintf(" (*%s, error)", binding.RetAlias.Name)
-		} else {
-			retType, err := g.typeMapper.MapReturnType(&method.RetType)
-			if err != nil {
-				return "", err
+	if isStatic {
+		if method.RetType.Type != "void" {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				returnSignature = fmt.Sprintf(" *%s", binding.RetAlias.Name)
+			} else {
+				retType, err := g.typeMapper.MapReturnType(&method.RetType)
+				if err != nil {
+					return "", err
+				}
+				returnSignature = fmt.Sprintf(" %s", retType)
 			}
-			returnSignature = fmt.Sprintf(" (%s, error)", retType)
 		}
 	} else {
-		returnSignature = " error"
+		if method.RetType.Type != "void" {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				returnSignature = fmt.Sprintf(" (*%s, error)", binding.RetAlias.Name)
+			} else {
+				retType, err := g.typeMapper.MapReturnType(&method.RetType)
+				if err != nil {
+					return "", err
+				}
+				returnSignature = fmt.Sprintf(" (%s, error)", retType)
+			}
+		} else {
+			returnSignature = " error"
+		}
 	}
 
 	sb.WriteString(fmt.Sprintf("func (w *%s) %s(%s)%s {\n", class.Name, binding.Name, formattedParams, returnSignature))
@@ -1198,8 +1215,14 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	// Generate call
 	if method.RetType.Type == "void" {
 		sb.WriteString(fmt.Sprintf("\t%s(%s)\n", method.FuncName, callArgs))
-		sb.WriteString("\treturn nil\n")
+		if !isStatic {
+			sb.WriteString("\treturn nil\n")
+		}
 	} else {
+		errorTag := ""
+		if !isStatic {
+			errorTag = ", nil"
+		}
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 			ownership := ""
 			if hasDtor || hasCtor {
@@ -1211,9 +1234,9 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 			} else {
 				ownership = fmt.Sprintf("New%s", binding.RetAlias.Name)
 			}
-			sb.WriteString(fmt.Sprintf("\treturn %s(%s(%s)), nil\n", ownership, method.FuncName, callArgs))
+			sb.WriteString(fmt.Sprintf("\treturn %s(%s(%s))%s\n", ownership, method.FuncName, callArgs, errorTag))
 		} else {
-			sb.WriteString(fmt.Sprintf("\treturn %s(%s), nil\n", method.FuncName, callArgs))
+			sb.WriteString(fmt.Sprintf("\treturn %s(%s)%s\n", method.FuncName, callArgs, errorTag))
 		}
 	}
 
