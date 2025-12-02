@@ -662,7 +662,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 
 	// Generate return statement
 	if method.RetType.Type == "void" {
-		sb.WriteString(fmt.Sprintf("      ::%s(%s);\n", method.FuncName, callArgs))
+		sb.WriteString(fmt.Sprintf("      %s::%s(%s);\n", m.Name, method.FuncName, callArgs))
 	} else {
 		// Handle return alias
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
@@ -670,9 +670,9 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 			if binding.RetAlias.Owner {
 				ownership = "Ownership::Owned"
 			}
-			sb.WriteString(fmt.Sprintf("      return %s(::%s(%s), %s);\n", binding.RetAlias.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
+			sb.WriteString(fmt.Sprintf("      return %s(%s::%s(%s), %s);\n", binding.RetAlias.Name, m.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
 		} else {
-			sb.WriteString(fmt.Sprintf("      return ::%s(%s);\n", method.FuncName, callArgs))
+			sb.WriteString(fmt.Sprintf("      return %s::%s(%s);\n", m.Name, method.FuncName, callArgs))
 		}
 	}
 
