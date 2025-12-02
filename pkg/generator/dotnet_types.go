@@ -297,6 +297,20 @@ func (m *DotnetTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, er
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
 }
 
+func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	invalidValue := class.InvalidValue
+	if invalidValue == "" {
+		invalidValue = "default"
+	}
+
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	if handleType == "void" {
+		handleType = "object"
+	}
+
+	return invalidValue, handleType
+}
+
 // MapDelegateParamType maps parameter types for delegate definitions
 func (m *DotnetTypeMapper) MapDelegateParamType(param *manifest.ParamType) (string, error) {
 	// Delegates use ref for POD types automatically, enums only if ref=true

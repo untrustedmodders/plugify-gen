@@ -652,17 +652,7 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 	var sb strings.Builder
 
 	// Get handle type and invalid value
-	handleType, err := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
-	if err != nil {
-		return "", err
-	}
-
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" || strings.Contains(handleType, "*") {
-		if invalidValue == "0" || invalidValue == "" {
-			invalidValue = "null"
-		}
-	}
+	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
@@ -1016,12 +1006,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	// Method body
 	// Generate null check if needed (only for non-static methods)
 	if !isStatic {
-		invalidValue := class.InvalidValue
-		if class.HandleType == "ptr64" || strings.Contains(class.HandleType, "*") {
-			if invalidValue == "0" || invalidValue == "" {
-				invalidValue = "null"
-			}
-		}
+		invalidValue, _ := g.typeMapper.MapHandleType(class)
 		sb.WriteString(fmt.Sprintf("\t\tenforce(_handle !is %s, \"%s: Empty handle\");\n", invalidValue, class.Name))
 	}
 
@@ -1155,4 +1140,20 @@ func (m *DlangTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, err
 
 	// Regular type mapping
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+}
+
+func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	invalidValue := class.InvalidValue
+	if class.HandleType == "ptr64" && invalidValue == "0" {
+		invalidValue = "null"
+	} else if invalidValue == "" {
+		invalidValue = "empty.init"
+	}
+
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	if handleType == "void" {
+		handleType = "empty"
+	}
+
+	return invalidValue, handleType
 }

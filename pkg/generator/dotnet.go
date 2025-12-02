@@ -705,19 +705,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	var sb strings.Builder
 
 	// Map handle type
-	handleType, err := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
-	if err != nil {
-		return "", err
-	}
-
-	invalidValue := class.InvalidValue
-	if invalidValue == "" || invalidValue == "0" {
-		if class.HandleType == "ptr64" {
-			invalidValue = "nint.Zero"
-		} else {
-			invalidValue = "0"
-		}
-	}
+	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
@@ -741,7 +729,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Generate constructors
 	for _, ctorName := range class.Constructors {
-		ctorCode, err := g.generateClassConstructor(m, class, ctorName, handleType, hasDtor)
+		ctorCode, err := g.generateClassConstructor(m, class, ctorName, hasDtor)
 		if err != nil {
 			return "", err
 		}
@@ -856,7 +844,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Generate class bindings
 	for _, binding := range class.Bindings {
-		bindingCode, err := g.generateClassBinding(m, class, &binding, handleType, invalidValue, hasDtor)
+		bindingCode, err := g.generateClassBinding(m, class, &binding, hasDtor)
 		if err != nil {
 			return "", err
 		}
@@ -868,7 +856,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	return sb.String(), nil
 }
 
-func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *manifest.Class, methodName string, handleType string, hasDtor bool) (string, error) {
+func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *manifest.Class, methodName string, hasDtor bool) (string, error) {
 	// Find the method in the manifest
 	var method *manifest.Method
 	for i := range m.Methods {
@@ -926,7 +914,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	return sb.String(), nil
 }
 
-func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, handleType string, invalidValue string, hasDtor bool) (string, error) {
+func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, hasDtor bool) (string, error) {
 	// Find the underlying method
 	var method *manifest.Method
 	for i := range m.Methods {

@@ -493,7 +493,7 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	return sb.String(), nil
 }
 
-func (g *PythonGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []manifest.ParamAlias) string {
+func (g *PythonGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []*manifest.ParamAlias) string {
 	result := formattedParams
 	for i, alias := range aliases {
 		if i < len(params) && alias.Name != "" {
@@ -758,4 +758,8 @@ func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (stri
 	}
 
 	return fmt.Sprintf("Callable[[%s], %s]", strings.Join(paramTypes, ", "), retType), nil
+}
+
+func (m *PythonTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	return "", ""
 }

@@ -815,11 +815,8 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
-	// Get handle type
-	handleType, err := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
-	if err != nil {
-		return "", err
-	}
+	// Map handle type
+	_, handleType := g.typeMapper.MapHandleType(class)
 
 	// Generate error variable for this class
 	errVarName := fmt.Sprintf("%sErrEmptyHandle", class.Name)
@@ -851,18 +848,18 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Generate helper constructors (borrowed/owned)
 	if hasDtor {
-		sb.WriteString(g.generateHelperConstructors(class, handleType))
+		sb.WriteString(g.generateHelperConstructors(class))
 	} else if !hasCtor {
-		sb.WriteString(g.generateDefaultConstructor(class, handleType))
+		sb.WriteString(g.generateDefaultConstructor(class))
 	}
 
 	// Generate finalizer
 	if hasDtor {
-		sb.WriteString(g.generateFinalizer(class, handleType))
+		sb.WriteString(g.generateFinalizer(class))
 	}
 
 	// Generate utility methods
-	sb.WriteString(g.generateUtilityMethods(class, handleType, hasDtor))
+	sb.WriteString(g.generateUtilityMethods(class, hasDtor))
 
 	// Generate class bindings
 	for _, binding := range class.Bindings {
@@ -931,13 +928,10 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 	return sb.String(), nil
 }
 
-func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class, handleType string) string {
+func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) string {
 	var sb strings.Builder
 
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" || handleType == "uintptr" {
-		invalidValue = "0"
-	}
+	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	// newBorrowed helper
 	sb.WriteString(fmt.Sprintf("// new%sBorrowed creates a %s from a borrowed handle (internal use)\n", class.Name, class.Name))
@@ -968,13 +962,10 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class, hand
 	return sb.String()
 }
 
-func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class, handleType string) string {
+func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) string {
 	var sb strings.Builder
 
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" || handleType == "uintptr" {
-		invalidValue = "0"
-	}
+	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	// New helper
 	sb.WriteString(fmt.Sprintf("// New%s creates a %s from a handle\n", class.Name, class.Name))
@@ -990,13 +981,10 @@ func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class, hand
 	return sb.String()
 }
 
-func (g *GolangGenerator) generateFinalizer(class *manifest.Class, handleType string) string {
+func (g *GolangGenerator) generateFinalizer(class *manifest.Class) string {
 	var sb strings.Builder
 
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" || handleType == "uintptr" {
-		invalidValue = "0"
-	}
+	invalidValue, _ := g.typeMapper.MapHandleType(class)
 
 	// finalize function
 	sb.WriteString("// finalize is the finalizer function (like C++ destructor)\n")
@@ -1024,13 +1012,10 @@ func (g *GolangGenerator) generateFinalizer(class *manifest.Class, handleType st
 	return sb.String()
 }
 
-func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class, handleType string, hasDtor bool) string {
+func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class, hasDtor bool) string {
 	var sb strings.Builder
 
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" || handleType == "uintptr" {
-		invalidValue = "0"
-	}
+	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	// Close method (only if destructor exists)
 	if hasDtor {
@@ -1151,10 +1136,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	sb.WriteString(fmt.Sprintf("func (w *%s) %s(%s)%s {\n", class.Name, binding.Name, formattedParams, returnSignature))
 
 	// Generate null check
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" {
-		invalidValue = "0"
-	}
+	invalidValue, _ := g.typeMapper.MapHandleType(class)
 
 	nullPolicy := class.NullPolicy
 	if nullPolicy == "" {

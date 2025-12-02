@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(GOOS=js GOARCH=wasm go build:*)"
+      "Bash(GOOS=js GOARCH=wasm go build:*)",
+      "Bash(go build:*)"
     ],
     "deny": [],
     "ask": []

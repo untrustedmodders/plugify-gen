@@ -465,6 +465,21 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, er
 	return goType, nil
 }
 
+// MapHandleType implements TypeMapper interface
+func (m *GolangTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	invalidValue := class.InvalidValue
+	if invalidValue == "" {
+		invalidValue = "empty{}"
+	}
+
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	if handleType == "" {
+		handleType = "empty"
+	}
+
+	return invalidValue, handleType
+}
+
 // GetCType returns the C type for a given manifest type
 func (m *GolangTypeMapper) GetCType(baseType string, isRef bool, isRet bool) string {
 	result := m.rtypesMap[baseType]

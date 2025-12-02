@@ -660,7 +660,7 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 	return sb.String(), nil
 }
 
-func (g *V8Generator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []manifest.ParamAlias) string {
+func (g *V8Generator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []*manifest.ParamAlias) string {
 	result := formattedParams
 	for i, alias := range aliases {
 		if i < len(params) && alias.Name != "" {
@@ -870,4 +870,8 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error)
 
 	// Regular type mapping
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+}
+
+func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	return "", ""
 }

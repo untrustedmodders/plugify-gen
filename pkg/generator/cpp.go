@@ -306,18 +306,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	var sb strings.Builder
 
 	// Get handle type and invalid value
-	handleType, err := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
-	if err != nil {
-		return "", err
-	}
-
-	// Determine invalid value representation
-	invalidValue := class.InvalidValue
-	if class.HandleType == "ptr64" || strings.Contains(handleType, "*") {
-		if invalidValue == "0" || invalidValue == "" {
-			invalidValue = "nullptr"
-		}
-	}
+	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
@@ -330,7 +319,11 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	sb.WriteString("   */\n")
 
 	// Class declaration
-	sb.WriteString(fmt.Sprintf("  class %s final {\n", class.Name))
+	prefix := "class"
+	if handleType == "void" {
+		prefix = "PLUGIFY_NO_UNIQUE_ADDRESS class"
+	}
+	sb.WriteString(fmt.Sprintf("  %s %s final {\n", prefix, class.Name))
 
 	sb.WriteString("  public:\n")
 
@@ -625,10 +618,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	}
 
 	if !isStatic && nullPolicy == "throw" {
-		invalidValue := class.InvalidValue
-		if class.HandleType == "ptr64" {
-			invalidValue = "nullptr"
-		}
+		invalidValue, _ := g.typeMapper.MapHandleType(class)
 		sb.WriteString(fmt.Sprintf("      if (_handle == %s) throw std::runtime_error(\"%s: Empty handle\");\n", invalidValue, class.Name))
 	}
 
@@ -982,4 +972,20 @@ func (m *CppTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error
 
 	// Regular type mapping - returns always by value
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+}
+
+func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	invalidValue := class.InvalidValue
+	if class.HandleType == "ptr64" && invalidValue == "0" {
+		invalidValue = "nullptr"
+	} else if invalidValue == "" {
+		invalidValue = "{}"
+	}
+
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	if handleType == "void" {
+		handleType = "empty"
+	}
+
+	return invalidValue, handleType
 }

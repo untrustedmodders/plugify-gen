@@ -485,3 +485,7 @@ func (m *LuaTypeMapper) MapParamType(param *manifest.ParamType, context TypeCont
 func (m *LuaTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
 	return "", nil
 }
+
+func (m *LuaTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+	return "", ""
+}
