@@ -355,13 +355,11 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		sb.WriteString(fmt.Sprintf("-- @return %s %s\n", retType, method.RetType.Description))
 	}
 
-	// Determine if method is static or instance
-	isStatic := !binding.BindSelf
-
 	// Method signature
 	formattedParams := g.formatParameters(methodParams)
 
-	if isStatic {
+	// Determine if method is static or instance
+	if !binding.BindSelf {
 		// Static method: ClassName.method()
 		sb.WriteString(fmt.Sprintf("function %s.%s(%s) end\n", class.Name, binding.Name, formattedParams))
 	} else {

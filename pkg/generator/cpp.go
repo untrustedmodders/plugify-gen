@@ -597,9 +597,6 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	}
 	sb.WriteString("     */\n")
 
-	// Determine if method is static
-	isStatic := !binding.BindSelf
-
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
 	if err != nil {
@@ -621,12 +618,12 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		formattedParams = g.applyParamAliases(formattedParams, methodParams, binding.ParamAliases)
 	}
 
-	staticKeyword := ""
-	if isStatic {
-		staticKeyword = "static "
+	// Determine if method is static
+	if !binding.BindSelf {
+		sb.WriteString(fmt.Sprintf("    static %s %s(%s) {\n", retType, binding.Name, formattedParams))
+	} else {
+		sb.WriteString(fmt.Sprintf("    %s %s(%s) {\n", retType, binding.Name, formattedParams))
 	}
-
-	sb.WriteString(fmt.Sprintf("    %s%s %s(%s) {\n", staticKeyword, retType, binding.Name, formattedParams))
 
 	// Generate null check if needed
 	nullPolicy := class.NullPolicy
@@ -634,7 +631,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		nullPolicy = "throw"
 	}
 
-	if !isStatic && nullPolicy == "throw" {
+	if binding.BindSelf && nullPolicy == "throw" {
 		invalidValue, _ := g.typeMapper.MapHandleType(class)
 		sb.WriteString(fmt.Sprintf("      if (_handle == %s) throw std::runtime_error(\"%s: Empty handle\");\n", invalidValue, class.Name))
 	}

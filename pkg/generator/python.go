@@ -426,18 +426,8 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	}
 
 	// Determine if method is static
-	isStatic := !binding.BindSelf
-	decorator := ""
-	if isStatic {
-		decorator = "    @staticmethod\n"
-	}
-
-	// Generate method signature
-	if decorator != "" {
-		sb.WriteString(decorator)
-	}
-
-	if isStatic {
+	if !binding.BindSelf {
+		sb.WriteString("    @staticmethod\n")
 		if formattedParams != "" {
 			sb.WriteString(fmt.Sprintf("    def %s(%s) -> %s:\n", binding.Name, formattedParams, retType))
 		} else {

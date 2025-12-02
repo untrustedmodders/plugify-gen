@@ -944,10 +944,8 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		}
 	}
 
-	// Determine if method is static
-	isStatic := !binding.BindSelf
-
-	if !isStatic {
+	// Determine if method is non static
+	if binding.BindSelf {
 		sb.WriteString("\t * Throws: Exception if handle is null\n")
 	}
 
@@ -964,12 +962,11 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		retType = binding.RetAlias.Name
 	}
 
-	staticKeyword := ""
-	if isStatic {
-		staticKeyword = "static "
+	if !binding.BindSelf {
+		sb.WriteString(fmt.Sprintf("\tstatic %s %s(", retType, binding.Name))
+	} else {
+		sb.WriteString(fmt.Sprintf("\t%s %s(", retType, binding.Name))
 	}
-
-	sb.WriteString(fmt.Sprintf("\t%s%s %s(", staticKeyword, retType, binding.Name))
 
 	// Parameters (excluding self if bindSelf)
 	paramStrs := []string{}
@@ -1003,7 +1000,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 
 	// Method body
 	// Generate null check if needed (only for non-static methods)
-	if !isStatic {
+	if binding.BindSelf {
 		invalidValue, _ := g.typeMapper.MapHandleType(class)
 		sb.WriteString(fmt.Sprintf("\t\tenforce(_handle !is %s, \"%s: Empty handle\");\n", invalidValue, class.Name))
 	}

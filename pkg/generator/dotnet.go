@@ -1029,12 +1029,13 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		}
 	}
 
-	staticKeyword := ""
+	// Determine if method is static
 	if !binding.BindSelf {
-		staticKeyword = "static "
+		sb.WriteString(fmt.Sprintf("\t\tpublic static %s %s(%s)\n", retType, binding.Name, formattedParams))
+	} else {
+		sb.WriteString(fmt.Sprintf("\t\tpublic %s %s(%s)\n", retType, binding.Name, formattedParams))
 	}
 
-	sb.WriteString(fmt.Sprintf("\t\tpublic %s%s %s(%s)\n", staticKeyword, retType, binding.Name, formattedParams))
 	sb.WriteString("\t\t{\n")
 
 	// Add validity check for instance methods

@@ -1141,12 +1141,11 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		return "", err
 	}
 
-	// Determine if method is static
-	isStatic := !binding.BindSelf
-
 	// Build return type
 	returnSignature := ""
-	if isStatic {
+
+	// Determine if method is static
+	if !binding.BindSelf {
 		if method.RetType.Type != "void" {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 				returnSignature = fmt.Sprintf(" *%s", binding.RetAlias.Name)
@@ -1215,12 +1214,12 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	// Generate call
 	if method.RetType.Type == "void" {
 		sb.WriteString(fmt.Sprintf("\t%s(%s)\n", method.FuncName, callArgs))
-		if !isStatic {
+		if binding.BindSelf {
 			sb.WriteString("\treturn nil\n")
 		}
 	} else {
 		errorTag := ""
-		if !isStatic {
+		if binding.BindSelf {
 			errorTag = ", nil"
 		}
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {

@@ -614,9 +614,6 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 		retType = binding.RetAlias.Name
 	}
 
-	// Determine if method is static
-	isStatic := !binding.BindSelf
-
 	// JSDoc comment
 	sb.WriteString("    /**\n")
 	if method.Description != "" {
@@ -650,12 +647,11 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 	sb.WriteString("     */\n")
 
 	// Method signature
-	staticKeyword := ""
-	if isStatic {
-		staticKeyword = "static "
+	if !binding.BindSelf {
+		sb.WriteString(fmt.Sprintf("    static %s(%s): %s;\n\n", binding.Name, formattedParams, retType))
+	} else {
+		sb.WriteString(fmt.Sprintf("    %s(%s): %s;\n\n", binding.Name, formattedParams, retType))
 	}
-
-	sb.WriteString(fmt.Sprintf("    %s%s(%s): %s;\n\n", staticKeyword, binding.Name, formattedParams, retType))
 
 	return sb.String(), nil
 }
