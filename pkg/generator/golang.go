@@ -812,15 +812,33 @@ func (g *GolangGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	// Check if this is a handleless class (static methods only)
+	hasHandle := class.HandleType != "" && class.HandleType != "void"
+
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
+
+	// Validate: handleless classes should only have static methods
+	if !hasHandle {
+		for _, binding := range class.Bindings {
+			if binding.BindSelf {
+				return "", fmt.Errorf("class %s: handleless classes (handleType is void/empty) cannot have instance methods (bindSelf=true for %s)", class.Name, binding.Name)
+			}
+		}
+		if hasCtor || hasDtor {
+			return "", fmt.Errorf("class %s: handleless classes cannot have constructors or destructors", class.Name)
+		}
+	}
 
 	// Map handle type
 	_, handleType := g.typeMapper.MapHandleType(class)
 
-	// Generate error variable for this class
-	errVarName := fmt.Sprintf("%sErrEmptyHandle", class.Name)
-	sb.WriteString(fmt.Sprintf("var (\n\t%s = errors.New(\"%s: empty handle\")\n)\n\n", errVarName, class.Name))
+	// Only generate error variable if class has a handle
+	if hasHandle {
+		// Generate error variable for this class
+		errVarName := fmt.Sprintf("%sErrEmptyHandle", class.Name)
+		sb.WriteString(fmt.Sprintf("var (\n\t%s = errors.New(\"%s: empty handle\")\n)\n\n", errVarName, class.Name))
+	}
 
 	// Class documentation
 	if class.Description != "" {
@@ -829,39 +847,45 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Struct definition
 	sb.WriteString(fmt.Sprintf("type %s struct {\n", class.Name))
-	sb.WriteString(fmt.Sprintf("\thandle    %s\n", handleType))
-	if hasDtor {
-		sb.WriteString("\tcleanup   runtime.Cleanup\n")
-		sb.WriteString("\townership ownership\n")
-		sb.WriteString("\tnoCopy    noCopy\n")
+	if hasHandle {
+		sb.WriteString(fmt.Sprintf("\thandle    %s\n", handleType))
+		if hasDtor {
+			sb.WriteString("\tcleanup   runtime.Cleanup\n")
+			sb.WriteString("\townership ownership\n")
+			sb.WriteString("\tnoCopy    noCopy\n")
+		}
 	}
 	sb.WriteString("}\n\n")
 
-	// Generate constructors
-	for _, ctorName := range class.Constructors {
-		ctorCode, err := g.generateConstructor(m, class, ctorName)
-		if err != nil {
-			return "", err
+	// Only generate handle-related code if class has a handle
+	if hasHandle {
+		// Generate constructors
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
 		}
-		sb.WriteString(ctorCode)
-	}
 
-	// Generate helper constructors (borrowed/owned)
-	if hasDtor {
-		sb.WriteString(g.generateHelperConstructors(class))
-	} else if !hasCtor {
-		sb.WriteString(g.generateDefaultConstructor(class))
-	}
+		// Generate helper constructors (borrowed/owned)
+		if hasDtor {
+			sb.WriteString(g.generateHelperConstructors(class))
+		} else if !hasCtor {
+			sb.WriteString(g.generateDefaultConstructor(class))
+		}
 
-	// Generate finalizer
-	if hasDtor {
-		sb.WriteString(g.generateFinalizer(class))
-	}
+		// Generate finalizer
+		if hasDtor {
+			sb.WriteString(g.generateFinalizer(class))
+		}
 
-	// Generate utility methods
-	sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+		// Generate utility methods
+		sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+	}
 
 	// Generate class bindings
+	errVarName := fmt.Sprintf("%sErrEmptyHandle", class.Name)
 	for _, binding := range class.Bindings {
 		methodCode, err := g.generateBinding(m, class, &binding, errVarName)
 		if err != nil {
@@ -969,7 +993,7 @@ func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) stri
 
 	// New helper
 	sb.WriteString(fmt.Sprintf("// New%s creates a %s from a handle\n", class.Name, class.Name))
-	sb.WriteString(fmt.Sprintf("func New%(handle %s) *%s {\n", class.Name, handleType, class.Name))
+	sb.WriteString(fmt.Sprintf("func New%s(handle %s) *%s {\n", class.Name, handleType, class.Name))
 	sb.WriteString(fmt.Sprintf("\tif handle == %s {\n", invalidValue))
 	sb.WriteString(fmt.Sprintf("\t\treturn &%s{}\n", class.Name))
 	sb.WriteString("\t}\n")

@@ -83,22 +83,11 @@ func (g *DlangGenerator) generateEnumsFile(m *manifest.Manifest) (string, error)
 	moduleName := strings.ToLower(m.Name)
 	sb.WriteString(fmt.Sprintf("module imported.%s.enums;\n\n", moduleName))
 
-	// Add ownership enum if any class has a destructor
-	hasDestructor := false
-	for _, class := range m.Classes {
-		if class.Destructor != "" {
-			hasDestructor = true
-			break
-		}
-	}
-
-	if hasDestructor {
-		sb.WriteString("/// Ownership type for RAII wrappers\n")
-		sb.WriteString("enum Ownership : bool {\n")
-		sb.WriteString("\tBorrowed = false,\n")
-		sb.WriteString("\tOwned = true\n")
-		sb.WriteString("}\n\n")
-	}
+	sb.WriteString("/// Ownership type for RAII wrappers\n")
+	sb.WriteString("enum Ownership : bool {\n")
+	sb.WriteString("\tBorrowed = false,\n")
+	sb.WriteString("\tOwned = true\n")
+	sb.WriteString("}\n\n")
 
 	// Collect all enums
 	for _, method := range m.Methods {
@@ -654,150 +643,171 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 	// Get handle type and invalid value
 	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
+	// Check if this is a handleless class (static methods only)
+	hasHandle := class.HandleType != "" && class.HandleType != "void"
+
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
+
+	// Validate: handleless classes should only have static methods
+	if !hasHandle {
+		for _, binding := range class.Bindings {
+			if binding.BindSelf {
+				return "", fmt.Errorf("class %s: handleless classes (handleType is void/empty) cannot have instance methods (bindSelf=true for %s)", class.Name, binding.Name)
+			}
+		}
+		if hasCtor || hasDtor {
+			return "", fmt.Errorf("class %s: handleless classes cannot have constructors or destructors", class.Name)
+		}
+	}
 
 	// Class documentation
 	sb.WriteString("/**\n")
 	if class.Description != "" {
 		sb.WriteString(fmt.Sprintf(" * %s\n", class.Description))
 	}
-	if hasDtor {
-		sb.WriteString(fmt.Sprintf(" * RAII wrapper for %s handle.\n", class.Name))
+	if hasHandle {
+		if hasDtor {
+			sb.WriteString(fmt.Sprintf(" * RAII wrapper for %s handle.\n", class.Name))
+		} else {
+			sb.WriteString(fmt.Sprintf(" * Wrapper for %s handle.\n", class.Name))
+		}
 	} else {
-		sb.WriteString(fmt.Sprintf(" * Wrapper for %s handle.\n", class.Name))
+		sb.WriteString(fmt.Sprintf(" * Static utility class for %s.\n", class.Name))
 	}
 	sb.WriteString(" */\n")
 
 	// Struct declaration
 	sb.WriteString(fmt.Sprintf("struct %s {\n", class.Name))
 
-	// Private members
-	sb.WriteString(fmt.Sprintf("\tprivate %s _handle = %s;\n", handleType, invalidValue))
-	if hasDtor {
-		sb.WriteString("\tprivate Ownership _ownership = Ownership.Borrowed;\n\n")
-		// Disable default postblit to prevent accidental copies
-		sb.WriteString("\t/// Disable default postblit to prevent accidental copies\n")
-		sb.WriteString("\t@disable this(this);\n\n")
-	} else {
-		sb.WriteString("\n")
-	}
-
-	// Generate constructors from methods
-	for _, ctorName := range class.Constructors {
-		ctorCode, err := g.generateConstructor(m, class, ctorName)
-		if err != nil {
-			return "", err
+	// Only generate handle members if class has a handle
+	if hasHandle {
+		// Private members
+		sb.WriteString(fmt.Sprintf("\tprivate %s _handle = %s;\n", handleType, invalidValue))
+		if hasDtor {
+			sb.WriteString("\tprivate Ownership _ownership = Ownership.Borrowed;\n\n")
+			// Disable default postblit to prevent accidental copies
+			sb.WriteString("\t/// Disable default postblit to prevent accidental copies\n")
+			sb.WriteString("\t@disable this(this);\n\n")
+		} else {
+			sb.WriteString("\n")
 		}
-		sb.WriteString(ctorCode)
-		sb.WriteString("\n")
 	}
 
-	// Constructor from handle
-	sb.WriteString("\t/**\n")
-	sb.WriteString(fmt.Sprintf("\t * Creates a %s from an existing handle\n", class.Name))
-	sb.WriteString("\t * Params:\n")
-	sb.WriteString(fmt.Sprintf("\t *   handle = The %s handle\n", class.Name))
-	if hasDtor {
-		sb.WriteString("\t *   ownership = Whether this wrapper owns the handle\n")
-	} else {
-		sb.WriteString("\t *   ownership = Ownership flag (unused in this version)\n")
-	}
-	sb.WriteString("\t */\n")
-	if hasDtor {
-		sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership) {\n", handleType))
-		sb.WriteString("\t\t_handle = handle;\n")
-		sb.WriteString("\t\t_ownership = ownership;\n")
-		sb.WriteString("\t}\n\n")
-	} else {
-		ctorTag := ""
-		if hasCtor {
-			ctorTag = ", Ownership"
+	// Only generate handle-related code if class has a handle
+	if hasHandle {
+		// Generate constructors from methods
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
+			sb.WriteString("\n")
 		}
-		sb.WriteString(fmt.Sprintf("\tthis(%s handle%s) {\n", handleType, ctorTag))
-		sb.WriteString("\t\t_handle = handle;\n")
+
+		// Constructor from handle
+		sb.WriteString("\t/**\n")
+		sb.WriteString(fmt.Sprintf("\t * Creates a %s from an existing handle\n", class.Name))
+		sb.WriteString("\t * Params:\n")
+		sb.WriteString(fmt.Sprintf("\t *   handle = The %s handle\n", class.Name))
+		if hasDtor {
+			sb.WriteString("\t *   ownership = Whether this wrapper owns the handle\n")
+		} else {
+			sb.WriteString("\t *   ownership = Ownership flag (unused in this version)\n")
+		}
+		sb.WriteString("\t */\n")
+		if hasDtor {
+			sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership) {\n", handleType))
+			sb.WriteString("\t\t_handle = handle;\n")
+			sb.WriteString("\t\t_ownership = ownership;\n")
+			sb.WriteString("\t}\n\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership = Ownership.Owned) {\n", handleType))
+			sb.WriteString("\t\t_handle = handle;\n")
+			sb.WriteString("\t}\n\n")
+		}
+
+		// Destructor (only if needed)
+		if hasDtor {
+			sb.WriteString("\t~this() {\n")
+			sb.WriteString("\t\tdestroy();\n")
+			sb.WriteString("\t}\n\n")
+
+			// Move constructor
+			sb.WriteString("\t/// Move constructor (called when moving)\n")
+			sb.WriteString(fmt.Sprintf("\tthis(ref return scope %s other) {\n", class.Name))
+			sb.WriteString("\t\t_handle = other._handle;\n")
+			sb.WriteString("\t\t_ownership = other._ownership;\n")
+			sb.WriteString("\t\tother.nullify();\n")
+			sb.WriteString("\t}\n\n")
+
+			// Move assignment
+			sb.WriteString("\t/// Move assignment\n")
+			sb.WriteString(fmt.Sprintf("\tref %s opAssign(%s other) return {\n", class.Name, class.Name))
+			sb.WriteString("\t\tswap(this, other);\n")
+			sb.WriteString("\t\treturn this;\n")
+			sb.WriteString("\t}\n\n")
+		}
+
+		// Get method
+		sb.WriteString("\t/// Get the underlying handle\n")
+		sb.WriteString(fmt.Sprintf("\t@property %s get() const pure nothrow @nogc {\n", handleType))
+		sb.WriteString("\t\treturn _handle;\n")
+		sb.WriteString("\t}\n\n")
+
+		// Release method
+		sb.WriteString("\t/// Release ownership of the handle\n")
+		sb.WriteString(fmt.Sprintf("\t%s release() nothrow @nogc {\n", handleType))
+		sb.WriteString("\t\tauto handle = _handle;\n")
+		if hasDtor {
+			sb.WriteString("\t\tnullify();\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
+		}
+		sb.WriteString("\t\treturn handle;\n")
+		sb.WriteString("\t}\n\n")
+
+		// Reset method
+		sb.WriteString("\t/// Reset the handle\n")
+		if hasDtor {
+			sb.WriteString("\tvoid reset() nothrow {\n")
+			sb.WriteString("\t\tdestroy();\n")
+			sb.WriteString("\t\tnullify();\n")
+		} else {
+			sb.WriteString("\tvoid reset() nothrow @nogc {\n")
+			sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
+		}
+		sb.WriteString("\t}\n\n")
+
+		// Swap method
+		sb.WriteString("\t/// Swap two " + class.Name + " instances\n")
+		sb.WriteString(fmt.Sprintf("\tvoid swap(ref %s other) nothrow @nogc {\n", class.Name))
+		sb.WriteString("\t\timport std.algorithm.mutation : swap;\n")
+		sb.WriteString("\t\tswap(_handle, other._handle);\n")
+		if hasDtor {
+			sb.WriteString("\t\tswap(_ownership, other._ownership);\n")
+		}
+		sb.WriteString("\t}\n\n")
+
+		// Boolean conversion operator
+		sb.WriteString("\t/// Boolean conversion operator\n")
+		sb.WriteString("\tbool opCast(T : bool)() const pure nothrow @nogc {\n")
+		sb.WriteString(fmt.Sprintf("\t\treturn _handle !is %s;\n", invalidValue))
+		sb.WriteString("\t}\n\n")
+
+		// Comparison operators
+		sb.WriteString("\t/// Comparison operators\n")
+		sb.WriteString(fmt.Sprintf("\tint opCmp(ref const %s other) const pure nothrow @nogc {\n", class.Name))
+		sb.WriteString("\t\tif (_handle < other._handle) return -1;\n")
+		sb.WriteString("\t\tif (_handle > other._handle) return 1;\n")
+		sb.WriteString("\t\treturn 0;\n")
+		sb.WriteString("\t}\n\n")
+
+		sb.WriteString(fmt.Sprintf("\tbool opEquals(ref const %s other) const pure nothrow @nogc {\n", class.Name))
+		sb.WriteString("\t\treturn _handle == other._handle;\n")
 		sb.WriteString("\t}\n\n")
 	}
-
-	// Destructor (only if needed)
-	if hasDtor {
-		sb.WriteString("\t~this() {\n")
-		sb.WriteString("\t\tdestroy();\n")
-		sb.WriteString("\t}\n\n")
-
-		// Move constructor
-		sb.WriteString("\t/// Move constructor (called when moving)\n")
-		sb.WriteString(fmt.Sprintf("\tthis(ref return scope %s other) {\n", class.Name))
-		sb.WriteString("\t\t_handle = other._handle;\n")
-		sb.WriteString("\t\t_ownership = other._ownership;\n")
-		sb.WriteString("\t\tother.nullify();\n")
-		sb.WriteString("\t}\n\n")
-
-		// Move assignment
-		sb.WriteString("\t/// Move assignment\n")
-		sb.WriteString(fmt.Sprintf("\tref %s opAssign(%s other) return {\n", class.Name, class.Name))
-		sb.WriteString("\t\tswap(this, other);\n")
-		sb.WriteString("\t\treturn this;\n")
-		sb.WriteString("\t}\n\n")
-	}
-
-	// Get method
-	sb.WriteString("\t/// Get the underlying handle\n")
-	sb.WriteString(fmt.Sprintf("\t@property %s get() const pure nothrow @nogc {\n", handleType))
-	sb.WriteString("\t\treturn _handle;\n")
-	sb.WriteString("\t}\n\n")
-
-	// Release method
-	sb.WriteString("\t/// Release ownership of the handle\n")
-	sb.WriteString(fmt.Sprintf("\t%s release() nothrow @nogc {\n", handleType))
-	sb.WriteString("\t\tauto handle = _handle;\n")
-	if hasDtor {
-		sb.WriteString("\t\tnullify();\n")
-	} else {
-		sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
-	}
-	sb.WriteString("\t\treturn handle;\n")
-	sb.WriteString("\t}\n\n")
-
-	// Reset method
-	sb.WriteString("\t/// Reset the handle\n")
-	if hasDtor {
-		sb.WriteString("\tvoid reset() nothrow {\n")
-		sb.WriteString("\t\tdestroy();\n")
-		sb.WriteString("\t\tnullify();\n")
-	} else {
-		sb.WriteString("\tvoid reset() nothrow @nogc {\n")
-		sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
-	}
-	sb.WriteString("\t}\n\n")
-
-	// Swap method
-	sb.WriteString("\t/// Swap two " + class.Name + " instances\n")
-	sb.WriteString(fmt.Sprintf("\tvoid swap(ref %s other) nothrow @nogc {\n", class.Name))
-	sb.WriteString("\t\timport std.algorithm.mutation : swap;\n")
-	sb.WriteString("\t\tswap(_handle, other._handle);\n")
-	if hasDtor {
-		sb.WriteString("\t\tswap(_ownership, other._ownership);\n")
-	}
-	sb.WriteString("\t}\n\n")
-
-	// Boolean conversion operator
-	sb.WriteString("\t/// Boolean conversion operator\n")
-	sb.WriteString("\tbool opCast(T : bool)() const pure nothrow @nogc {\n")
-	sb.WriteString(fmt.Sprintf("\t\treturn _handle !is %s;\n", invalidValue))
-	sb.WriteString("\t}\n\n")
-
-	// Comparison operators
-	sb.WriteString("\t/// Comparison operators\n")
-	sb.WriteString(fmt.Sprintf("\tint opCmp(ref const %s other) const pure nothrow @nogc {\n", class.Name))
-	sb.WriteString("\t\tif (_handle < other._handle) return -1;\n")
-	sb.WriteString("\t\tif (_handle > other._handle) return 1;\n")
-	sb.WriteString("\t\treturn 0;\n")
-	sb.WriteString("\t}\n\n")
-
-	sb.WriteString(fmt.Sprintf("\tbool opEquals(ref const %s other) const pure nothrow @nogc {\n", class.Name))
-	sb.WriteString("\t\treturn _handle == other._handle;\n")
-	sb.WriteString("\t}\n\n")
 
 	// Generate class bindings
 	for _, binding := range class.Bindings {
@@ -954,7 +964,13 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		}
 	}
 
-	sb.WriteString("\t * Throws: Exception if handle is null\n")
+	// Determine if method is static
+	isStatic := !binding.BindSelf
+
+	if !isStatic {
+		sb.WriteString("\t * Throws: Exception if handle is null\n")
+	}
+
 	sb.WriteString("\t */\n")
 
 	// Method signature
@@ -968,10 +984,12 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		retType = binding.RetAlias.Name
 	}
 
-	// Determine if method is static
-	isStatic := !binding.BindSelf
+	staticKeyword := ""
+	if isStatic {
+		staticKeyword = "static "
+	}
 
-	sb.WriteString(fmt.Sprintf("\t%s %s(", retType, binding.Name))
+	sb.WriteString(fmt.Sprintf("\t%s%s %s(", staticKeyword, retType, binding.Name))
 
 	// Parameters (excluding self if bindSelf)
 	paramStrs := []string{}
@@ -1144,15 +1162,12 @@ func (m *DlangTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, err
 
 func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
 	invalidValue := class.InvalidValue
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+
 	if class.HandleType == "ptr64" && invalidValue == "0" {
 		invalidValue = "null"
 	} else if invalidValue == "" {
-		invalidValue = "empty.init"
-	}
-
-	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
-	if handleType == "void" {
-		handleType = "empty"
+		invalidValue = fmt.Sprintf("%s.init", handleType)
 	}
 
 	return invalidValue, handleType

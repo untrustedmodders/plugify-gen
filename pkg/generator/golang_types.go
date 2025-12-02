@@ -468,13 +468,12 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, er
 // MapHandleType implements TypeMapper interface
 func (m *GolangTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
 	invalidValue := class.InvalidValue
-	if invalidValue == "" {
-		invalidValue = "empty{}"
-	}
-
 	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
-	if handleType == "" {
-		handleType = "empty"
+
+	if class.HandleType == "ptr64" && invalidValue == "0" {
+		invalidValue = "0"
+	} else if invalidValue == "" {
+		invalidValue = "{}"
 	}
 
 	return invalidValue, handleType

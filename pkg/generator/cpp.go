@@ -308,8 +308,23 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	// Get handle type and invalid value
 	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
+	// Check if this is a handleless class (static methods only)
+	hasHandle := class.HandleType != "" && class.HandleType != "void"
+
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
+
+	// Validate: handleless classes should only have static methods
+	if !hasHandle {
+		for _, binding := range class.Bindings {
+			if binding.BindSelf {
+				return "", fmt.Errorf("class %s: handleless classes (handleType is void/empty) cannot have instance methods (bindSelf=true for %s)", class.Name, binding.Name)
+			}
+		}
+		if hasCtor || hasDtor {
+			return "", fmt.Errorf("class %s: handleless classes cannot have constructors or destructors", class.Name)
+		}
+	}
 
 	// Class documentation
 	sb.WriteString("  /**\n")
@@ -319,105 +334,100 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	sb.WriteString("   */\n")
 
 	// Class declaration
-	prefix := "class"
-	if handleType == "void" {
-		prefix = "PLUGIFY_NO_UNIQUE_ADDRESS class"
-	}
-	sb.WriteString(fmt.Sprintf("  %s %s final {\n", prefix, class.Name))
+	sb.WriteString(fmt.Sprintf("  class %s final {\n", class.Name))
 
 	sb.WriteString("  public:\n")
 
-	// Default constructor
-	sb.WriteString(fmt.Sprintf("    %s() = default;\n\n", class.Name))
+	// Only generate handle-related code if class has a handle
+	if hasHandle {
+		// Default constructor
+		sb.WriteString(fmt.Sprintf("    %s() = default;\n\n", class.Name))
 
-	// Generate constructors from methods
-	for _, ctorName := range class.Constructors {
-		ctorCode, err := g.generateConstructor(m, class, ctorName)
-		if err != nil {
-			return "", err
+		// Generate constructors from methods
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
 		}
-		sb.WriteString(ctorCode)
-	}
 
-	// Destructor and copy/move semantics
-	if hasDtor {
-		sb.WriteString(fmt.Sprintf("    ~%s() {\n", class.Name))
-		sb.WriteString("      destroy();\n")
-		sb.WriteString("    }\n\n")
+		// Destructor and copy/move semantics
+		if hasDtor {
+			sb.WriteString(fmt.Sprintf("    ~%s() {\n", class.Name))
+			sb.WriteString("      destroy();\n")
+			sb.WriteString("    }\n\n")
 
-		sb.WriteString(fmt.Sprintf("    %s(const %s&) = delete;\n", class.Name, class.Name))
-		sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = delete;\n\n", class.Name, class.Name))
+			sb.WriteString(fmt.Sprintf("    %s(const %s&) = delete;\n", class.Name, class.Name))
+			sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = delete;\n\n", class.Name, class.Name))
 
-		sb.WriteString(fmt.Sprintf("    %s(%s&& other) noexcept\n", class.Name, class.Name))
-		sb.WriteString("      : _handle(other._handle)\n")
-		sb.WriteString("      , _ownership(other._ownership) {\n")
-		sb.WriteString("      other.nullify();\n")
-		sb.WriteString("    }\n\n")
+			sb.WriteString(fmt.Sprintf("    %s(%s&& other) noexcept\n", class.Name, class.Name))
+			sb.WriteString("      : _handle(other._handle)\n")
+			sb.WriteString("      , _ownership(other._ownership) {\n")
+			sb.WriteString("      other.nullify();\n")
+			sb.WriteString("    }\n\n")
 
-		sb.WriteString(fmt.Sprintf("    %s& operator=(%s&& other) noexcept {\n", class.Name, class.Name))
-		sb.WriteString("      if (this != &other) {\n")
-		sb.WriteString("        destroy();\n")
-		sb.WriteString("        _handle = other._handle;\n")
-		sb.WriteString("        _ownership = other._ownership;\n")
-		sb.WriteString("        other.nullify();\n")
-		sb.WriteString("      }\n")
-		sb.WriteString("      return *this;\n")
-		sb.WriteString("    }\n\n")
-	} else {
-		sb.WriteString(fmt.Sprintf("    %s(const %s&) = default;\n", class.Name, class.Name))
-		sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = default;\n", class.Name, class.Name))
-		sb.WriteString(fmt.Sprintf("    %s(%s&&) noexcept = default;\n", class.Name, class.Name))
-		sb.WriteString(fmt.Sprintf("    %s& operator=(%s&&) noexcept = default;\n", class.Name, class.Name))
-		sb.WriteString(fmt.Sprintf("    ~%s() = default;\n\n", class.Name))
-	}
-
-	// Constructor from handle
-	if hasDtor {
-		sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType))
-	} else {
-		ctorTag := ""
-		if hasCtor {
-			ctorTag = ", Ownership"
+			sb.WriteString(fmt.Sprintf("    %s& operator=(%s&& other) noexcept {\n", class.Name, class.Name))
+			sb.WriteString("      if (this != &other) {\n")
+			sb.WriteString("        destroy();\n")
+			sb.WriteString("        _handle = other._handle;\n")
+			sb.WriteString("        _ownership = other._ownership;\n")
+			sb.WriteString("        other.nullify();\n")
+			sb.WriteString("      }\n")
+			sb.WriteString("      return *this;\n")
+			sb.WriteString("    }\n\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("    %s(const %s&) = default;\n", class.Name, class.Name))
+			sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = default;\n", class.Name, class.Name))
+			sb.WriteString(fmt.Sprintf("    %s(%s&&) noexcept = default;\n", class.Name, class.Name))
+			sb.WriteString(fmt.Sprintf("    %s& operator=(%s&&) noexcept = default;\n", class.Name, class.Name))
+			sb.WriteString(fmt.Sprintf("    ~%s() = default;\n\n", class.Name))
 		}
-		sb.WriteString(fmt.Sprintf("    explicit %s(%s handle%s) : _handle(handle) {}\n\n", class.Name, handleType, ctorTag))
+
+		// Constructor from handle
+		if hasDtor {
+			sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType))
+		} else {
+			sb.WriteString(fmt.Sprintf("    explicit %s(%s handle, [[maybe_unused]] Ownership ownership = Ownership::Owned) : _handle(handle) {}\n\n", class.Name, handleType))
+		}
+
+		// Utility methods
+		sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto get() const noexcept { return _handle; }\n\n"))
+
+		sb.WriteString("    [[nodiscard]] auto release() noexcept {\n")
+		sb.WriteString("      auto handle = _handle;\n")
+		if hasDtor {
+			sb.WriteString("      nullify();\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+		}
+		sb.WriteString("      return handle;\n")
+		sb.WriteString("    }\n\n")
+
+		sb.WriteString("    void reset() noexcept {\n")
+		if hasDtor {
+			sb.WriteString("      destroy();\n")
+			sb.WriteString("      nullify();\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+		}
+		sb.WriteString("    }\n\n")
+
+		sb.WriteString(fmt.Sprintf("    void swap(%s& other) noexcept {\n", class.Name))
+		sb.WriteString("      using std::swap;\n")
+		sb.WriteString("      swap(_handle, other._handle);\n")
+		if hasDtor {
+			sb.WriteString("      swap(_ownership, other._ownership);\n")
+		}
+		sb.WriteString("    }\n\n")
+
+		sb.WriteString(fmt.Sprintf("    friend void swap(%s& lhs, %s& rhs) noexcept { lhs.swap(rhs); }\n\n", class.Name, class.Name))
+
+		// Operators
+		sb.WriteString(fmt.Sprintf("    explicit operator bool() const noexcept { return _handle != %s; }\n", invalidValue))
+		sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto operator<=>(const %s& other) const noexcept { return _handle <=> other._handle; }\n", class.Name))
+		sb.WriteString(fmt.Sprintf("    [[nodiscard]] bool operator==(const %s& other) const noexcept { return _handle == other._handle; }\n\n", class.Name))
 	}
-
-	// Utility methods
-	sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto get() const noexcept { return _handle; }\n\n"))
-
-	sb.WriteString("    [[nodiscard]] auto release() noexcept {\n")
-	sb.WriteString("      auto handle = _handle;\n")
-	if hasDtor {
-		sb.WriteString("      nullify();\n")
-	} else {
-		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-	}
-	sb.WriteString("      return handle;\n")
-	sb.WriteString("    }\n\n")
-
-	sb.WriteString("    void reset() noexcept {\n")
-	if hasDtor {
-		sb.WriteString("      destroy();\n")
-		sb.WriteString("      nullify();\n")
-	} else {
-		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-	}
-	sb.WriteString("    }\n\n")
-
-	sb.WriteString(fmt.Sprintf("    void swap(%s& other) noexcept {\n", class.Name))
-	sb.WriteString("      using std::swap;\n")
-	sb.WriteString("      swap(_handle, other._handle);\n")
-	if hasDtor {
-		sb.WriteString("      swap(_ownership, other._ownership);\n")
-	}
-	sb.WriteString("    }\n\n")
-
-	sb.WriteString(fmt.Sprintf("    friend void swap(%s& lhs, %s& rhs) noexcept { lhs.swap(rhs); }\n\n", class.Name, class.Name))
-
-	// Operators
-	sb.WriteString(fmt.Sprintf("    explicit operator bool() const noexcept { return _handle != %s; }\n", invalidValue))
-	sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto operator<=>(const %s& other) const noexcept { return _handle <=> other._handle; }\n", class.Name))
-	sb.WriteString(fmt.Sprintf("    [[nodiscard]] bool operator==(const %s& other) const noexcept { return _handle == other._handle; }\n\n", class.Name))
 
 	// Generate class bindings
 	for _, binding := range class.Bindings {
@@ -429,28 +439,31 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		sb.WriteString("\n")
 	}
 
-	// Private section
-	sb.WriteString("  private:\n")
+	// Only generate private section if class has a handle
+	if hasHandle {
+		// Private section
+		sb.WriteString("  private:\n")
 
-	if hasDtor {
-		// Destroy helper
-		sb.WriteString("    void destroy() const noexcept {\n")
-		sb.WriteString(fmt.Sprintf("      if (_handle != %s && _ownership == Ownership::Owned) {\n", invalidValue))
-		sb.WriteString(fmt.Sprintf("        %s(_handle);\n", class.Destructor))
-		sb.WriteString("      }\n")
-		sb.WriteString("    }\n\n")
+		if hasDtor {
+			// Destroy helper
+			sb.WriteString("    void destroy() const noexcept {\n")
+			sb.WriteString(fmt.Sprintf("      if (_handle != %s && _ownership == Ownership::Owned) {\n", invalidValue))
+			sb.WriteString(fmt.Sprintf("        %s(_handle);\n", class.Destructor))
+			sb.WriteString("      }\n")
+			sb.WriteString("    }\n\n")
 
-		// Nullify helper
-		sb.WriteString("    void nullify() noexcept {\n")
-		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-		sb.WriteString("      _ownership = Ownership::Borrowed;\n")
-		sb.WriteString("    }\n\n")
-	}
+			// Nullify helper
+			sb.WriteString("    void nullify() noexcept {\n")
+			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+			sb.WriteString("      _ownership = Ownership::Borrowed;\n")
+			sb.WriteString("    }\n\n")
+		}
 
-	// Member variables
-	sb.WriteString(fmt.Sprintf("    %s _handle{%s};\n", handleType, invalidValue))
-	if hasDtor {
-		sb.WriteString("    Ownership _ownership{Ownership::Borrowed};\n")
+		// Member variables
+		sb.WriteString(fmt.Sprintf("    %s _handle{%s};\n", handleType, invalidValue))
+		if hasDtor {
+			sb.WriteString("    Ownership _ownership{Ownership::Borrowed};\n")
+		}
 	}
 
 	sb.WriteString("  };\n\n")
@@ -649,7 +662,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 
 	// Generate return statement
 	if method.RetType.Type == "void" {
-		sb.WriteString(fmt.Sprintf("      %s(%s);\n", method.FuncName, callArgs))
+		sb.WriteString(fmt.Sprintf("      ::%s(%s);\n", method.FuncName, callArgs))
 	} else {
 		// Handle return alias
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
@@ -657,9 +670,9 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 			if binding.RetAlias.Owner {
 				ownership = "Ownership::Owned"
 			}
-			sb.WriteString(fmt.Sprintf("      return %s(%s(%s), %s);\n", binding.RetAlias.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
+			sb.WriteString(fmt.Sprintf("      return %s(::%s(%s), %s);\n", binding.RetAlias.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
 		} else {
-			sb.WriteString(fmt.Sprintf("      return %s(%s);\n", method.FuncName, callArgs))
+			sb.WriteString(fmt.Sprintf("      return ::%s(%s);\n", method.FuncName, callArgs))
 		}
 	}
 
@@ -696,15 +709,6 @@ func (g *CppGenerator) applyParamAliases(formattedParams string, params []manife
 	return result
 }
 
-func (g *CppGenerator) needsOwnershipEnum(m *manifest.Manifest) bool {
-	for _, class := range m.Classes {
-		if class.Destructor != "" {
-			return true
-		}
-	}
-	return false
-}
-
 // generateEnumsFile generates a file containing all enums
 func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
@@ -728,10 +732,8 @@ func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	}
 
 	// Ownership enum (if any class has destructor)
-	if g.needsOwnershipEnum(m) {
-		sb.WriteString("  /// Ownership type for RAII wrappers\n")
-		sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
-	}
+	sb.WriteString("  /// Ownership type for RAII wrappers\n")
+	sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
 
 	// Close namespace
 	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
@@ -976,15 +978,12 @@ func (m *CppTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error
 
 func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
 	invalidValue := class.InvalidValue
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+
 	if class.HandleType == "ptr64" && invalidValue == "0" {
 		invalidValue = "nullptr"
 	} else if invalidValue == "" {
 		invalidValue = "{}"
-	}
-
-	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
-	if handleType == "void" {
-		handleType = "empty"
 	}
 
 	return invalidValue, handleType

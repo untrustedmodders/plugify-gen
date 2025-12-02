@@ -675,15 +675,6 @@ func (g *DotnetGenerator) generateCleanup(method *manifest.Method, indent string
 	return sb.String()
 }
 
-func (g *DotnetGenerator) needsOwnershipEnum(m *manifest.Manifest) bool {
-	for _, class := range m.Classes {
-		if class.Destructor != "" {
-			return true
-		}
-	}
-	return false
-}
-
 func (g *DotnetGenerator) generateClasses(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
@@ -704,142 +695,164 @@ func (g *DotnetGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
+	// Check if this is a handleless class (static methods only)
+	hasHandle := class.HandleType != "" && class.HandleType != "void"
+
 	// Map handle type
 	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != ""
 
+	// Validate: handleless classes should only have static methods
+	if !hasHandle {
+		for _, binding := range class.Bindings {
+			if binding.BindSelf {
+				return "", fmt.Errorf("class %s: handleless classes (handleType is void/empty) cannot have instance methods (bindSelf=true for %s)", class.Name, binding.Name)
+			}
+		}
+		if hasCtor || hasDtor {
+			return "", fmt.Errorf("class %s: handleless classes cannot have constructors or destructors", class.Name)
+		}
+	}
+
 	// Class documentation
 	sb.WriteString("\t/// <summary>\n")
 	if class.Description != "" {
 		sb.WriteString(fmt.Sprintf("\t/// %s\n", class.Description))
 	} else {
-		sb.WriteString(fmt.Sprintf("\t/// %s wrapper\n", class.Name))
+		if hasHandle {
+			sb.WriteString(fmt.Sprintf("\t/// %s wrapper\n", class.Name))
+		} else {
+			sb.WriteString(fmt.Sprintf("\t/// Static utility class for %s\n", class.Name))
+		}
 	}
 	sb.WriteString("\t/// </summary>\n")
 
 	// Class declaration
-	if hasDtor {
-		sb.WriteString(fmt.Sprintf("\tinternal sealed unsafe class %s : SafeHandle\n\t{\n", class.Name))
-	} else {
-		sb.WriteString(fmt.Sprintf("\tinternal sealed unsafe class %s\n\t{\n", class.Name))
-		sb.WriteString(fmt.Sprintf("\t\tprivate %s handle;\n\n", handleType))
-	}
-
-	// Generate constructors
-	for _, ctorName := range class.Constructors {
-		ctorCode, err := g.generateClassConstructor(m, class, ctorName, hasDtor)
-		if err != nil {
-			return "", err
+	if hasHandle {
+		if hasDtor {
+			sb.WriteString(fmt.Sprintf("\tinternal sealed unsafe class %s : SafeHandle\n\t{\n", class.Name))
+		} else {
+			sb.WriteString(fmt.Sprintf("\tinternal sealed unsafe class %s\n\t{\n", class.Name))
+			sb.WriteString(fmt.Sprintf("\t\tprivate %s handle;\n\n", handleType))
 		}
-		sb.WriteString(ctorCode)
+	} else {
+		sb.WriteString(fmt.Sprintf("\tinternal static unsafe class %s\n\t{\n", class.Name))
 	}
 
-	// Internal constructor for handle wrapping
-	if hasDtor {
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership) : base(handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType))
-		sb.WriteString("\t\t{\n\t\t}\n\n")
-
-		// ReleaseHandle override
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Releases the handle (called automatically by SafeHandle)\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString("\t\tprotected override bool ReleaseHandle()\n")
-		sb.WriteString("\t\t{\n")
-		sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(handle);\n", m.Name, class.Destructor))
-		sb.WriteString("\t\t\treturn true;\n")
-		sb.WriteString("\t\t}\n\n")
-
-		// IsInvalid override
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\t/// Checks if the %s has a valid handle\n", class.Name))
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic override bool IsInvalid => handle == %s;\n\n", invalidValue))
-	} else {
-		ctorTag := ""
-		if hasCtor {
-			ctorTag = ", Ownership ownership"
+	// Only generate handle-related code if class has a handle
+	if hasHandle {
+		// Generate constructors
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateClassConstructor(m, class, ctorName, hasDtor)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
 		}
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle%s)\n", class.Name, handleType, ctorTag))
-		sb.WriteString("\t\t{\n")
-		sb.WriteString("\t\t\tthis.handle = handle;\n")
-		sb.WriteString("\t\t}\n\n")
-	}
 
-	// Utility properties and methods
-	if hasDtor {
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Gets the underlying handle\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic %s Handle => (%s)handle;\n\n", handleType, handleType))
+		// Internal constructor for handle wrapping
+		if hasDtor {
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership) : base(handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType))
+			sb.WriteString("\t\t{\n\t\t}\n\n")
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Checks if the handle is valid\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic bool IsValid => handle != %s;\n\n", invalidValue))
+			// ReleaseHandle override
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Releases the handle (called automatically by SafeHandle)\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString("\t\tprotected override bool ReleaseHandle()\n")
+			sb.WriteString("\t\t{\n")
+			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(handle);\n", m.Name, class.Destructor))
+			sb.WriteString("\t\t\treturn true;\n")
+			sb.WriteString("\t\t}\n\n")
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Gets the underlying handle\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic %s Get() => (%s)handle;\n\n", handleType, handleType))
+			// IsInvalid override
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\t/// Checks if the %s has a valid handle\n", class.Name))
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic override bool IsInvalid => handle == %s;\n\n", invalidValue))
+		} else {
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership = Ownership.Owned)\n", class.Name, handleType))
+			sb.WriteString("\t\t{\n")
+			sb.WriteString("\t\t\tthis.handle = handle;\n")
+			sb.WriteString("\t\t}\n\n")
+		}
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Releases ownership of the handle and returns it\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic %s Release()\n", handleType))
-		sb.WriteString("\t\t{\n")
-		sb.WriteString("\t\t\tvar h = handle;\n")
-		sb.WriteString("\t\t\tSetHandleAsInvalid();\n")
-		sb.WriteString("\t\t\treturn h;\n")
-		sb.WriteString("\t\t}\n\n")
+		// Utility properties and methods
+		if hasDtor {
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Gets the underlying handle\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s Handle => (%s)handle;\n\n", handleType, handleType))
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Disposes the handle\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString("\t\tpublic void Reset()\n")
-		sb.WriteString("\t\t{\n")
-		sb.WriteString("\t\t\tDispose();\n")
-		sb.WriteString("\t\t}\n\n")
-	} else {
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Gets the underlying handle\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic %s Handle => handle;\n\n", handleType))
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Checks if the handle is valid\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic bool IsValid => handle != %s;\n\n", invalidValue))
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Checks if the handle is valid\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic bool IsValid => handle != %s;\n\n", invalidValue))
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Gets the underlying handle\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s Get() => (%s)handle;\n\n", handleType, handleType))
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Gets the underlying handle\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic %s Get() => handle;\n\n", handleType))
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Releases ownership of the handle and returns it\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s Release()\n", handleType))
+			sb.WriteString("\t\t{\n")
+			sb.WriteString("\t\t\tvar h = handle;\n")
+			sb.WriteString("\t\t\tSetHandleAsInvalid();\n")
+			sb.WriteString("\t\t\treturn h;\n")
+			sb.WriteString("\t\t}\n\n")
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Releases ownership of the handle and returns it\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString(fmt.Sprintf("\t\tpublic %s Release()\n", handleType))
-		sb.WriteString("\t\t{\n")
-		sb.WriteString("\t\t\tvar h = handle;\n")
-		sb.WriteString(fmt.Sprintf("\t\t\thandle = %s;\n", invalidValue))
-		sb.WriteString("\t\t\treturn h;\n")
-		sb.WriteString("\t\t}\n\n")
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Disposes the handle\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString("\t\tpublic void Reset()\n")
+			sb.WriteString("\t\t{\n")
+			sb.WriteString("\t\t\tDispose();\n")
+			sb.WriteString("\t\t}\n\n")
+		} else {
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Gets the underlying handle\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s Handle => handle;\n\n", handleType))
 
-		sb.WriteString("\t\t/// <summary>\n")
-		sb.WriteString("\t\t/// Resets the handle to invalid\n")
-		sb.WriteString("\t\t/// </summary>\n")
-		sb.WriteString("\t\tpublic void Reset()\n")
-		sb.WriteString("\t\t{\n")
-		sb.WriteString(fmt.Sprintf("\t\t\thandle = %s;\n", invalidValue))
-		sb.WriteString("\t\t}\n\n")
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Checks if the handle is valid\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic bool IsValid => handle != %s;\n\n", invalidValue))
+
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Gets the underlying handle\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s Get() => handle;\n\n", handleType))
+
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Releases ownership of the handle and returns it\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s Release()\n", handleType))
+			sb.WriteString("\t\t{\n")
+			sb.WriteString("\t\t\tvar h = handle;\n")
+			sb.WriteString(fmt.Sprintf("\t\t\thandle = %s;\n", invalidValue))
+			sb.WriteString("\t\t\treturn h;\n")
+			sb.WriteString("\t\t}\n\n")
+
+			sb.WriteString("\t\t/// <summary>\n")
+			sb.WriteString("\t\t/// Resets the handle to invalid\n")
+			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString("\t\tpublic void Reset()\n")
+			sb.WriteString("\t\t{\n")
+			sb.WriteString(fmt.Sprintf("\t\t\thandle = %s;\n", invalidValue))
+			sb.WriteString("\t\t}\n\n")
+		}
 	}
 
 	// Generate class bindings
@@ -1144,12 +1157,10 @@ func (g *DotnetGenerator) generateEnumsFile(m *manifest.Manifest) (string, error
 	}
 
 	// Ownership enum (if any class has destructor)
-	if g.needsOwnershipEnum(m) {
-		sb.WriteString("\t/// <summary>\n")
-		sb.WriteString("\t/// Ownership type for RAII wrappers\n")
-		sb.WriteString("\t/// </summary>\n")
-		sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
-	}
+	sb.WriteString("\t/// <summary>\n")
+	sb.WriteString("\t/// Ownership type for RAII wrappers\n")
+	sb.WriteString("\t/// </summary>\n")
+	sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
 
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")

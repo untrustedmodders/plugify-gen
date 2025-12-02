@@ -299,13 +299,12 @@ func (m *DotnetTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, er
 
 func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
 	invalidValue := class.InvalidValue
-	if invalidValue == "" {
-		invalidValue = "default"
-	}
-
 	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
-	if handleType == "void" {
-		handleType = "object"
+
+	if class.HandleType == "ptr64" && invalidValue == "0" {
+		invalidValue = "nint.Zero"
+	} else if invalidValue == "" {
+		invalidValue = "default"
 	}
 
 	return invalidValue, handleType
