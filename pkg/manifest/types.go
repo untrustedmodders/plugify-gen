@@ -85,7 +85,7 @@ type Class struct {
 	InvalidValue string    `json:"invalidValue,omitempty"`
 	NullPolicy   string    `json:"nullPolicy,omitempty"`
 	Constructors []string  `json:"constructors,omitempty"`
-	Destructor   string    `json:"destructor,omitempty"`
+	Destructor   *string   `json:"destructor,omitempty"`
 	Bindings     []Binding `json:"bindings"`
 }
 

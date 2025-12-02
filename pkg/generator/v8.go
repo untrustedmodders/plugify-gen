@@ -439,7 +439,7 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	var sb strings.Builder
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Class JSDoc comment
 	if class.Description != "" {

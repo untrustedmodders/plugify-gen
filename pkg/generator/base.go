@@ -60,9 +60,13 @@ func (g *BaseGenerator) SanitizeName(name string) string {
 	return name
 }
 
-// SanitizeNameLower handles reserved keywords by appending underscore
-func (g *BaseGenerator) SanitizeNameLower(name string) string {
-	return strings.ToLower(g.SanitizeName(name))
+// GetGroupName handles reserved keywords by appending underscore
+func (g *BaseGenerator) GetGroupName(name string) string {
+	sanitized := g.SanitizeName(name)
+	if sanitized != "" {
+		return strings.ToLower(sanitized)
+	}
+	return "main"
 }
 
 // GetGroups gets the list of all groups from manifest
@@ -73,7 +77,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	hasUngroupedClasses := false
 
 	for _, method := range m.Methods {
-		groupName := g.SanitizeNameLower(method.Group)
+		groupName := strings.ToLower(g.SanitizeName(method.Group))
 		if groupName != "" {
 			groups[groupName] = true
 		} else {
@@ -82,7 +86,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	}
 
 	for _, class := range m.Classes {
-		groupName := g.SanitizeNameLower(class.Group)
+		groupName := strings.ToLower(g.SanitizeName(class.Group))
 		if groupName != "" {
 			groups[groupName] = true
 		} else {

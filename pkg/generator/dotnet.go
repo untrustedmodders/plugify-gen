@@ -702,7 +702,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	invalidValue, handleType := g.typeMapper.MapHandleType(class)
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Validate: handleless classes should only have static methods
 	if !hasHandle {
@@ -766,7 +766,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// </summary>\n")
 			sb.WriteString("\t\tprotected override bool ReleaseHandle()\n")
 			sb.WriteString("\t\t{\n")
-			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(handle);\n", m.Name, class.Destructor))
+			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(handle);\n", m.Name, *class.Destructor))
 			sb.WriteString("\t\t\treturn true;\n")
 			sb.WriteString("\t\t}\n\n")
 
@@ -776,10 +776,14 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// </summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\tpublic override bool IsInvalid => handle == %s;\n\n", invalidValue))
 		} else {
+			ctorTag := ""
+			if hasCtor {
+				ctorTag = ", Ownership ownership = Ownership.Owned"
+			}
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 			sb.WriteString("\t\t/// </summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership = Ownership.Owned)\n", class.Name, handleType))
+			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle%s)\n", class.Name, handleType, ctorTag))
 			sb.WriteString("\t\t{\n")
 			sb.WriteString("\t\t\tthis.handle = handle;\n")
 			sb.WriteString("\t\t}\n\n")
@@ -857,7 +861,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Generate class bindings
 	for _, binding := range class.Bindings {
-		bindingCode, err := g.generateClassBinding(m, class, &binding, hasDtor)
+		bindingCode, err := g.generateClassBinding(m, class, &binding)
 		if err != nil {
 			return "", err
 		}
@@ -927,7 +931,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	return sb.String(), nil
 }
 
-func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, hasDtor bool) (string, error) {
+func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
 	// Find the underlying method
 	var method *manifest.Method
 	for i := range m.Methods {
@@ -1038,6 +1042,9 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(!IsValid, this);\n")
 	}
 
+	hasCtor := len(class.Constructors) > 0
+	hasDtor := class.Destructor != nil
+
 	// Generate method body for SafeHandle classes (need ref counting)
 	if hasDtor && binding.BindSelf {
 		sb.WriteString("\t\t\tbool success = false;\n")
@@ -1054,11 +1061,15 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 				m.Name, g.SanitizeName(method.Name), callArgs))
 		} else {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-				ownership := "Ownership.Borrowed"
-				if binding.RetAlias.Owner {
-					ownership = "Ownership.Owned"
+				ownership := ""
+				if hasDtor || hasCtor {
+					if binding.RetAlias.Owner {
+						ownership = ", Ownership.Owned"
+					} else {
+						ownership = ", Ownership.Borrowed"
+					}
 				}
-				sb.WriteString(fmt.Sprintf("\t\t\t\treturn new %s(%s.%s(%s), %s);\n",
+				sb.WriteString(fmt.Sprintf("\t\t\t\treturn new %s(%s.%s(%s)%s);\n",
 					binding.RetAlias.Name, m.Name, g.SanitizeName(method.Name), callArgs, ownership))
 			} else {
 				sb.WriteString(fmt.Sprintf("\t\t\t\treturn %s.%s(%s);\n",
@@ -1073,11 +1084,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		sb.WriteString("\t\t\t}\n")
 	} else {
 		// Build call arguments for non-SafeHandle or static methods
-		handleParam := "handle"
-		if !hasDtor {
-			handleParam = "handle"
-		}
-		callArgs := g.buildCallArguments(binding, methodParams, handleParam)
+		callArgs := g.buildCallArguments(binding, methodParams, "handle")
 
 		// Generate call
 		if method.RetType.Type == "void" {
@@ -1085,11 +1092,15 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 				m.Name, g.SanitizeName(method.Name), callArgs))
 		} else {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-				ownership := "Ownership.Borrowed"
-				if binding.RetAlias.Owner {
-					ownership = "Ownership.Owned"
+				ownership := ""
+				if hasDtor || hasCtor {
+					if binding.RetAlias.Owner {
+						ownership = ", Ownership.Owned"
+					} else {
+						ownership = ", Ownership.Borrowed"
+					}
 				}
-				sb.WriteString(fmt.Sprintf("\t\t\treturn new %s(%s.%s(%s), %s);\n",
+				sb.WriteString(fmt.Sprintf("\t\t\treturn new %s(%s.%s(%s)%s);\n",
 					binding.RetAlias.Name, m.Name, g.SanitizeName(method.Name), callArgs, ownership))
 			} else {
 				sb.WriteString(fmt.Sprintf("\t\t\treturn %s.%s(%s);\n",
@@ -1218,11 +1229,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeNameLower(method.Group)
-		// Map empty groups to "main"
-		if methodGroup == "" {
-			methodGroup = "main"
-		}
+		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
 			methodCode, err := g.generateMethod(&method, m.Name)
 			if err != nil {
@@ -1237,11 +1244,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeNameLower(class.Group)
-		// Map empty groups to "main"
-		if classGroup == "" {
-			classGroup = "main"
-		}
+		classGroup := g.GetGroupName(class.Group)
 		if classGroup == groupName {
 			classCode, err := g.generateClass(m, &class)
 			if err != nil {

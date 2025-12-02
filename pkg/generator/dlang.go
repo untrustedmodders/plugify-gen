@@ -132,26 +132,9 @@ func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName st
 	// Always import enums first
 	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
 
-	// Import all group modules in sorted order for consistency
-	if len(groups) > 0 {
-		// Collect group names into a slice and sort them
-		groupNames := make([]string, 0, len(groups))
-		for groupName := range groups {
-			groupNames = append(groupNames, groupName)
-		}
-		// Sort alphabetically
-		for i := 0; i < len(groupNames); i++ {
-			for j := i + 1; j < len(groupNames); j++ {
-				if groupNames[i] > groupNames[j] {
-					groupNames[i], groupNames[j] = groupNames[j], groupNames[i]
-				}
-			}
-		}
-
-		// Generate public imports
-		for _, groupName := range groupNames {
-			sb.WriteString(fmt.Sprintf("public import imported.%s.%s;\n", moduleName, groupName))
-		}
+	// Import all group modules
+	for groupName := range groups {
+		sb.WriteString(fmt.Sprintf("public import imported.%s.%s;\n", moduleName, groupName))
 	}
 
 	return sb.String()
@@ -221,11 +204,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	for i := range m.Methods {
 		method := &m.Methods[i]
-		methodGroup := g.SanitizeNameLower(method.Group)
-		// Map empty groups to "main"
-		if methodGroup == "" {
-			methodGroup = "main"
-		}
+		methodGroup := g.GetGroupName(method.Group)
 
 		// Track all methods and their groups
 		methodToGroup[method.Name] = methodGroup
@@ -250,10 +229,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	// Collect groups referenced by classes in this group
 	referencedGroups := make(map[string]bool)
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeNameLower(class.Group)
-		if classGroup == "" {
-			classGroup = "main"
-		}
+		classGroup := g.GetGroupName(class.Group)
 		if classGroup == groupName {
 			// Check constructors
 			for _, ctorName := range class.Constructors {
@@ -262,8 +238,8 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 				}
 			}
 			// Check destructor
-			if class.Destructor != "" {
-				if refGroup, ok := methodToGroup[class.Destructor]; ok && refGroup != groupName {
+			if class.Destructor != nil {
+				if refGroup, ok := methodToGroup[*class.Destructor]; ok && refGroup != groupName {
 					referencedGroups[refGroup] = true
 				}
 			}
@@ -285,8 +261,11 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
 
 	// Import other group modules if classes reference methods from them
-	for refGroup := range referencedGroups {
-		sb.WriteString(fmt.Sprintf("import imported.%s.%s;\n", moduleName, refGroup))
+	if len(referencedGroups) > 0 {
+		for refGroup := range referencedGroups {
+			sb.WriteString(fmt.Sprintf("import imported.%s.%s;\n", moduleName, refGroup))
+		}
+		sb.WriteString("\n")
 	}
 
 	sb.WriteString("import std.exception : enforce;\n")
@@ -314,10 +293,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeNameLower(class.Group)
-		if classGroup == "" {
-			classGroup = "main"
-		}
+		classGroup := g.GetGroupName(class.Group)
 		if classGroup == groupName {
 			classCode, err := g.generateClass(m, &class)
 			if err != nil {
@@ -647,7 +623,7 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 	hasHandle := class.HandleType != "" && class.HandleType != "void"
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Validate: handleless classes should only have static methods
 	if !hasHandle {
@@ -723,7 +699,11 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 			sb.WriteString("\t\t_ownership = ownership;\n")
 			sb.WriteString("\t}\n\n")
 		} else {
-			sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership = Ownership.Owned) {\n", handleType))
+			ctorTag := ""
+			if hasCtor {
+				ctorTag = ", Ownership ownership = Ownership.Owned"
+			}
+			sb.WriteString(fmt.Sprintf("\tthis(%s handle%s) {\n", handleType, ctorTag))
 			sb.WriteString("\t\t_handle = handle;\n")
 			sb.WriteString("\t}\n\n")
 		}
@@ -823,7 +803,7 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 	if hasDtor {
 		sb.WriteString("\tprivate void destroy() const nothrow {\n")
 		sb.WriteString(fmt.Sprintf("\t\tif (_handle !is %s && _ownership == Ownership.Owned) {\n", invalidValue))
-		sb.WriteString(fmt.Sprintf("\t\t\t%s(_handle);\n", class.Destructor))
+		sb.WriteString(fmt.Sprintf("\t\t\t%s(_handle);\n", *class.Destructor))
 		sb.WriteString("\t\t}\n")
 		sb.WriteString("\t}\n\n")
 
@@ -1056,15 +1036,22 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		sb.WriteString("\t\t")
 	}
 
+	hasCtor := len(class.Constructors) > 0
+	hasDtor := class.Destructor != nil
+
 	// Check if the return value should be wrapped
 	if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-		ownership := "Ownership.Borrowed"
-		if binding.RetAlias.Owner {
-			ownership = "Ownership.Owned"
+		ownership := ""
+		if hasDtor || hasCtor {
+			if binding.RetAlias.Owner {
+				ownership = ", Ownership.Owned"
+			} else {
+				ownership = ", Ownership.Borrowed"
+			}
 		}
 		sb.WriteString(fmt.Sprintf("%s(%s(", binding.RetAlias.Name, method.Name))
 		sb.WriteString(strings.Join(callArgs, ", "))
-		sb.WriteString(fmt.Sprintf("), %s);\n", ownership))
+		sb.WriteString(fmt.Sprintf(")%s);\n", ownership))
 	} else {
 		sb.WriteString(fmt.Sprintf("%s(", method.Name))
 		sb.WriteString(strings.Join(callArgs, ", "))

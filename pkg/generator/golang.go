@@ -777,7 +777,7 @@ func (g *GolangGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 	// Generate shared types if any class has a destructor
 	hasDestructor := false
 	for _, class := range m.Classes {
-		if class.Destructor != "" {
+		if class.Destructor != nil {
 			hasDestructor = true
 			break
 		}
@@ -816,7 +816,7 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	hasHandle := class.HandleType != "" && class.HandleType != "void"
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Validate: handleless classes should only have static methods
 	if !hasHandle {
@@ -939,7 +939,7 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 		return "", err
 	}
 
-	if class.Destructor != "" {
+	if class.Destructor != nil {
 		sb.WriteString(fmt.Sprintf("\treturn new%sOwned(%s(%s))\n", class.Name, method.Name, callParams))
 	} else {
 		sb.WriteString(fmt.Sprintf("\treturn &%s{\n", class.Name))
@@ -1022,7 +1022,7 @@ func (g *GolangGenerator) generateFinalizer(class *manifest.Class) string {
 	sb.WriteString("// destroy cleans up owned handles\n")
 	sb.WriteString(fmt.Sprintf("func (w *%s) destroy() {\n", class.Name))
 	sb.WriteString(fmt.Sprintf("\tif w.handle != %s && w.ownership == Owned {\n", invalidValue))
-	sb.WriteString(fmt.Sprintf("\t\t%s(w.handle)\n", class.Destructor))
+	sb.WriteString(fmt.Sprintf("\t\t%s(w.handle)\n", *class.Destructor))
 	sb.WriteString("\t}\n")
 	sb.WriteString("}\n\n")
 
@@ -1192,17 +1192,26 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		return "", err
 	}
 
+	hasCtor := len(class.Constructors) > 0
+	hasDtor := class.Destructor != nil
+
 	// Generate call
 	if method.RetType.Type == "void" {
 		sb.WriteString(fmt.Sprintf("\t%s(%s)\n", method.FuncName, callArgs))
 		sb.WriteString("\treturn nil\n")
 	} else {
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-			if binding.RetAlias.Owner {
-				sb.WriteString(fmt.Sprintf("\treturn new%sOwned(%s(%s)), nil\n", binding.RetAlias.Name, method.FuncName, callArgs))
+			ownership := ""
+			if hasDtor || hasCtor {
+				if binding.RetAlias.Owner {
+					ownership = fmt.Sprintf("new%sOwned", binding.RetAlias.Name)
+				} else {
+					ownership = fmt.Sprintf("new%sBorrowed", binding.RetAlias.Name)
+				}
 			} else {
-				sb.WriteString(fmt.Sprintf("\treturn new%sBorrowed(%s(%s)), nil\n", binding.RetAlias.Name, method.FuncName, callArgs))
+				ownership = fmt.Sprintf("New%s", binding.RetAlias.Name)
 			}
+			sb.WriteString(fmt.Sprintf("\treturn %s(%s(%s)), nil\n", ownership, method.FuncName, callArgs))
 		} else {
 			sb.WriteString(fmt.Sprintf("\treturn %s(%s), nil\n", method.FuncName, callArgs))
 		}
@@ -1294,7 +1303,7 @@ func (g *GolangGenerator) generateEnumsGoFile(m *manifest.Manifest) (string, err
 	// Generate ownership types if any class has a destructor
 	hasDestructor := false
 	for _, class := range m.Classes {
-		if class.Destructor != "" {
+		if class.Destructor != nil {
 			hasDestructor = true
 			break
 		}
@@ -1403,11 +1412,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Add noescape directives for methods in this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeNameLower(method.Group)
-		// Map empty groups to "main"
-		if methodGroup == "" {
-			methodGroup = "main"
-		}
+		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
 			sb.WriteString(fmt.Sprintf("#cgo noescape %s\n", method.Name))
 		}
@@ -1434,11 +1439,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeNameLower(method.Group)
-		// Map empty groups to "main"
-		if methodGroup == "" {
-			methodGroup = "main"
-		}
+		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
 			methodCode, err := g.generateMethod(&method)
 			if err != nil {
@@ -1451,11 +1452,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeNameLower(class.Group)
-		// Map empty groups to "main"
-		if classGroup == "" {
-			classGroup = "main"
-		}
+		classGroup := g.GetGroupName(class.Group)
 		if classGroup == groupName {
 			classCode, err := g.generateClass(m, &class)
 			if err != nil {
@@ -1478,11 +1475,7 @@ func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName str
 
 	// Method implementations for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeNameLower(method.Group)
-		// Map empty groups to "main"
-		if methodGroup == "" {
-			methodGroup = "main"
-		}
+		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
 			methodCode, err := g.generateHMethod(&method, m.Name)
 			if err != nil {

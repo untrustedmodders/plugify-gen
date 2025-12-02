@@ -195,7 +195,7 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	var sb strings.Builder
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Class declaration with docstring
 	sb.WriteString(fmt.Sprintf("class %s:\n", class.Name))

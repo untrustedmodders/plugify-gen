@@ -312,7 +312,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	hasHandle := class.HandleType != "" && class.HandleType != "void"
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Validate: handleless classes should only have static methods
 	if !hasHandle {
@@ -388,7 +388,11 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		if hasDtor {
 			sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType))
 		} else {
-			sb.WriteString(fmt.Sprintf("    explicit %s(%s handle, [[maybe_unused]] Ownership ownership = Ownership::Owned) : _handle(handle) {}\n\n", class.Name, handleType))
+			ctorTag := ""
+			if hasCtor {
+				ctorTag = ", [[maybe_unused]] Ownership ownership = Ownership::Owned"
+			}
+			sb.WriteString(fmt.Sprintf("    explicit %s(%s handle%s) : _handle(handle) {}\n\n", class.Name, handleType, ctorTag))
 		}
 
 		// Utility methods
@@ -448,7 +452,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 			// Destroy helper
 			sb.WriteString("    void destroy() const noexcept {\n")
 			sb.WriteString(fmt.Sprintf("      if (_handle != %s && _ownership == Ownership::Owned) {\n", invalidValue))
-			sb.WriteString(fmt.Sprintf("        %s(_handle);\n", class.Destructor))
+			sb.WriteString(fmt.Sprintf("        %s(_handle);\n", *class.Destructor))
 			sb.WriteString("      }\n")
 			sb.WriteString("    }\n\n")
 
@@ -660,17 +664,24 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		}
 	}
 
+	hasCtor := len(class.Constructors) > 0
+	hasDtor := class.Destructor != nil
+
 	// Generate return statement
 	if method.RetType.Type == "void" {
 		sb.WriteString(fmt.Sprintf("      %s::%s(%s);\n", m.Name, method.FuncName, callArgs))
 	} else {
 		// Handle return alias
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-			ownership := "Ownership::Borrowed"
-			if binding.RetAlias.Owner {
-				ownership = "Ownership::Owned"
+			ownership := ""
+			if hasDtor || hasCtor {
+				if binding.RetAlias.Owner {
+					ownership = ", Ownership::Owned"
+				} else {
+					ownership = ", Ownership::Borrowed"
+				}
 			}
-			sb.WriteString(fmt.Sprintf("      return %s(%s::%s(%s), %s);\n", binding.RetAlias.Name, m.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
+			sb.WriteString(fmt.Sprintf("      return %s(%s::%s(%s)%s);\n", binding.RetAlias.Name, m.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
 		} else {
 			sb.WriteString(fmt.Sprintf("      return %s::%s(%s);\n", m.Name, method.FuncName, callArgs))
 		}
@@ -778,6 +789,17 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString(fmt.Sprintf("#include \"%s.hpp\"\n", m.Name))
 
+	// Find which other groups this group depends on (for method calls from classes)
+	if len(m.Classes) > 0 {
+		dependentGroups := g.findDependentGroups(m, groupName)
+		if len(dependentGroups) > 0 {
+			for depGroup := range dependentGroups {
+				sb.WriteString(fmt.Sprintf("#include \"%s.hpp\"\n", depGroup))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
 
 	// Namespace
@@ -785,10 +807,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.SanitizeNameLower(method.Group)
-		if methodGroup == "" {
-			methodGroup = "main"
-		}
+		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
 			methodCode, err := g.generateMethod(m.Name, &method)
 			if err != nil {
@@ -801,10 +820,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 
 	// Generate classes for this group
 	for _, class := range m.Classes {
-		classGroup := g.SanitizeNameLower(class.Group)
-		if classGroup == "" {
-			classGroup = "main"
-		}
+		classGroup := g.GetGroupName(class.Group)
 		if classGroup == groupName {
 			classCode, err := g.generateClass(m, &class)
 			if err != nil {
@@ -821,6 +837,49 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 	return sb.String(), nil
 }
 
+// findDependentGroups finds other groups that this group depends on (methods used by classes)
+func (g *CppGenerator) findDependentGroups(m *manifest.Manifest, currentGroupName string) map[string]bool {
+	groupName := g.GetGroupName(currentGroupName)
+	// Pre-index methods for O(1) lookup.
+	methodToGroup := make(map[string]string, len(m.Methods))
+	for i := range m.Methods {
+		method := &m.Methods[i]
+		methodGroup := g.GetGroupName(method.Group)
+
+		methodToGroup[method.Name] = methodGroup
+		methodToGroup[method.FuncName] = methodGroup
+	}
+
+	referencedGroups := make(map[string]bool)
+
+	for _, class := range m.Classes {
+		classGroup := g.GetGroupName(class.Group)
+		if classGroup != groupName {
+			continue
+		}
+
+		for _, ctorName := range class.Constructors {
+			if refGroup, ok := methodToGroup[ctorName]; ok && refGroup != classGroup {
+				referencedGroups[refGroup] = true
+			}
+		}
+
+		if class.Destructor != nil {
+			if refGroup, ok := methodToGroup[*class.Destructor]; ok && refGroup != classGroup {
+				referencedGroups[refGroup] = true
+			}
+		}
+
+		for _, binding := range class.Bindings {
+			if refGroup, ok := methodToGroup[binding.Method]; ok && refGroup != classGroup {
+				referencedGroups[refGroup] = true
+			}
+		}
+	}
+
+	return referencedGroups
+}
+
 // generateMainHeader generates the main header file that includes all group files
 func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]bool) (string, error) {
 	var sb strings.Builder
@@ -834,22 +893,8 @@ func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[strin
 	sb.WriteString(fmt.Sprintf("#include \"%s/enums.hpp\"\n", m.Name))
 	sb.WriteString(fmt.Sprintf("#include \"%s/delegates.hpp\"\n", m.Name))
 
-	// Include all group files
-	// Convert map to sorted slice for deterministic output
-	var groupNames []string
+	// Import all group headers
 	for groupName := range groups {
-		groupNames = append(groupNames, groupName)
-	}
-	// Sort the group names for consistent order
-	for i := 0; i < len(groupNames); i++ {
-		for j := i + 1; j < len(groupNames); j++ {
-			if groupNames[i] > groupNames[j] {
-				groupNames[i], groupNames[j] = groupNames[j], groupNames[i]
-			}
-		}
-	}
-
-	for _, groupName := range groupNames {
 		sb.WriteString(fmt.Sprintf("#include \"%s/%s.hpp\"\n", m.Name, groupName))
 	}
 

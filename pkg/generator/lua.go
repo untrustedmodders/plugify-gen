@@ -174,7 +174,7 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	var sb strings.Builder
 
 	hasCtor := len(class.Constructors) > 0
-	hasDtor := class.Destructor != ""
+	hasDtor := class.Destructor != nil
 
 	// Class comment
 	if class.Description != "" {
