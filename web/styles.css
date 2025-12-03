@@ -225,39 +225,47 @@ h2 {
     margin: 32px 0;
 }
 
-.auto-convert-wrapper {
-    margin-bottom: 16px;
+.options-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
-.auto-convert-label {
+.option-label {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
-    padding: 12px 20px;
+    padding: 10px 16px;
     background: rgba(99, 102, 241, 0.05);
     border: 1px solid var(--border);
     border-radius: 8px;
     transition: all 0.2s;
+    min-width: 140px;
 }
 
-.auto-convert-label:hover {
+.option-label:hover {
     background: rgba(99, 102, 241, 0.1);
     border-color: var(--primary);
 }
 
-#autoConvert {
-    width: 20px;
-    height: 20px;
+.option-checkbox {
+    width: 18px;
+    height: 18px;
     cursor: pointer;
     accent-color: var(--primary);
+    flex-shrink: 0;
 }
 
 .checkbox-text {
     color: var(--text);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 500;
     user-select: none;
+    white-space: nowrap;
 }
 
 .convert-btn {
@@ -474,6 +482,16 @@ footer a:hover {
 
     .language-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .options-wrapper {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .option-label {
+        width: 100%;
+        justify-content: center;
     }
 
     .output-header {
