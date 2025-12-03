@@ -15,22 +15,9 @@ type DotnetGenerator struct {
 
 // NewDotnetGenerator creates a new .NET/C# generator
 func NewDotnetGenerator() *DotnetGenerator {
-	invalidNames := []string{
-		"abstract", "as", "base", "bool", "break", "byte", "case", "catch",
-		"char", "checked", "class", "const", "continue", "decimal", "default",
-		"delegate", "do", "double", "else", "enum", "event", "explicit", "extern",
-		"false", "finally", "fixed", "float", "for", "foreach", "goto", "if",
-		"implicit", "in", "int", "interface", "internal", "is", "lock", "long",
-		"namespace", "new", "null", "object", "operator", "out", "override", "params",
-		"private", "protected", "readonly", "ref", "return", "sbyte", "sealed",
-		"short", "sizeof", "stackalloc", "static", "string", "struct", "switch",
-		"this", "throw", "true", "try", "typeof", "uint", "ulong", "unchecked",
-		"unsafe", "ushort", "using", "virtual", "void", "volatile", "while",
-	}
-
 	mapper := NewDotnetTypeMapper()
 	return &DotnetGenerator{
-		BaseGenerator: NewBaseGenerator("dotnet", mapper, invalidNames),
+		BaseGenerator: NewBaseGenerator("dotnet", mapper, CSharpReservedWords),
 		typeMapper:    mapper,
 	}
 }
@@ -38,11 +25,7 @@ func NewDotnetGenerator() *DotnetGenerator {
 // Generate generates .NET bindings
 func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	files := make(map[string]string)
 
@@ -52,14 +35,14 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	// Generate separate enums file
 	enumsCode, err := g.generateEnumsFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating enums file: %w", err)
 	}
 	files[fmt.Sprintf("imported/%s/enums.cs", m.Name)] = enumsCode
 
 	// Generate separate delegates file
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating delegates file: %w", err)
 	}
 	files[fmt.Sprintf("imported/%s/delegates.cs", m.Name)] = delegatesCode
 
@@ -892,13 +875,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, methodName)
 	if method == nil {
 		return "", fmt.Errorf("constructor method %s not found", methodName)
 	}
@@ -952,13 +929,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 
 func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
 	// Find the underlying method
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, binding.Method)
 	if method == nil {
 		return "", fmt.Errorf("method %s not found", binding.Method)
 	}

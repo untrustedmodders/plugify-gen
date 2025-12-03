@@ -14,29 +14,15 @@ type PythonGenerator struct {
 
 // NewPythonGenerator creates a new Python generator
 func NewPythonGenerator() *PythonGenerator {
-	invalidNames := []string{
-		"False", "await", "else", "import", "pass",
-		"None", "break", "except", "in", "raise",
-		"True", "class", "finally", "is", "return",
-		"and", "continue", "for", "lambda", "try",
-		"as", "def", "from", "nonlocal", "while",
-		"assert", "del", "global", "not", "with",
-		"async", "elif", "if", "or", "yield",
-	}
-
 	return &PythonGenerator{
-		BaseGenerator: NewBaseGenerator("python", NewPythonTypeMapper(), invalidNames),
+		BaseGenerator: NewBaseGenerator("python", NewPythonTypeMapper(), PythonReservedWords),
 	}
 }
 
 // Generate generates Python bindings
 func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	var sb strings.Builder
 
@@ -75,7 +61,7 @@ func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	if opts.GenerateClasses && len(m.Classes) > 0 {
 		classesCode, err := g.generateClasses(m)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("generating classes: %w", err)
 		}
 		sb.WriteString(classesCode)
 		sb.WriteString("\n")

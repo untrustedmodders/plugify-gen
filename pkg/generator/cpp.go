@@ -14,35 +14,15 @@ type CppGenerator struct {
 
 // NewCppGenerator creates a new C++ generator
 func NewCppGenerator() *CppGenerator {
-	invalidNames := []string{
-		"alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor",
-		"bool", "break", "case", "catch", "char", "char8_t", "char16_t", "char32_t",
-		"class", "compl", "concept", "const", "consteval", "constexpr", "constinit",
-		"const_cast", "continue", "co_await", "co_return", "co_yield", "decltype",
-		"default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit",
-		"export", "extern", "false", "float", "for", "friend", "goto", "if", "inline",
-		"int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq",
-		"nullptr", "operator", "or", "or_eq", "private", "protected", "public",
-		"register", "reinterpret_cast", "requires", "return", "short", "signed",
-		"sizeof", "static", "static_assert", "static_cast", "struct", "switch",
-		"template", "this", "thread_local", "throw", "true", "try", "typedef",
-		"typeid", "typename", "union", "unsigned", "using", "virtual", "void",
-		"volatile", "wchar_t", "while", "xor", "xor_eq",
-	}
-
 	return &CppGenerator{
-		BaseGenerator: NewBaseGenerator("cpp", NewCppTypeMapper(), invalidNames),
+		BaseGenerator: NewBaseGenerator("cpp", NewCppTypeMapper(), CppReservedWords),
 	}
 }
 
 // Generate generates C++ bindings
 func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	// Collect all unique groups from both methods and classes
 	groups := g.GetGroups(m)
@@ -53,14 +33,14 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	// Generate separate enums file
 	enumsCode, err := g.generateEnumsFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating enums file: %w", err)
 	}
 	files[fmt.Sprintf("%s/%s/enums.hpp", folder, m.Name)] = enumsCode
 
 	// Generate separate delegates file
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating delegates file: %w", err)
 	}
 	files[fmt.Sprintf("%s/%s/delegates.hpp", folder, m.Name)] = delegatesCode
 
@@ -76,7 +56,7 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	// Generate main header that includes all pieces
 	mainHeader, err := g.generateMainHeader(m, groups)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating main header: %w", err)
 	}
 	files[fmt.Sprintf("%s/%s.hpp", folder, m.Name)] = mainHeader
 
@@ -493,13 +473,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 
 func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, methodName)
 	if method == nil {
 		return "", fmt.Errorf("constructor method %s not found", methodName)
 	}
@@ -547,13 +521,7 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 
 func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
 	// Find the underlying method
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, binding.Method)
 	if method == nil {
 		return "", fmt.Errorf("method %s not found", binding.Method)
 	}

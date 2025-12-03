@@ -16,20 +16,9 @@ type GolangGenerator struct {
 
 // NewGolangGenerator creates a new Go generator
 func NewGolangGenerator() *GolangGenerator {
-	invalidNames := []string{
-		"break", "case", "chan", "const", "continue", "default", "defer", "else",
-		"fallthrough", "for", "func", "go", "goto", "if", "import", "interface",
-		"map", "package", "range", "return", "select", "struct", "switch", "type",
-		"var", "append", "bool", "byte", "cap", "close", "complex", "complex64",
-		"complex128", "copy", "delete", "error", "false", "float32", "float64",
-		"imag", "int", "int8", "int16", "int32", "int64", "iota", "len", "make",
-		"new", "nil", "panic", "print", "println", "real", "recover", "rune",
-		"string", "true", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
-	}
-
 	mapper := NewGolangTypeMapper()
 	return &GolangGenerator{
-		BaseGenerator: NewBaseGenerator("golang", mapper, invalidNames),
+		BaseGenerator: NewBaseGenerator("golang", mapper, GoReservedWords),
 		typeMapper:    mapper,
 		usedNames:     make(map[string]bool),
 	}
@@ -39,11 +28,7 @@ func NewGolangGenerator() *GolangGenerator {
 func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
 	g.usedNames = make(map[string]bool)
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	files := make(map[string]string)
 
@@ -53,21 +38,21 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	// Generate separate enums file
 	enumsGoCode, err := g.generateEnumsGoFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating enums file: %w", err)
 	}
 	files[fmt.Sprintf("%s/enums.go", m.Name)] = enumsGoCode
 
 	// Generate separate delegates file
 	delegatesGoCode, err := g.generateDelegatesGoFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating delegates file: %w", err)
 	}
 	files[fmt.Sprintf("%s/delegates.go", m.Name)] = delegatesGoCode
 
 	// Generate .h file for enums
 	sharedHCode, err := g.generateSharedHFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating shared header: %w", err)
 	}
 	files[fmt.Sprintf("%s/shared.h", m.Name)] = sharedHCode
 
@@ -923,13 +908,7 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, methodName)
 	if method == nil {
 		return "", fmt.Errorf("constructor method %s not found", methodName)
 	}
@@ -1132,13 +1111,7 @@ func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class) (string,
 
 func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, errVarName string) (string, error) {
 	// Find the underlying method
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, binding.Method)
 	if method == nil {
 		return "", fmt.Errorf("method %s not found", binding.Method)
 	}

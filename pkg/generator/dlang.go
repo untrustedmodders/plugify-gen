@@ -14,38 +14,15 @@ type DlangGenerator struct {
 
 // NewDlangGenerator creates a new D language generator
 func NewDlangGenerator() *DlangGenerator {
-	invalidNames := []string{
-		"out", "version", "module", "function", "body", "in", "ref",
-		"abstract", "alias", "align", "asm", "assert", "auto",
-		"bool", "break", "byte", "case", "cast", "catch", "cdouble",
-		"cent", "cfloat", "char", "class", "const", "continue", "creal",
-		"dchar", "debug", "default", "delegate", "delete", "deprecated",
-		"do", "double", "else", "enum", "export", "extern", "false",
-		"final", "finally", "float", "for", "foreach", "foreach_reverse",
-		"goto", "idouble", "if", "ifloat", "immutable", "import",
-		"inout", "int", "interface", "invariant", "ireal", "is",
-		"lazy", "long", "macro", "mixin", "new", "nothrow", "null",
-		"override", "package", "pragma", "private", "protected", "public",
-		"pure", "real", "return", "scope", "shared", "short", "static",
-		"struct", "super", "switch", "synchronized", "template", "this",
-		"throw", "true", "try", "typedef", "typeid", "typeof", "ubyte",
-		"ucent", "uint", "ulong", "union", "unittest", "ushort", "void",
-		"volatile", "wchar", "while", "with",
-	}
-
 	return &DlangGenerator{
-		BaseGenerator: NewBaseGenerator("dlang", NewDlangTypeMapper(), invalidNames),
+		BaseGenerator: NewBaseGenerator("dlang", NewDlangTypeMapper(), DReservedWords),
 	}
 }
 
 // Generate generates D language bindings
 func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	// Module declaration
 	moduleName := strings.ToLower(m.Name)
@@ -58,7 +35,7 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) 
 	// First, generate enums file
 	enumsCode, err := g.generateEnumsFile(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating enums file: %w", err)
 	}
 	files[fmt.Sprintf("source/imported/%s/enums.d", moduleName)] = enumsCode
 

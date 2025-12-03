@@ -13,6 +13,14 @@ type GeneratorOptions struct {
 	GenerateClasses bool
 }
 
+// EnsureOptions returns valid options, using defaults if nil
+func EnsureOptions(opts *GeneratorOptions) *GeneratorOptions {
+	if opts == nil {
+		return &GeneratorOptions{GenerateClasses: true}
+	}
+	return opts
+}
+
 // Generator is the interface that all language-specific generators must implement
 type Generator interface {
 	// Name returns the generator name (e.g., "cpp", "golang")
@@ -289,19 +297,22 @@ func RemoveLeadingTabs(b *strings.Builder, n, startChar, endChar int) {
 	b.WriteString(strings.Join(lines, "\n"))
 }
 
+// FindMethod returns the method with the given name or nil
+func FindMethod(m *manifest.Manifest, name string) *manifest.Method {
+	for i := range m.Methods {
+		if m.Methods[i].Name == name || m.Methods[i].FuncName == name {
+			return &m.Methods[i]
+		}
+	}
+	return nil
+}
+
 // HasConstructorWithSingleHandleParam checks if any constructor has exactly 1 parameter of the handle type
 func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest, class *manifest.Class) bool {
 	for _, ctorName := range class.Constructors {
-		// Find the constructor method
-		for i := range m.Methods {
-			method := &m.Methods[i]
-			if method.Name == ctorName || method.FuncName == ctorName {
-				// Check if it has exactly 1 parameter and that parameter is the handle type
-				if len(method.ParamTypes) == 1 && method.ParamTypes[0].Type == class.HandleType {
-					return true
-				}
-				break
-			}
+		method := FindMethod(m, ctorName)
+		if method != nil && len(method.ParamTypes) == 1 && method.ParamTypes[0].Type == class.HandleType {
+			return true
 		}
 	}
 	return false

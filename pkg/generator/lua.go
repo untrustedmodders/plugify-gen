@@ -14,25 +14,15 @@ type LuaGenerator struct {
 
 // NewLuaGenerator creates a new Lua generator
 func NewLuaGenerator() *LuaGenerator {
-	invalidNames := []string{
-		"and", "break", "do", "else", "elseif", "end", "false",
-		"for", "function", "goto", "if", "in", "local", "nil",
-		"not", "or", "repeat", "return", "then", "true", "until", "while",
-	}
-
 	return &LuaGenerator{
-		BaseGenerator: NewBaseGenerator("lua", NewLuaTypeMapper(), invalidNames),
+		BaseGenerator: NewBaseGenerator("lua", NewLuaTypeMapper(), LuaReservedWords),
 	}
 }
 
 // Generate generates Lua bindings
 func (g *LuaGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	var sb strings.Builder
 
@@ -63,7 +53,7 @@ func (g *LuaGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	if opts.GenerateClasses && len(m.Classes) > 0 {
 		classesCode, err := g.generateClasses(m)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("generating classes: %w", err)
 		}
 		sb.WriteString(classesCode)
 		sb.WriteString("\n")

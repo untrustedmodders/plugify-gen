@@ -14,31 +14,15 @@ type V8Generator struct {
 
 // NewV8Generator creates a new V8/JavaScript generator
 func NewV8Generator() *V8Generator {
-	invalidNames := []string{
-		"abstract", "arguments", "await", "boolean", "break", "byte", "case",
-		"catch", "char", "class", "const", "continue", "debugger", "default",
-		"delete", "do", "double", "else", "enum", "eval", "export", "extends",
-		"false", "final", "finally", "float", "for", "function", "goto", "if",
-		"implements", "import", "in", "instanceof", "int", "interface", "let",
-		"long", "native", "new", "null", "package", "private", "protected",
-		"public", "return", "short", "static", "super", "switch", "synchronized",
-		"this", "throw", "throws", "transient", "true", "try", "typeof", "var",
-		"void", "volatile", "while", "with", "yield",
-	}
-
 	return &V8Generator{
-		BaseGenerator: NewBaseGenerator("v8", NewV8TypeMapper(), invalidNames),
+		BaseGenerator: NewBaseGenerator("v8", NewV8TypeMapper(), V8ReservedWords),
 	}
 }
 
 // Generate generates V8/JavaScript TypeScript definitions
 func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
-
-	// Use default options if nil
-	if opts == nil {
-		opts = &GeneratorOptions{GenerateClasses: true}
-	}
+	opts = EnsureOptions(opts)
 
 	var sb strings.Builder
 
@@ -58,7 +42,7 @@ func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*G
 	// Generate enums
 	enumsCode, err := g.generateEnums(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating enums: %w", err)
 	}
 	if enumsCode != "" {
 		sb.WriteString(enumsCode)
@@ -68,7 +52,7 @@ func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*G
 	// Generate delegates
 	delegatesCode, err := g.generateDelegates(m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating delegates: %w", err)
 	}
 	if delegatesCode != "" {
 		sb.WriteString(delegatesCode)
@@ -88,7 +72,7 @@ func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*G
 	if opts.GenerateClasses && len(m.Classes) > 0 {
 		classesCode, err := g.generateClasses(m)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("generating classes: %w", err)
 		}
 		sb.WriteString(classesCode)
 	}
