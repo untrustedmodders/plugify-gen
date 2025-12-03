@@ -757,7 +757,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 			sb.WriteString("\t\t/// </summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership%s) : base((nint)handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType, ownershipDefault))
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s(%s handle, Ownership ownership%s) : base((nint)handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType, ownershipDefault))
 			sb.WriteString("\t\t{\n\t\t}\n\n")
 
 			// ReleaseHandle override
