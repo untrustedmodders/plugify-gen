@@ -131,7 +131,7 @@ func (g *DotnetGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *s
 	}
 }
 
-func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) string {
+func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, enumType string) string {
 	var sb strings.Builder
 
 	// XML documentation
@@ -140,6 +140,8 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 		sb.WriteString(fmt.Sprintf("\t/// %s\n", enum.Description))
 		sb.WriteString("\t/// </summary>\n")
 	}
+
+	underlyingType, _ := g.typeMapper.MapType(enumType, TypeContextReturn, false)
 
 	sb.WriteString(fmt.Sprintf("\tpublic enum %s : %s\n\t{\n", enum.Name, underlyingType))
 
@@ -757,7 +759,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 			sb.WriteString("\t\t/// </summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership) : base(handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType))
+			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership) : base((nint)handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType))
 			sb.WriteString("\t\t{\n\t\t}\n\n")
 
 			// ReleaseHandle override
@@ -766,7 +768,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// </summary>\n")
 			sb.WriteString("\t\tprotected override bool ReleaseHandle()\n")
 			sb.WriteString("\t\t{\n")
-			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(handle);\n", m.Name, *class.Destructor))
+			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s((%s)handle);\n", handleType, m.Name, *class.Destructor))
 			sb.WriteString("\t\t\treturn true;\n")
 			sb.WriteString("\t\t}\n\n")
 
@@ -813,7 +815,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t{\n")
 			sb.WriteString("\t\t\tvar h = handle;\n")
 			sb.WriteString("\t\t\tSetHandleAsInvalid();\n")
-			sb.WriteString("\t\t\treturn h;\n")
+			sb.WriteString(fmt.Sprintf("\t\t\treturn (%s)h;\n", handleType))
 			sb.WriteString("\t\t}\n\n")
 
 			sb.WriteString("\t\t/// <summary>\n")
@@ -1054,7 +1056,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		sb.WriteString("\t\t\t{\n")
 
 		// Build call arguments
-		callArgs := g.buildCallArguments(binding, methodParams, "handle")
+		callArgs := g.buildCallArguments(binding, methodParams, "Handle")
 
 		// Generate call
 		if method.RetType.Type == "void" {
@@ -1139,6 +1141,10 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 				callArgs += paramName + ".Get()"
 			}
 		} else {
+			if param.Ref {
+				paramName += "ref "
+			}
+
 			callArgs += paramName
 		}
 	}

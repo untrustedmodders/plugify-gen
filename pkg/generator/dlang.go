@@ -159,12 +159,14 @@ func (g *DlangGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *st
 	}
 }
 
-func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) string {
+func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, enumType string) string {
 	var sb strings.Builder
 
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("/// %s\n", enum.Description))
 	}
+
+	underlyingType, _ := g.typeMapper.MapType(enumType, TypeContextReturn, false)
 
 	sb.WriteString(fmt.Sprintf("enum %s : %s {\n", enum.Name, underlyingType))
 

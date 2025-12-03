@@ -489,7 +489,7 @@ func (g *V8Generator) generateUtilityMethods(class *manifest.Class, hasDtor bool
 	var sb strings.Builder
 
 	// Get the handle type mapped to TypeScript
-	handleType, _ := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
+	_, handleType := g.typeMapper.MapHandleType(class)
 
 	// valid() method
 	sb.WriteString("    /**\n")
@@ -869,5 +869,6 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error)
 }
 
 func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string) {
-	return "", ""
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	return "null", handleType
 }

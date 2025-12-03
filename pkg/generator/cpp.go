@@ -139,12 +139,14 @@ func (g *CppGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *stri
 	}
 }
 
-func (g *CppGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) string {
+func (g *CppGenerator) generateEnum(enum *manifest.EnumType, enumType string) string {
 	var sb strings.Builder
 
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("  // %s\n", enum.Description))
 	}
+
+	underlyingType, _ := g.typeMapper.MapType(enumType, TypeContextReturn, false)
 
 	sb.WriteString(fmt.Sprintf("  enum class %s : %s {\n", enum.Name, underlyingType))
 

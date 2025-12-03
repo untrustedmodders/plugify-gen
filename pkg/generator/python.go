@@ -290,7 +290,7 @@ func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) string {
 	var sb strings.Builder
 
 	// Get the handle type mapped to Python
-	handleType, _ := g.typeMapper.MapType(class.HandleType, TypeContextReturn, false)
+	_, handleType := g.typeMapper.MapHandleType(class)
 
 	// get() method
 	sb.WriteString(fmt.Sprintf("    def get(self) -> %s:\n", handleType))
@@ -751,5 +751,6 @@ func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (stri
 }
 
 func (m *PythonTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
-	return "", ""
+	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	return "None", handleType
 }
