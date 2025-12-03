@@ -227,11 +227,16 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Generate destructor and context manager methods for classes with destructors
 	if hasDtor {
-		sb.WriteString(g.generateDestructorMethods(class))
+		dtorCode := g.generateDestructorMethods(class)
+		sb.WriteString(dtorCode)
 	}
 
 	// Generate utility methods (get, release, reset, valid) for all classes
-	sb.WriteString(g.generateUtilityMethods(class))
+	utilCode, err := g.generateUtilityMethods(class)
+	if err != nil {
+		return "", err
+	}
+	sb.WriteString(utilCode)
 
 	// Generate bindings (methods)
 	for _, binding := range class.Bindings {
@@ -286,11 +291,14 @@ func (g *PythonGenerator) generateDestructorMethods(class *manifest.Class) strin
 	return sb.String()
 }
 
-func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) string {
+func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
 	// Get the handle type mapped to Python
-	_, handleType := g.typeMapper.MapHandleType(class)
+	_, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// get() method
 	sb.WriteString(fmt.Sprintf("    def get(self) -> %s:\n", handleType))
@@ -326,7 +334,7 @@ func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) string {
 	sb.WriteString("        \"\"\"\n")
 	sb.WriteString("        ...\n\n")
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
@@ -750,7 +758,10 @@ func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (stri
 	return fmt.Sprintf("Callable[[%s], %s]", strings.Join(paramTypes, ", "), retType), nil
 }
 
-func (m *PythonTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
-	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
-	return "None", handleType
+func (m *PythonTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
+	handleType, err := m.MapType(class.HandleType, TypeContextReturn, false)
+	if err != nil {
+		return "", "", err
+	}
+	return "None", handleType, nil
 }

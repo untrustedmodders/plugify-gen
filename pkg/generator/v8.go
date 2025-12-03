@@ -469,7 +469,11 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	}
 
 	// Generate utility methods (valid, get, release, and close if destructor exists)
-	sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+	utilCode, err := g.generateUtilityMethods(class)
+	if err != nil {
+		return "", err
+	}
+	sb.WriteString(utilCode)
 
 	// Generate bindings (methods)
 	for _, binding := range class.Bindings {
@@ -485,11 +489,14 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	return sb.String(), nil
 }
 
-func (g *V8Generator) generateUtilityMethods(class *manifest.Class, hasDtor bool) string {
+func (g *V8Generator) generateUtilityMethods(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
 	// Get the handle type mapped to TypeScript
-	_, handleType := g.typeMapper.MapHandleType(class)
+	_, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// valid() method
 	sb.WriteString("    /**\n")
@@ -518,6 +525,8 @@ func (g *V8Generator) generateUtilityMethods(class *manifest.Class, hasDtor bool
 	sb.WriteString("     */\n")
 	sb.WriteString("    reset(): void;\n\n")
 
+	hasDtor := class.Destructor != nil
+
 	// close() method - only if destructor exists
 	if hasDtor {
 		sb.WriteString("    /**\n")
@@ -526,7 +535,7 @@ func (g *V8Generator) generateUtilityMethods(class *manifest.Class, hasDtor bool
 		sb.WriteString("    close(): void;\n\n")
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (g *V8Generator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
@@ -868,7 +877,10 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error)
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
 }
 
-func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string) {
-	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
-	return "null", handleType
+func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
+	handleType, err := m.MapType(class.HandleType, TypeContextReturn, false)
+	if err != nil {
+		return "", "", err
+	}
+	return "null", handleType, err
 }

@@ -308,7 +308,10 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	var sb strings.Builder
 
 	// Get handle type and invalid value
-	invalidValue, handleType := g.typeMapper.MapHandleType(class)
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// Check if this is a handleless class (static methods only)
 	hasHandle := class.HandleType != "" && class.HandleType != "void"
@@ -634,7 +637,10 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	}
 
 	if binding.BindSelf && nullPolicy == "throw" {
-		invalidValue, _ := g.typeMapper.MapHandleType(class)
+		invalidValue, _, err := g.typeMapper.MapHandleType(class)
+		if err != nil {
+			return "", err
+		}
 		sb.WriteString(fmt.Sprintf("      if (_handle == %s) throw std::runtime_error(\"%s: Empty handle\");\n", invalidValue, class.Name))
 	}
 
@@ -1020,9 +1026,12 @@ func (m *CppTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
 }
 
-func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
 	invalidValue := class.InvalidValue
-	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	handleType, err := m.MapType(class.HandleType, TypeContextReturn, false)
+	if err != nil {
+		return "", "", err
+	}
 
 	if class.HandleType == "ptr64" && invalidValue == "0" {
 		invalidValue = "nullptr"
@@ -1030,5 +1039,5 @@ func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
 		invalidValue = "{}"
 	}
 
-	return invalidValue, handleType
+	return invalidValue, handleType, nil
 }

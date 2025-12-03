@@ -297,9 +297,12 @@ func (m *DotnetTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, er
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
 }
 
-func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
+func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
 	invalidValue := class.InvalidValue
-	handleType, _ := m.MapType(class.HandleType, TypeContextReturn, false)
+	handleType, err := m.MapType(class.HandleType, TypeContextReturn, false)
+	if err != nil {
+		return "", "", err
+	}
 
 	if class.HandleType == "ptr64" && invalidValue == "0" {
 		invalidValue = "nint.Zero"
@@ -307,7 +310,7 @@ func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string)
 		invalidValue = "default"
 	}
 
-	return invalidValue, handleType
+	return invalidValue, handleType, err
 }
 
 // MapDelegateParamType maps parameter types for delegate definitions

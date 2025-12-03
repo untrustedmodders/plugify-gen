@@ -209,7 +209,7 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	}
 
 	// Generate utility methods (valid, get, release, and close if destructor exists)
-	sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+	sb.WriteString(g.generateUtilityMethods(class))
 
 	// Generate bindings (methods)
 	for _, binding := range class.Bindings {
@@ -224,7 +224,7 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	return sb.String(), nil
 }
 
-func (g *LuaGenerator) generateUtilityMethods(class *manifest.Class, hasDtor bool) string {
+func (g *LuaGenerator) generateUtilityMethods(class *manifest.Class) string {
 	var sb strings.Builder
 
 	// valid() method
@@ -245,6 +245,8 @@ func (g *LuaGenerator) generateUtilityMethods(class *manifest.Class, hasDtor boo
 	// reset() method
 	sb.WriteString("--- Reset the handle by closing it.\n")
 	sb.WriteString(fmt.Sprintf("function %s:reset() end\n\n", class.Name))
+
+	hasDtor := class.Destructor != nil
 
 	// close() method - only if destructor exists
 	if hasDtor {
@@ -484,6 +486,6 @@ func (m *LuaTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error
 	return "", nil
 }
 
-func (m *LuaTypeMapper) MapHandleType(class *manifest.Class) (string, string) {
-	return "", ""
+func (m *LuaTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
+	return "", "", nil
 }

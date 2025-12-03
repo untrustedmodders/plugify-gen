@@ -831,7 +831,10 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	// Map handle type
-	_, handleType := g.typeMapper.MapHandleType(class)
+	_, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// Only generate error variable if class has a handle
 	if hasHandle {
@@ -870,18 +873,34 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 		// Generate helper constructors (borrowed/owned)
 		if hasDtor {
-			sb.WriteString(g.generateHelperConstructors(class))
+			helperCode, err := g.generateHelperConstructors(class)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(helperCode)
 		} else if !hasCtor {
-			sb.WriteString(g.generateDefaultConstructor(class))
+			ctorCode, err := g.generateDefaultConstructor(class)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
 		}
 
 		// Generate finalizer
 		if hasDtor {
-			sb.WriteString(g.generateFinalizer(class))
+			finalizerCode, err := g.generateFinalizer(class)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(finalizerCode)
 		}
 
 		// Generate utility methods
-		sb.WriteString(g.generateUtilityMethods(class, hasDtor))
+		utilityCode, err := g.generateUtilityMethods(class)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(utilityCode)
 	}
 
 	// Generate class bindings
@@ -952,10 +971,13 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 	return sb.String(), nil
 }
 
-func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) string {
+func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
-	invalidValue, handleType := g.typeMapper.MapHandleType(class)
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// newBorrowed helper
 	sb.WriteString(fmt.Sprintf("// new%sBorrowed creates a %s from a borrowed handle (internal use)\n", class.Name, class.Name))
@@ -983,13 +1005,16 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) stri
 	sb.WriteString("\treturn w\n")
 	sb.WriteString("}\n\n")
 
-	return sb.String()
+	return sb.String(), nil
 }
 
-func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) string {
+func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
-	invalidValue, handleType := g.typeMapper.MapHandleType(class)
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// New helper
 	sb.WriteString(fmt.Sprintf("// New%s creates a %s from a handle\n", class.Name, class.Name))
@@ -1002,13 +1027,16 @@ func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) stri
 	sb.WriteString("\t}\n")
 	sb.WriteString("}\n\n")
 
-	return sb.String()
+	return sb.String(), nil
 }
 
-func (g *GolangGenerator) generateFinalizer(class *manifest.Class) string {
+func (g *GolangGenerator) generateFinalizer(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
-	invalidValue, _ := g.typeMapper.MapHandleType(class)
+	invalidValue, _, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	// finalize function
 	sb.WriteString("// finalize is the finalizer function (like C++ destructor)\n")
@@ -1033,13 +1061,18 @@ func (g *GolangGenerator) generateFinalizer(class *manifest.Class) string {
 	sb.WriteString("\tw.ownership = Borrowed\n")
 	sb.WriteString("}\n\n")
 
-	return sb.String()
+	return sb.String(), nil
 }
 
-func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class, hasDtor bool) string {
+func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
-	invalidValue, handleType := g.typeMapper.MapHandleType(class)
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
+
+	hasDtor := class.Destructor != nil
 
 	// Close method (only if destructor exists)
 	if hasDtor {
@@ -1092,7 +1125,7 @@ func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class, hasDtor 
 	sb.WriteString(fmt.Sprintf("\treturn w.handle != %s\n", invalidValue))
 	sb.WriteString("}\n\n")
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, errVarName string) (string, error) {
@@ -1176,7 +1209,10 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	sb.WriteString(fmt.Sprintf("func (w *%s) %s(%s)%s {\n", class.Name, binding.Name, formattedParams, returnSignature))
 
 	// Generate null check
-	invalidValue, _ := g.typeMapper.MapHandleType(class)
+	invalidValue, _, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	nullPolicy := class.NullPolicy
 	if nullPolicy == "" {

@@ -140,7 +140,7 @@ type TypeMapper interface {
 	MapReturnType(retType *manifest.TypeInfo) (string, error)
 
 	// MapHandleType converts a invalid type
-	MapHandleType(class *manifest.Class) (string, string)
+	MapHandleType(class *manifest.Class) (string, string, error)
 }
 
 // TypeContext represents the context in which a type appears

@@ -143,7 +143,7 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, enumType string)
 
 	underlyingType, _ := g.typeMapper.MapType(enumType, TypeContextReturn, false)
 
-	sb.WriteString(fmt.Sprintf("\tpublic enum %s : %s\n\t{\n", enum.Name, underlyingType))
+	sb.WriteString(fmt.Sprintf("\n\t[Flags]\tpublic enum %s : %s\n\t{\n", enum.Name, underlyingType))
 
 	for i, val := range enum.Values {
 		if val.Description != "" {
@@ -701,7 +701,10 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	hasHandle := class.HandleType != "" && class.HandleType != "void"
 
 	// Map handle type
-	invalidValue, handleType := g.typeMapper.MapHandleType(class)
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
 
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
@@ -747,7 +750,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	if hasHandle {
 		// Generate constructors
 		for _, ctorName := range class.Constructors {
-			ctorCode, err := g.generateClassConstructor(m, class, ctorName, hasDtor)
+			ctorCode, err := g.generateClassConstructor(m, class, ctorName)
 			if err != nil {
 				return "", err
 			}
@@ -768,7 +771,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// </summary>\n")
 			sb.WriteString("\t\tprotected override bool ReleaseHandle()\n")
 			sb.WriteString("\t\t{\n")
-			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s((%s)handle);\n", handleType, m.Name, *class.Destructor))
+			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s((%s)handle);\n", m.Name, *class.Destructor, handleType))
 			sb.WriteString("\t\t\treturn true;\n")
 			sb.WriteString("\t\t}\n\n")
 
@@ -875,7 +878,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	return sb.String(), nil
 }
 
-func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *manifest.Class, methodName string, hasDtor bool) (string, error) {
+func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
 	var method *manifest.Method
 	for i := range m.Methods {
@@ -918,6 +921,8 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	for _, param := range method.ParamTypes {
 		paramNames = append(paramNames, g.SanitizeName(param.Name))
 	}
+
+	hasDtor := class.Destructor != nil
 
 	if hasDtor {
 		sb.WriteString(fmt.Sprintf(" : this(%s.%s(%s), Ownership.Owned)\n",
@@ -1131,7 +1136,11 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 			callArgs += ", "
 		}
 
-		paramName := g.SanitizeName(param.Name)
+		paramName := ""
+		if param.Ref {
+			paramName += "ref "
+		}
+		paramName += g.SanitizeName(param.Name)
 
 		// Check if parameter has alias and needs .Release() or .Get()
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
@@ -1141,10 +1150,6 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 				callArgs += paramName + ".Get()"
 			}
 		} else {
-			if param.Ref {
-				paramName += "ref "
-			}
-
 			callArgs += paramName
 		}
 	}
