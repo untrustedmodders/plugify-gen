@@ -15,10 +15,6 @@
     },
     {
       "name": "polyhook"
-    },
-    {
-      "name": "v8_module",
-      "optional": true
     }
   ],
   "methods": [
@@ -123,10 +119,10 @@
       }
     },
     {
-      "name": "Kv1FindKeyOrCreate",
+      "name": "Kv1FindOrCreateKey",
       "group": "Keyvalues",
       "description": "Finds a key by name or creates it if it doesn't exist",
-      "funcName": "Kv1FindKeyOrCreate",
+      "funcName": "Kv1FindOrCreateKey",
       "paramTypes": [
         {
           "name": "kv",
@@ -6732,6 +6728,523 @@
       }
     },
     {
+      "name": "SetTransmitInfoEntity",
+      "group": "Transmit",
+      "description": "Sets a bit in the TransmitEntity bitvec, marking an entity as transmittable.",
+      "funcName": "SetTransmitInfoEntity",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The handle of the entity to mark as transmittable."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "ClearTransmitInfoEntity",
+      "group": "Transmit",
+      "description": "Clears a bit in the TransmitEntity bitvec, marking an entity as not transmittable.",
+      "funcName": "ClearTransmitInfoEntity",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The handle of the entity to mark as not transmittable."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "IsTransmitInfoEntitySet",
+      "group": "Transmit",
+      "description": "Checks if a bit is set in the TransmitEntity bitvec.",
+      "funcName": "IsTransmitInfoEntitySet",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The handle of the entity to check."
+        }
+      ],
+      "retType": {
+        "type": "bool",
+        "description": "True if the entity is marked as transmittable, false otherwise."
+      }
+    },
+    {
+      "name": "SetTransmitInfoEntityAll",
+      "group": "Transmit",
+      "description": "Sets all bits in the TransmitEntity bitvec, marking all entities as transmittable.",
+      "funcName": "SetTransmitInfoEntityAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "ClearTransmitInfoEntityAll",
+      "group": "Transmit",
+      "description": "Clears all bits in the TransmitEntity bitvec, marking all entities as not transmittable.",
+      "funcName": "ClearTransmitInfoEntityAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "SetTransmitInfoNonPlayer",
+      "group": "Transmit",
+      "description": "Sets a bit in the TransmitNonPlayers bitvec, marking a non-player entity as transmittable.",
+      "funcName": "SetTransmitInfoNonPlayer",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The index of the non-player entity to mark as transmittable."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "ClearTransmitInfoNonPlayer",
+      "group": "Transmit",
+      "description": "Clears a bit in the TransmitNonPlayers bitvec, marking a non-player entity as not transmittable.",
+      "funcName": "ClearTransmitInfoNonPlayer",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The index of the non-player entity to mark as not transmittable."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "IsTransmitInfoNonPlayerSet",
+      "group": "Transmit",
+      "description": "Checks if a bit is set in the TransmitNonPlayers bitvec.",
+      "funcName": "IsTransmitInfoNonPlayerSet",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The index of the non-player entity to check."
+        }
+      ],
+      "retType": {
+        "type": "bool",
+        "description": "True if the entity is marked as transmittable, false otherwise."
+      }
+    },
+    {
+      "name": "SetTransmitInfoNonPlayerAll",
+      "group": "Transmit",
+      "description": "Sets all bits in the TransmitNonPlayers bitvec, marking all non-player entities as transmittable.",
+      "funcName": "SetTransmitInfoNonPlayerAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "ClearTransmitInfoNonPlayerAll",
+      "group": "Transmit",
+      "description": "Clears all bits in the TransmitNonPlayers bitvec, marking all non-player entities as not transmittable.",
+      "funcName": "ClearTransmitInfoNonPlayerAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "SetTransmitInfoAlways",
+      "group": "Transmit",
+      "description": "Sets a bit in the TransmitAlways bitvec, marking an entity to always transmit.",
+      "funcName": "SetTransmitInfoAlways",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The handle of the entity to mark as always transmittable."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "ClearTransmitInfoAlways",
+      "group": "Transmit",
+      "description": "Clears a bit in the TransmitAlways bitvec, unmarking an entity from always transmit.",
+      "funcName": "ClearTransmitInfoAlways",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The handle of the entity to unmark from always transmit."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "IsTransmitInfoAlwaysSet",
+      "group": "Transmit",
+      "description": "Checks if a bit is set in the TransmitAlways bitvec.",
+      "funcName": "IsTransmitInfoAlwaysSet",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "entityHandle",
+          "type": "int32",
+          "ref": false,
+          "description": "The handle of the entity to check."
+        }
+      ],
+      "retType": {
+        "type": "bool",
+        "description": "True if the entity is marked to always transmit, false otherwise."
+      }
+    },
+    {
+      "name": "SetTransmitInfoAlwaysAll",
+      "group": "Transmit",
+      "description": "Sets all bits in the TransmitAlways bitvec, marking all entities to always transmit.",
+      "funcName": "SetTransmitInfoAlwaysAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "ClearTransmitInfoAlwaysAll",
+      "group": "Transmit",
+      "description": "Clears all bits in the TransmitAlways bitvec, unmarking all entities from always transmit.",
+      "funcName": "ClearTransmitInfoAlwaysAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "GetTransmitInfoTargetSlotsCount",
+      "group": "Transmit",
+      "description": "Gets the count of target player slots.",
+      "funcName": "GetTransmitInfoTargetSlotsCount",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "int32",
+        "description": "The number of target player slots, or 0 if the info pointer is null."
+      }
+    },
+    {
+      "name": "GetTransmitInfoTargetSlot",
+      "group": "Transmit",
+      "description": "Gets a player slot value at a specific index in the target slots vector.",
+      "funcName": "GetTransmitInfoTargetSlot",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "index",
+          "type": "int32",
+          "ref": false,
+          "description": "The index in the target slots vector."
+        }
+      ],
+      "retType": {
+        "type": "int32",
+        "description": "The player slot value, or -1 if the index is invalid or info is null."
+      }
+    },
+    {
+      "name": "AddTransmitInfoTargetSlot",
+      "group": "Transmit",
+      "description": "Adds a player slot to the target slots vector.",
+      "funcName": "AddTransmitInfoTargetSlot",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "playerSlot",
+          "type": "int32",
+          "ref": false,
+          "description": "The player slot value to add."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "RemoveTransmitInfoTargetSlot",
+      "group": "Transmit",
+      "description": "Removes a player slot from the target slots vector.",
+      "funcName": "RemoveTransmitInfoTargetSlot",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "index",
+          "type": "int32",
+          "ref": false,
+          "description": "Index within the target slots vector to remove."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "GetTransmitInfoTargetSlotsAll",
+      "group": "Transmit",
+      "description": "Gets the target slots vector.",
+      "funcName": "GetTransmitInfoTargetSlotsAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "int32[]",
+        "description": "The player slots array."
+      }
+    },
+    {
+      "name": "RemoveTransmitInfoTargetSlotsAll",
+      "group": "Transmit",
+      "description": "Clears all target player slots from the vector.",
+      "funcName": "RemoveTransmitInfoTargetSlotsAll",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "GetTransmitInfoPlayerSlot",
+      "group": "Transmit",
+      "description": "Gets the player slot value from the CCheckTransmitInfo.",
+      "funcName": "GetTransmitInfoPlayerSlot",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "int32",
+        "description": "The player slot value, or -1 if info is null."
+      }
+    },
+    {
+      "name": "SetTransmitInfoPlayerSlot",
+      "group": "Transmit",
+      "description": "Sets the player slot value in the CCheckTransmitInfo.",
+      "funcName": "SetTransmitInfoPlayerSlot",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "playerSlot",
+          "type": "int32",
+          "ref": false,
+          "description": "The player slot value to set."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "GetTransmitInfoFullUpdate",
+      "group": "Transmit",
+      "description": "Gets the full update flag from the CCheckTransmitInfo.",
+      "funcName": "GetTransmitInfoFullUpdate",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        }
+      ],
+      "retType": {
+        "type": "bool",
+        "description": "True if full update is enabled, false otherwise."
+      }
+    },
+    {
+      "name": "SetTransmitInfoFullUpdate",
+      "group": "Transmit",
+      "description": "Sets the full update flag in the CCheckTransmitInfo.",
+      "funcName": "SetTransmitInfoFullUpdate",
+      "paramTypes": [
+        {
+          "name": "info",
+          "type": "ptr64",
+          "ref": false,
+          "description": "Pointer to the CCheckTransmitInfo structure."
+        },
+        {
+          "name": "fullUpdate",
+          "type": "bool",
+          "ref": false,
+          "description": "The full update flag value to set."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
       "name": "AddBodyImpulseAtPosition",
       "group": "Bodies",
       "description": "Applies an impulse to an entity at a specific world position.",
@@ -9003,19 +9516,19 @@
         },
         {
           "name": "origin",
-          "type": "ptr64",
+          "type": "vec3",
           "ref": false,
           "description": "A pointer to a Vector representing the new absolute position. Can be nullptr."
         },
         {
           "name": "angles",
-          "type": "ptr64",
+          "type": "vec3",
           "ref": false,
           "description": "A pointer to a QAngle representing the new orientation. Can be nullptr."
         },
         {
           "name": "velocity",
-          "type": "ptr64",
+          "type": "vec3",
           "ref": false,
           "description": "A pointer to a Vector representing the new velocity. Can be nullptr."
         }
@@ -15431,8 +15944,8 @@
       "funcName": "UnhookConVarChange",
       "paramTypes": [
         {
-          "name": "uint64",
-          "type": "string",
+          "name": "conVarHandle",
+          "type": "uint64",
           "ref": false,
           "description": "The handle to the console variable data."
         },
@@ -17046,6 +17559,35 @@
       }
     },
     {
+      "name": "SendConVarValue2",
+      "group": "Cvars",
+      "description": "Replicates a console variable value to a specific client. This does not change the actual console variable value.",
+      "funcName": "SendConVarValue2",
+      "paramTypes": [
+        {
+          "name": "conVarHandle",
+          "type": "uint64",
+          "ref": false,
+          "description": "The handle to the console variable data."
+        },
+        {
+          "name": "playerSlot",
+          "type": "int32",
+          "ref": false,
+          "description": "The index of the client to replicate the value to."
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "ref": false,
+          "description": "The value to send to the client."
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
       "name": "GetClientConVarValue",
       "group": "Cvars",
       "description": "Retrieves the value of a client's console variable and stores it in the output string.",
@@ -17832,6 +18374,32 @@
       "retType": {
         "type": "ptr64",
         "description": "A pointer to the first active entity."
+      }
+    },
+    {
+      "name": "GetPrevActiveEntity",
+      "group": "Entities",
+      "description": "Retrieves the previous active entity.",
+      "funcName": "GetPrevActiveEntity",
+      "paramTypes": [
+        { "type": "ptr64", "name": "entity" }
+      ],
+      "retType": {
+        "type": "ptr64",
+        "description": "Pointer to the previous entity."
+      }
+    },
+    {
+      "name": "GetNextActiveEntity",
+      "group": "Entities",
+      "description": "Retrieves the next active entity.",
+      "funcName": "GetNextActiveEntity",
+      "paramTypes": [
+        { "type": "ptr64", "name": "entity" }
+      ],
+      "retType": {
+        "type": "ptr64",
+        "description": "Pointer to the next entity."
       }
     },
     {
@@ -20056,19 +20624,19 @@
         },
         {
           "name": "origin",
-          "type": "ptr64",
+          "type": "vec3",
           "ref": false,
           "description": "A pointer to a Vector representing the new absolute position. Can be nullptr."
         },
         {
           "name": "angles",
-          "type": "ptr64",
+          "type": "vec3",
           "ref": false,
           "description": "A pointer to a QAngle representing the new orientation. Can be nullptr."
         },
         {
           "name": "velocity",
-          "type": "ptr64",
+          "type": "vec3",
           "ref": false,
           "description": "A pointer to a Vector representing the new velocity. Can be nullptr."
         }
@@ -27758,6 +28326,72 @@
       }
     },
     {
+      "name": "OnServerCheckTransmit_Register",
+      "group": "Listeners",
+      "description": "Register callback to event.",
+      "funcName": "OnServerCheckTransmit_Register",
+      "paramTypes": [
+        {
+          "name": "callback",
+          "type": "function",
+          "ref": false,
+          "description": "Function callback.",
+          "prototype": {
+            "name": "OnServerCheckTransmitCallback",
+            "funcName": "OnServerCheckTransmitCallback",
+            "description": "When entities is transmitted to another entities.",
+            "paramTypes": [
+              {
+                "name": "checkTransmitInfoList",
+                "type": "ptr64[]",
+                "description": "The array of CCheckTransmitInfo pointers"
+              }
+            ],
+            "retType": {
+              "type": "void",
+              "description": ""
+            }
+          }
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "OnServerCheckTransmit_Unregister",
+      "group": "Listeners",
+      "description": "Unregister callback to event.",
+      "funcName": "OnServerCheckTransmit_Unregister",
+      "paramTypes": [
+        {
+          "name": "callback",
+          "type": "function",
+          "ref": false,
+          "description": "Function callback.",
+          "prototype": {
+            "name": "OnServerCheckTransmitCallback",
+            "funcName": "OnServerCheckTransmitCallback",
+            "description": "When entities are transmitted to another entities.",
+            "paramTypes": [
+              {
+                "name": "checkTransmitInfoList",
+                "type": "ptr64[]",
+                "description": "The array of CCheckTransmitInfo pointers"
+              }
+            ],
+            "retType": {
+              "type": "void",
+              "description": ""
+            }
+          }
+        }
+      ],
+      "retType": {
+        "type": "void"
+      }
+    },
+    {
       "name": "OnServerStartup_Register",
       "group": "Listeners",
       "description": "Register callback to event.",
@@ -32529,11 +33163,14 @@
   ],
   "classes": [
     {
-      "name": "KeyValues",
-      "description": "RAII wrapper for KeyValues handle.",
+      "name": "KeyValues1",
+      "group": "Keyvalues",
+      "description": "RAII wrapper for KeyValues pointer.",
       "handleType": "ptr64",
+      "invalidValue": "0",
       "constructors": [
-        "Kv1Create"
+        "Kv1Create",
+        "Kv1MakeCopy"
       ],
       "destructor": "Kv1Destroy",
       "bindings": [
@@ -32553,8 +33190,18 @@
           "bindSelf": true,
           "paramAliases": [],
           "retAlias": {
-            "name": "KeyValues",
-            "ref": true
+            "name": "KeyValues1",
+            "owner": false
+          }
+        },
+        {
+          "name": "FindOrCreateKey",
+          "method": "Kv1FindOrCreateKey",
+          "bindSelf": true,
+          "paramAliases": [],
+          "retAlias": {
+            "name": "KeyValues1",
+            "owner": false
           }
         },
         {
@@ -32563,8 +33210,8 @@
           "bindSelf": true,
           "paramAliases": [],
           "retAlias": {
-            "name": "KeyValues",
-            "ref": false
+            "name": "KeyValues1",
+            "owner": false
           }
         },
         {
@@ -32573,8 +33220,8 @@
           "bindSelf": true,
           "paramAliases": [],
           "retAlias": {
-            "name": "KeyValues",
-            "ref": false
+            "name": "KeyValues1",
+            "owner": false
           }
         },
         {
@@ -32583,11 +33230,10 @@
           "bindSelf": true,
           "paramAliases": [
             {
-              "name": "KeyValues",
-              "owner": true
+              "name": "KeyValues1",
+              "owner": false
             }
-          ],
-          "retAlias": {}
+          ]
         },
         {
           "name": "GetFirstSubKey",
@@ -32595,8 +33241,8 @@
           "bindSelf": true,
           "paramAliases": [],
           "retAlias": {
-            "name": "KeyValues",
-            "ref": true
+            "name": "KeyValues1",
+            "owner": false
           }
         },
         {
@@ -32605,8 +33251,8 @@
           "bindSelf": true,
           "paramAliases": [],
           "retAlias": {
-            "name": "KeyValues",
-            "ref": true
+            "name": "KeyValues1",
+            "owner": false
           }
         },
         {
@@ -32670,16 +33316,6 @@
           "bindSelf": true
         },
         {
-          "name": "MakeCopy",
-          "method": "Kv1MakeCopy",
-          "bindSelf": true,
-          "paramAliases": [],
-          "retAlias": {
-            "name": "KeyValues",
-            "ref": false
-          }
-        },
-        {
           "name": "Clear",
           "method": "Kv1Clear",
           "bindSelf": true
@@ -32687,6 +33323,1977 @@
         {
           "name": "IsEmpty",
           "method": "Kv1IsEmpty",
+          "bindSelf": true
+        }
+      ]
+    },
+    {
+      "name": "KeyValues3",
+      "group": "Keyvalues3",
+      "description": "RAII wrapper for KeyValues3 handle.",
+      "handleType": "ptr64",
+      "invalidValue": "0",
+      "constructors": [
+        "Kv3Create",
+        "Kv3CreateWithCluster",
+        "Kv3CreateCopy"
+      ],
+      "destructor": "Kv3Destroy",
+      "bindings": [
+        {
+          "name": "CopyFrom",
+          "method": "Kv3CopyFrom",
+          "bindSelf": true,
+          "paramAliases": [
+            {
+              "name": "KeyValues3",
+              "owner": false
+            }
+          ]
+        },
+        {
+          "name": "OverlayKeysFrom",
+          "method": "Kv3OverlayKeysFrom",
+          "bindSelf": true,
+          "paramAliases": [
+            {
+              "name": "KeyValues3",
+              "owner": false
+            }
+          ]
+        },
+        {
+          "name": "GetContext",
+          "method": "Kv3GetContext",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMetaData",
+          "method": "Kv3GetMetaData",
+          "bindSelf": true
+        },
+        {
+          "name": "HasFlag",
+          "method": "Kv3HasFlag",
+          "bindSelf": true
+        },
+        {
+          "name": "HasAnyFlags",
+          "method": "Kv3HasAnyFlags",
+          "bindSelf": true
+        },
+        {
+          "name": "GetAllFlags",
+          "method": "Kv3GetAllFlags",
+          "bindSelf": true
+        },
+        {
+          "name": "SetAllFlags",
+          "method": "Kv3SetAllFlags",
+          "bindSelf": true
+        },
+        {
+          "name": "SetFlag",
+          "method": "Kv3SetFlag",
+          "bindSelf": true
+        },
+        {
+          "name": "GetType",
+          "method": "Kv3GetType",
+          "bindSelf": true
+        },
+        {
+          "name": "GetTypeEx",
+          "method": "Kv3GetTypeEx",
+          "bindSelf": true
+        },
+        {
+          "name": "GetSubType",
+          "method": "Kv3GetSubType",
+          "bindSelf": true
+        },
+        {
+          "name": "HasInvalidMemberNames",
+          "method": "Kv3HasInvalidMemberNames",
+          "bindSelf": true
+        },
+        {
+          "name": "SetHasInvalidMemberNames",
+          "method": "Kv3SetHasInvalidMemberNames",
+          "bindSelf": true
+        },
+        {
+          "name": "GetTypeAsString",
+          "method": "Kv3GetTypeAsString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetSubTypeAsString",
+          "method": "Kv3GetSubTypeAsString",
+          "bindSelf": true
+        },
+        {
+          "name": "ToString",
+          "method": "Kv3ToString",
+          "bindSelf": true
+        },
+        {
+          "name": "IsNull",
+          "method": "Kv3IsNull",
+          "bindSelf": true
+        },
+        {
+          "name": "SetToNull",
+          "method": "Kv3SetToNull",
+          "bindSelf": true
+        },
+        {
+          "name": "IsArray",
+          "method": "Kv3IsArray",
+          "bindSelf": true
+        },
+        {
+          "name": "IsKV3Array",
+          "method": "Kv3IsKV3Array",
+          "bindSelf": true
+        },
+        {
+          "name": "IsTable",
+          "method": "Kv3IsTable",
+          "bindSelf": true
+        },
+        {
+          "name": "IsString",
+          "method": "Kv3IsString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBool",
+          "method": "Kv3GetBool",
+          "bindSelf": true
+        },
+        {
+          "name": "GetChar",
+          "method": "Kv3GetChar",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUChar32",
+          "method": "Kv3GetUChar32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt8",
+          "method": "Kv3GetInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt8",
+          "method": "Kv3GetUInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "GetShort",
+          "method": "Kv3GetShort",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUShort",
+          "method": "Kv3GetUShort",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt",
+          "method": "Kv3GetInt",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt",
+          "method": "Kv3GetUInt",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt64",
+          "method": "Kv3GetInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt64",
+          "method": "Kv3GetUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetFloat",
+          "method": "Kv3GetFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "GetDouble",
+          "method": "Kv3GetDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "SetBool",
+          "method": "Kv3SetBool",
+          "bindSelf": true
+        },
+        {
+          "name": "SetChar",
+          "method": "Kv3SetChar",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUChar32",
+          "method": "Kv3SetUChar32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt8",
+          "method": "Kv3SetInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt8",
+          "method": "Kv3SetUInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "SetShort",
+          "method": "Kv3SetShort",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUShort",
+          "method": "Kv3SetUShort",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt",
+          "method": "Kv3SetInt",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt",
+          "method": "Kv3SetUInt",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt64",
+          "method": "Kv3SetInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt64",
+          "method": "Kv3SetUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetFloat",
+          "method": "Kv3SetFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "SetDouble",
+          "method": "Kv3SetDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "GetPointer",
+          "method": "Kv3GetPointer",
+          "bindSelf": true
+        },
+        {
+          "name": "SetPointer",
+          "method": "Kv3SetPointer",
+          "bindSelf": true
+        },
+        {
+          "name": "GetStringToken",
+          "method": "Kv3GetStringToken",
+          "bindSelf": true
+        },
+        {
+          "name": "SetStringToken",
+          "method": "Kv3SetStringToken",
+          "bindSelf": true
+        },
+        {
+          "name": "GetEHandle",
+          "method": "Kv3GetEHandle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetEHandle",
+          "method": "Kv3SetEHandle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetString",
+          "method": "Kv3GetString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetString",
+          "method": "Kv3SetString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetStringExternal",
+          "method": "Kv3SetStringExternal",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBinaryBlob",
+          "method": "Kv3GetBinaryBlob",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBinaryBlobSize",
+          "method": "Kv3GetBinaryBlobSize",
+          "bindSelf": true
+        },
+        {
+          "name": "SetToBinaryBlob",
+          "method": "Kv3SetToBinaryBlob",
+          "bindSelf": true
+        },
+        {
+          "name": "SetToBinaryBlobExternal",
+          "method": "Kv3SetToBinaryBlobExternal",
+          "bindSelf": true
+        },
+        {
+          "name": "GetColor",
+          "method": "Kv3GetColor",
+          "bindSelf": true
+        },
+        {
+          "name": "SetColor",
+          "method": "Kv3SetColor",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector",
+          "method": "Kv3GetVector",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector2D",
+          "method": "Kv3GetVector2D",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector4D",
+          "method": "Kv3GetVector4D",
+          "bindSelf": true
+        },
+        {
+          "name": "GetQuaternion",
+          "method": "Kv3GetQuaternion",
+          "bindSelf": true
+        },
+        {
+          "name": "GetQAngle",
+          "method": "Kv3GetQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMatrix3x4",
+          "method": "Kv3GetMatrix3x4",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector",
+          "method": "Kv3SetVector",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector2D",
+          "method": "Kv3SetVector2D",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector4D",
+          "method": "Kv3SetVector4D",
+          "bindSelf": true
+        },
+        {
+          "name": "SetQuaternion",
+          "method": "Kv3SetQuaternion",
+          "bindSelf": true
+        },
+        {
+          "name": "SetQAngle",
+          "method": "Kv3SetQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMatrix3x4",
+          "method": "Kv3SetMatrix3x4",
+          "bindSelf": true
+        },
+        {
+          "name": "GetArrayElementCount",
+          "method": "Kv3GetArrayElementCount",
+          "bindSelf": true
+        },
+        {
+          "name": "SetArrayElementCount",
+          "method": "Kv3SetArrayElementCount",
+          "bindSelf": true
+        },
+        {
+          "name": "SetToEmptyKV3Array",
+          "method": "Kv3SetToEmptyKV3Array",
+          "bindSelf": true
+        },
+        {
+          "name": "GetArrayElement",
+          "method": "Kv3GetArrayElement",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "ArrayInsertElementBefore",
+          "method": "Kv3ArrayInsertElementBefore",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "ArrayInsertElementAfter",
+          "method": "Kv3ArrayInsertElementAfter",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "ArrayAddElementToTail",
+          "method": "Kv3ArrayAddElementToTail",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "ArraySwapItems",
+          "method": "Kv3ArraySwapItems",
+          "bindSelf": true
+        },
+        {
+          "name": "ArrayRemoveElement",
+          "method": "Kv3ArrayRemoveElement",
+          "bindSelf": true
+        },
+        {
+          "name": "SetToEmptyTable",
+          "method": "Kv3SetToEmptyTable",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberCount",
+          "method": "Kv3GetMemberCount",
+          "bindSelf": true
+        },
+        {
+          "name": "HasMember",
+          "method": "Kv3HasMember",
+          "bindSelf": true
+        },
+        {
+          "name": "FindMember",
+          "method": "Kv3FindMember",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "FindOrCreateMember",
+          "method": "Kv3FindOrCreateMember",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "RemoveMember",
+          "method": "Kv3RemoveMember",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberName",
+          "method": "Kv3GetMemberName",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberByIndex",
+          "method": "Kv3GetMemberByIndex",
+          "bindSelf": true,
+          "retAlias": {
+            "name": "KeyValues3",
+            "owner": false
+          }
+        },
+        {
+          "name": "GetMemberBool",
+          "method": "Kv3GetMemberBool",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberChar",
+          "method": "Kv3GetMemberChar",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberUChar32",
+          "method": "Kv3GetMemberUChar32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberInt8",
+          "method": "Kv3GetMemberInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberUInt8",
+          "method": "Kv3GetMemberUInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberShort",
+          "method": "Kv3GetMemberShort",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberUShort",
+          "method": "Kv3GetMemberUShort",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberInt",
+          "method": "Kv3GetMemberInt",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberUInt",
+          "method": "Kv3GetMemberUInt",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberInt64",
+          "method": "Kv3GetMemberInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberUInt64",
+          "method": "Kv3GetMemberUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberFloat",
+          "method": "Kv3GetMemberFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberDouble",
+          "method": "Kv3GetMemberDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberPointer",
+          "method": "Kv3GetMemberPointer",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberStringToken",
+          "method": "Kv3GetMemberStringToken",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberEHandle",
+          "method": "Kv3GetMemberEHandle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberString",
+          "method": "Kv3GetMemberString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberColor",
+          "method": "Kv3GetMemberColor",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberVector",
+          "method": "Kv3GetMemberVector",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberVector2D",
+          "method": "Kv3GetMemberVector2D",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberVector4D",
+          "method": "Kv3GetMemberVector4D",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberQuaternion",
+          "method": "Kv3GetMemberQuaternion",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberQAngle",
+          "method": "Kv3GetMemberQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMemberMatrix3x4",
+          "method": "Kv3GetMemberMatrix3x4",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberToNull",
+          "method": "Kv3SetMemberToNull",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberToEmptyArray",
+          "method": "Kv3SetMemberToEmptyArray",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberToEmptyTable",
+          "method": "Kv3SetMemberToEmptyTable",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberToBinaryBlob",
+          "method": "Kv3SetMemberToBinaryBlob",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberToBinaryBlobExternal",
+          "method": "Kv3SetMemberToBinaryBlobExternal",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberToCopyOfValue",
+          "method": "Kv3SetMemberToCopyOfValue",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberBool",
+          "method": "Kv3SetMemberBool",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberChar",
+          "method": "Kv3SetMemberChar",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberUChar32",
+          "method": "Kv3SetMemberUChar32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberInt8",
+          "method": "Kv3SetMemberInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberUInt8",
+          "method": "Kv3SetMemberUInt8",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberShort",
+          "method": "Kv3SetMemberShort",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberUShort",
+          "method": "Kv3SetMemberUShort",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberInt",
+          "method": "Kv3SetMemberInt",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberUInt",
+          "method": "Kv3SetMemberUInt",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberInt64",
+          "method": "Kv3SetMemberInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberUInt64",
+          "method": "Kv3SetMemberUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberFloat",
+          "method": "Kv3SetMemberFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberDouble",
+          "method": "Kv3SetMemberDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberPointer",
+          "method": "Kv3SetMemberPointer",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberStringToken",
+          "method": "Kv3SetMemberStringToken",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberEHandle",
+          "method": "Kv3SetMemberEHandle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberString",
+          "method": "Kv3SetMemberString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberStringExternal",
+          "method": "Kv3SetMemberStringExternal",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberColor",
+          "method": "Kv3SetMemberColor",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberVector",
+          "method": "Kv3SetMemberVector",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberVector2D",
+          "method": "Kv3SetMemberVector2D",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberVector4D",
+          "method": "Kv3SetMemberVector4D",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberQuaternion",
+          "method": "Kv3SetMemberQuaternion",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberQAngle",
+          "method": "Kv3SetMemberQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetMemberMatrix3x4",
+          "method": "Kv3SetMemberMatrix3x4",
+          "bindSelf": true
+        },
+        {
+          "name": "DebugPrint",
+          "method": "Kv3DebugPrint",
+          "bindSelf": true
+        },
+        {
+          "name": "Load",
+          "method": "Kv3Load",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromText",
+          "method": "Kv3LoadFromText",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromFile",
+          "method": "Kv3LoadFromFile",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromJSON",
+          "method": "Kv3LoadFromJSON",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromJSONFile",
+          "method": "Kv3LoadFromJSONFile",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromKV1File",
+          "method": "Kv3LoadFromKV1File",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromKV1Text",
+          "method": "Kv3LoadFromKV1Text",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromKV1TextTranslated",
+          "method": "Kv3LoadFromKV1TextTranslated",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromKV3OrKV1",
+          "method": "Kv3LoadFromKV3OrKV1",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadFromOldSchemaText",
+          "method": "Kv3LoadFromOldSchemaText",
+          "bindSelf": true
+        },
+        {
+          "name": "LoadTextNoHeader",
+          "method": "Kv3LoadTextNoHeader",
+          "bindSelf": true
+        },
+        {
+          "name": "Save",
+          "method": "Kv3Save",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveAsJSON",
+          "method": "Kv3SaveAsJSON",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveAsJSONString",
+          "method": "Kv3SaveAsJSONString",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveAsKV1Text",
+          "method": "Kv3SaveAsKV1Text",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveAsKV1TextTranslated",
+          "method": "Kv3SaveAsKV1TextTranslated",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveTextNoHeaderToBuffer",
+          "method": "Kv3SaveTextNoHeaderToBuffer",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveTextNoHeader",
+          "method": "Kv3SaveTextNoHeader",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveTextToString",
+          "method": "Kv3SaveTextToString",
+          "bindSelf": true
+        },
+        {
+          "name": "SaveToFile",
+          "method": "Kv3SaveToFile",
+          "bindSelf": true
+        }
+      ]
+    },
+    {
+      "name": "UserMessage",
+      "group": "Protobuf",
+      "description": "RAII wrapper for UserMessage pointer.",
+      "handleType": "ptr64",
+      "invalidValue": "0",
+      "constructors": [
+        "UserMessageCreateFromSerializable",
+        "UserMessageCreateFromName",
+        "UserMessageCreateFromId"
+      ],
+      "destructor": "UserMessageDestroy",
+      "bindings": [
+        {
+          "name": "Send",
+          "method": "UserMessageSend",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMessageName",
+          "method": "UserMessageGetMessageName",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMessageID",
+          "method": "UserMessageGetMessageID",
+          "bindSelf": true
+        },
+        {
+          "name": "HasField",
+          "method": "UserMessageHasField",
+          "bindSelf": true
+        },
+        {
+          "name": "GetProtobufMessage",
+          "method": "UserMessageGetProtobufMessage",
+          "bindSelf": true
+        },
+        {
+          "name": "GetSerializableMessage",
+          "method": "UserMessageGetSerializableMessage",
+          "bindSelf": true
+        },
+        {
+          "name": "FindMessageIdByName",
+          "method": "UserMessageFindMessageIdByName",
+          "bindSelf": false
+        },
+        {
+          "name": "GetRecipientMask",
+          "method": "UserMessageGetRecipientMask",
+          "bindSelf": true
+        },
+        {
+          "name": "AddRecipient",
+          "method": "UserMessageAddRecipient",
+          "bindSelf": true
+        },
+        {
+          "name": "AddAllPlayers",
+          "method": "UserMessageAddAllPlayers",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRecipientMask",
+          "method": "UserMessageSetRecipientMask",
+          "bindSelf": true
+        },
+        {
+          "name": "GetMessage",
+          "method": "UserMessageGetMessage",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedMessage",
+          "method": "UserMessageGetRepeatedMessage",
+          "bindSelf": true
+        },
+        {
+          "name": "AddMessage",
+          "method": "UserMessageAddMessage",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedFieldCount",
+          "method": "UserMessageGetRepeatedFieldCount",
+          "bindSelf": true
+        },
+        {
+          "name": "RemoveRepeatedFieldValue",
+          "method": "UserMessageRemoveRepeatedFieldValue",
+          "bindSelf": true
+        },
+        {
+          "name": "GetDebugString",
+          "method": "UserMessageGetDebugString",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadEnum",
+          "method": "PbReadEnum",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadInt32",
+          "method": "PbReadInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadInt64",
+          "method": "PbReadInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadUInt32",
+          "method": "PbReadUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadUInt64",
+          "method": "PbReadUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadFloat",
+          "method": "PbReadFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadDouble",
+          "method": "PbReadDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadBool",
+          "method": "PbReadBool",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadString",
+          "method": "PbReadString",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadColor",
+          "method": "PbReadColor",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadVector2",
+          "method": "PbReadVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadVector3",
+          "method": "PbReadVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "ReadQAngle",
+          "method": "PbReadQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetEnum",
+          "method": "PbGetEnum",
+          "bindSelf": true
+        },
+        {
+          "name": "SetEnum",
+          "method": "PbSetEnum",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt32",
+          "method": "PbGetInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt32",
+          "method": "PbSetInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt64",
+          "method": "PbGetInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt64",
+          "method": "PbSetInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt32",
+          "method": "PbGetUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt32",
+          "method": "PbSetUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt64",
+          "method": "PbGetUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt64",
+          "method": "PbSetUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBool",
+          "method": "PbGetBool",
+          "bindSelf": true
+        },
+        {
+          "name": "SetBool",
+          "method": "PbSetBool",
+          "bindSelf": true
+        },
+        {
+          "name": "GetFloat",
+          "method": "PbGetFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "SetFloat",
+          "method": "PbSetFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "GetDouble",
+          "method": "PbGetDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "SetDouble",
+          "method": "PbSetDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "GetString",
+          "method": "PbGetString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetString",
+          "method": "PbSetString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetColor",
+          "method": "PbGetColor",
+          "bindSelf": true
+        },
+        {
+          "name": "SetColor",
+          "method": "PbSetColor",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector2",
+          "method": "PbGetVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector2",
+          "method": "PbSetVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector3",
+          "method": "PbGetVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector3",
+          "method": "PbSetVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "GetQAngle",
+          "method": "PbGetQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetQAngle",
+          "method": "PbSetQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedEnum",
+          "method": "PbGetRepeatedEnum",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedEnum",
+          "method": "PbSetRepeatedEnum",
+          "bindSelf": true
+        },
+        {
+          "name": "AddEnum",
+          "method": "PbAddEnum",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedInt32",
+          "method": "PbGetRepeatedInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedInt32",
+          "method": "PbSetRepeatedInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "AddInt32",
+          "method": "PbAddInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedInt64",
+          "method": "PbGetRepeatedInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedInt64",
+          "method": "PbSetRepeatedInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "AddInt64",
+          "method": "PbAddInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedUInt32",
+          "method": "PbGetRepeatedUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedUInt32",
+          "method": "PbSetRepeatedUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "AddUInt32",
+          "method": "PbAddUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedUInt64",
+          "method": "PbGetRepeatedUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedUInt64",
+          "method": "PbSetRepeatedUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "AddUInt64",
+          "method": "PbAddUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedBool",
+          "method": "PbGetRepeatedBool",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedBool",
+          "method": "PbSetRepeatedBool",
+          "bindSelf": true
+        },
+        {
+          "name": "AddBool",
+          "method": "PbAddBool",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedFloat",
+          "method": "PbGetRepeatedFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedFloat",
+          "method": "PbSetRepeatedFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "AddFloat",
+          "method": "PbAddFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedDouble",
+          "method": "PbGetRepeatedDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedDouble",
+          "method": "PbSetRepeatedDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "AddDouble",
+          "method": "PbAddDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedString",
+          "method": "PbGetRepeatedString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedString",
+          "method": "PbSetRepeatedString",
+          "bindSelf": true
+        },
+        {
+          "name": "AddString",
+          "method": "PbAddString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedColor",
+          "method": "PbGetRepeatedColor",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedColor",
+          "method": "PbSetRepeatedColor",
+          "bindSelf": true
+        },
+        {
+          "name": "AddColor",
+          "method": "PbAddColor",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedVector2",
+          "method": "PbGetRepeatedVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedVector2",
+          "method": "PbSetRepeatedVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "AddVector2",
+          "method": "PbAddVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedVector3",
+          "method": "PbGetRepeatedVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedVector3",
+          "method": "PbSetRepeatedVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "AddVector3",
+          "method": "PbAddVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "GetRepeatedQAngle",
+          "method": "PbGetRepeatedQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetRepeatedQAngle",
+          "method": "PbSetRepeatedQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "AddQAngle",
+          "method": "PbAddQAngle",
+          "bindSelf": true
+        }
+      ]
+    },
+    {
+      "name": "EventInfo",
+      "group": "Events",
+      "description": "RAII wrapper for EventInfo pointer.",
+      "handleType": "ptr64",
+      "invalidValue": "0",
+      "constructors": [
+        "CreateEvent"
+      ],
+      "bindings": [
+        {
+          "name": "Fire",
+          "method": "FireEvent",
+          "bindSelf": true
+        },
+        {
+          "name": "FireToClient",
+          "method": "FireEventToClient",
+          "bindSelf": true
+        },
+        {
+          "name": "Cancel",
+          "method": "CancelCreatedEvent",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBool",
+          "method": "GetEventBool",
+          "bindSelf": true
+        },
+        {
+          "name": "GetFloat",
+          "method": "GetEventFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt",
+          "method": "GetEventInt",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt64",
+          "method": "GetEventUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetString",
+          "method": "GetEventString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetPtr",
+          "method": "GetEventPtr",
+          "bindSelf": true
+        },
+        {
+          "name": "GetPlayerController",
+          "method": "GetEventPlayerController",
+          "bindSelf": true
+        },
+        {
+          "name": "GetPlayerIndex",
+          "method": "GetEventPlayerIndex",
+          "bindSelf": true
+        },
+        {
+          "name": "GetPlayerPawn",
+          "method": "GetEventPlayerPawn",
+          "bindSelf": true
+        },
+        {
+          "name": "GetEntity",
+          "method": "GetEventEntity",
+          "bindSelf": true
+        },
+        {
+          "name": "GetEntityIndex",
+          "method": "GetEventEntityIndex",
+          "bindSelf": true
+        },
+        {
+          "name": "GetEntityHandle",
+          "method": "GetEventEntityHandle",
+          "bindSelf": true
+        },
+        {
+          "name": "GetName",
+          "method": "GetEventName",
+          "bindSelf": true
+        },
+        {
+          "name": "SetBool",
+          "method": "SetEventBool",
+          "bindSelf": true
+        },
+        {
+          "name": "SetFloat",
+          "method": "SetEventFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt",
+          "method": "SetEventInt",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt64",
+          "method": "SetEventUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetString",
+          "method": "SetEventString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetPtr",
+          "method": "SetEventPtr",
+          "bindSelf": true
+        },
+        {
+          "name": "SetPlayerController",
+          "method": "SetEventPlayerController",
+          "bindSelf": true
+        },
+        {
+          "name": "SetPlayerIndex",
+          "method": "SetEventPlayerIndex",
+          "bindSelf": true
+        },
+        {
+          "name": "SetEntity",
+          "method": "SetEventEntity",
+          "bindSelf": true
+        },
+        {
+          "name": "SetEntityIndex",
+          "method": "SetEventEntityIndex",
+          "bindSelf": true
+        },
+        {
+          "name": "SetEntityHandle",
+          "method": "SetEventEntityHandle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetBroadcast",
+          "method": "SetEventBroadcast",
+          "bindSelf": true
+        }
+      ]
+    },
+    {
+      "name": "CheckTransmitInfo",
+      "group": "Transmit",
+      "description": "RAII wrapper for CheckTransmitInfo pointer.",
+      "handleType": "ptr64",
+      "invalidValue": "0",
+      "bindings": [
+        {
+          "name": "SetEntity",
+          "method": "SetTransmitInfoEntity",
+          "bindSelf": true
+        },
+        {
+          "name": "ClearEntity",
+          "method": "ClearTransmitInfoEntity",
+          "bindSelf": true
+        },
+        {
+          "name": "IsEntitySet",
+          "method": "IsTransmitInfoEntitySet",
+          "bindSelf": true
+        },
+        {
+          "name": "SetEntityAll",
+          "method": "SetTransmitInfoEntityAll",
+          "bindSelf": true
+        },
+        {
+          "name": "ClearEntityAll",
+          "method": "ClearTransmitInfoEntityAll",
+          "bindSelf": true
+        },
+        {
+          "name": "SetNonPlayer",
+          "method": "SetTransmitInfoNonPlayer",
+          "bindSelf": true
+        },
+        {
+          "name": "ClearNonPlayer",
+          "method": "ClearTransmitInfoNonPlayer",
+          "bindSelf": true
+        },
+        {
+          "name": "IsNonPlayerSet",
+          "method": "IsTransmitInfoNonPlayerSet",
+          "bindSelf": true
+        },
+        {
+          "name": "SetNonPlayerAll",
+          "method": "SetTransmitInfoNonPlayerAll",
+          "bindSelf": true
+        },
+        {
+          "name": "ClearNonPlayerAll",
+          "method": "ClearTransmitInfoNonPlayerAll",
+          "bindSelf": true
+        },
+        {
+          "name": "SetAlways",
+          "method": "SetTransmitInfoAlways",
+          "bindSelf": true
+        },
+        {
+          "name": "ClearAlways",
+          "method": "ClearTransmitInfoAlways",
+          "bindSelf": true
+        },
+        {
+          "name": "IsAlwaysSet",
+          "method": "IsTransmitInfoAlwaysSet",
+          "bindSelf": true
+        },
+        {
+          "name": "SetAlwaysAll",
+          "method": "SetTransmitInfoAlwaysAll",
+          "bindSelf": true
+        },
+        {
+          "name": "ClearAlwaysAll",
+          "method": "ClearTransmitInfoAlwaysAll",
+          "bindSelf": true
+        },
+        {
+          "name": "GetTargetSlotsCount",
+          "method": "GetTransmitInfoTargetSlotsCount",
+          "bindSelf": true
+        },
+        {
+          "name": "GetTargetSlot",
+          "method": "GetTransmitInfoTargetSlot",
+          "bindSelf": true
+        },
+        {
+          "name": "AddTargetSlot",
+          "method": "AddTransmitInfoTargetSlot",
+          "bindSelf": true
+        },
+        {
+          "name": "RemoveTargetSlot",
+          "method": "RemoveTransmitInfoTargetSlot",
+          "bindSelf": true
+        },
+        {
+          "name": "GetTargetSlotsAll",
+          "method": "GetTransmitInfoTargetSlotsAll",
+          "bindSelf": true
+        },
+        {
+          "name": "RemoveTargetSlotsAll",
+          "method": "RemoveTransmitInfoTargetSlotsAll",
+          "bindSelf": true
+        },
+        {
+          "name": "GetPlayerSlot",
+          "method": "GetTransmitInfoPlayerSlot",
+          "bindSelf": true
+        },
+        {
+          "name": "SetPlayerSlot",
+          "method": "SetTransmitInfoPlayerSlot",
+          "bindSelf": true
+        },
+        {
+          "name": "GetFullUpdate",
+          "method": "GetTransmitInfoFullUpdate",
+          "bindSelf": true
+        },
+        {
+          "name": "SetFullUpdate",
+          "method": "SetTransmitInfoFullUpdate",
+          "bindSelf": true
+        }
+      ]
+    },
+    {
+      "name": "ConVar",
+      "group": "Cvars",
+      "description": "RAII wrapper for ConVar handle.",
+      "handleType": "uint64",
+      "invalidValue": "0",
+      "constructors": [
+        "CreateConVar",
+        "CreateConVarBool",
+        "CreateConVarInt16",
+        "CreateConVarUInt16",
+        "CreateConVarInt32",
+        "CreateConVarUInt32",
+        "CreateConVarInt64",
+        "CreateConVarUInt64",
+        "CreateConVarFloat",
+        "CreateConVarDouble",
+        "CreateConVarVector2",
+        "CreateConVarVector3",
+        "CreateConVarVector4",
+        "CreateConVarString",
+        "FindConVar",
+        "FindConVar2"
+      ],
+      "bindings": [
+        {
+          "name": "HookChange",
+          "method": "HookConVarChange",
+          "bindSelf": true
+        },
+        {
+          "name": "UnhookChange",
+          "method": "UnhookConVarChange",
+          "bindSelf": true
+        },
+        {
+          "name": "IsFlagSet",
+          "method": "IsConVarFlagSet",
+          "bindSelf": true
+        },
+        {
+          "name": "AddFlags",
+          "method": "AddConVarFlags",
+          "bindSelf": true
+        },
+        {
+          "name": "RemoveFlags",
+          "method": "RemoveConVarFlags",
+          "bindSelf": true
+        },
+        {
+          "name": "GetFlags",
+          "method": "GetConVarFlags",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBounds",
+          "method": "GetConVarBounds",
+          "bindSelf": true
+        },
+        {
+          "name": "SetBounds",
+          "method": "SetConVarBounds",
+          "bindSelf": true
+        },
+        {
+          "name": "GetDefault",
+          "method": "GetConVarDefault",
+          "bindSelf": true
+        },
+        {
+          "name": "GetValue",
+          "method": "GetConVarValue",
+          "bindSelf": true
+        },
+        {
+          "name": "GetObject",
+          "method": "GetConVar",
+          "bindSelf": true
+        },
+        {
+          "name": "GetBool",
+          "method": "GetConVarBool",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt16",
+          "method": "GetConVarInt16",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt16",
+          "method": "GetConVarUInt16",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt32",
+          "method": "GetConVarInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt32",
+          "method": "GetConVarUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "GetInt64",
+          "method": "GetConVarInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetUInt64",
+          "method": "GetConVarUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "GetFloat",
+          "method": "GetConVarFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "GetDouble",
+          "method": "GetConVarDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "GetString",
+          "method": "GetConVarString",
+          "bindSelf": true
+        },
+        {
+          "name": "GetColor",
+          "method": "GetConVarColor",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector2",
+          "method": "GetConVarVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector",
+          "method": "GetConVarVector",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVector4",
+          "method": "GetConVarVector4",
+          "bindSelf": true
+        },
+        {
+          "name": "GetQAngle",
+          "method": "GetConVarQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "SetValue",
+          "method": "SetConVarValue",
+          "bindSelf": true
+        },
+        {
+          "name": "Set",
+          "method": "SetConVar",
+          "bindSelf": true
+        },
+        {
+          "name": "SetBool",
+          "method": "SetConVarBool",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt16",
+          "method": "SetConVarInt16",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt16",
+          "method": "SetConVarUInt16",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt32",
+          "method": "SetConVarInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt32",
+          "method": "SetConVarUInt32",
+          "bindSelf": true
+        },
+        {
+          "name": "SetInt64",
+          "method": "SetConVarInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetUInt64",
+          "method": "SetConVarUInt64",
+          "bindSelf": true
+        },
+        {
+          "name": "SetFloat",
+          "method": "SetConVarFloat",
+          "bindSelf": true
+        },
+        {
+          "name": "SetDouble",
+          "method": "SetConVarDouble",
+          "bindSelf": true
+        },
+        {
+          "name": "SetString",
+          "method": "SetConVarString",
+          "bindSelf": true
+        },
+        {
+          "name": "SetColor",
+          "method": "SetConVarColor",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector2",
+          "method": "SetConVarVector2",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector3",
+          "method": "SetConVarVector3",
+          "bindSelf": true
+        },
+        {
+          "name": "SetVector4",
+          "method": "SetConVarVector4",
+          "bindSelf": true
+        },
+        {
+          "name": "SetQAngle",
+          "method": "SetConVarQAngle",
+          "bindSelf": true
+        },
+        {
+          "name": "SendValue",
+          "method": "SendConVarValue2",
+          "bindSelf": true
+        },
+        {
+          "name": "GetClientValue",
+          "method": "GetClientConVarValue",
+          "bindSelf": false
+        },
+        {
+          "name": "SetFakeClientValue",
+          "method": "SetFakeClientConVarValue",
+          "bindSelf": false
+        }
+      ]
+    },
+    {
+      "name": "GameConfig",
+      "group": "Gameconfig",
+      "description": "RAII wrapper for GameConfig handle.",
+      "handleType": "uint32",
+      "invalidValue": "0",
+      "constructors": [
+        "LoadGameConfigFile"
+      ],
+      "destructor": "CloseGameConfigFile",
+      "bindings": [
+        {
+          "name": "GetPatch",
+          "method": "GetGameConfigPatch",
+          "bindSelf": true
+        },
+        {
+          "name": "GetOffset",
+          "method": "GetGameConfigOffset",
+          "bindSelf": true
+        },
+        {
+          "name": "GetAddress",
+          "method": "GetGameConfigAddress",
+          "bindSelf": true
+        },
+        {
+          "name": "GetVTable",
+          "method": "GetGameConfigVTable",
+          "bindSelf": true
+        },
+        {
+          "name": "GetSignature",
+          "method": "GetGameConfigSignature",
           "bindSelf": true
         }
       ]

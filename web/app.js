@@ -21,6 +21,7 @@ const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
 const dropZone = document.getElementById('dropZone');
 const autoConvert = document.getElementById('autoConvert');
+const generateClasses = document.getElementById('generateClasses');
 const languageButtons = document.querySelectorAll('.lang-btn');
 const convertBtn = document.getElementById('convertBtn');
 const statusDiv = document.getElementById('status');
@@ -85,7 +86,10 @@ async function performConversion() {
         convertBtn.disabled = true;
 
         // Call WebAssembly function
-        const result = window.convertManifest(manifestContent, selectedLanguage);
+        const options = {
+            generateClasses: generateClasses.checked
+        };
+        const result = window.convertManifest(manifestContent, selectedLanguage, options);
 
         if (result && result.success) {
             generatedFiles = result.files;
@@ -412,12 +416,36 @@ function saveAutoConvertPreference() {
     localStorage.setItem('autoConvert', autoConvert.checked);
 }
 
+// Load generate-classes preference from localStorage
+function loadGenerateClassesPreference() {
+    const savedPreference = localStorage.getItem('generateClasses');
+    if (savedPreference !== null) {
+        generateClasses.checked = savedPreference === 'true';
+    }
+}
+
+// Save generate-classes preference to localStorage
+function saveGenerateClassesPreference() {
+    localStorage.setItem('generateClasses', generateClasses.checked);
+}
+
 // Auto-convert toggle change handler
 autoConvert.addEventListener('change', () => {
     saveAutoConvertPreference();
 });
 
+// Generate classes toggle change handler
+generateClasses.addEventListener('change', () => {
+    saveGenerateClassesPreference();
+
+    // Auto-convert if enabled
+    if (autoConvert.checked && manifestContent && wasmReady) {
+        setTimeout(() => performConversion(), 100);
+    }
+});
+
 // Initialize
 initializeDefaultLanguage();
 loadAutoConvertPreference();
+loadGenerateClassesPreference();
 loadWasm();

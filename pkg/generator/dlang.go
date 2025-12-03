@@ -39,8 +39,13 @@ func NewDlangGenerator() *DlangGenerator {
 }
 
 // Generate generates D language bindings
-func (g *DlangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+
+	// Use default options if nil
+	if opts == nil {
+		opts = &GeneratorOptions{GenerateClasses: true}
+	}
 
 	// Module declaration
 	moduleName := strings.ToLower(m.Name)
@@ -63,7 +68,7 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error
 
 	// Generate a file for each group
 	for groupName := range groups {
-		groupCode, err := g.generateModuleFile(m, moduleName, groupName)
+		groupCode, err := g.generateModuleFile(m, moduleName, groupName, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +201,7 @@ func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, enumType string) 
 	return sb.String()
 }
 
-func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, groupName string) (string, error) {
+func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
 	// Collect methods for this group first (needed to determine imports)
@@ -293,16 +298,18 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 		sb.WriteString("\n")
 	}
 
-	// Generate classes for this group
-	for _, class := range m.Classes {
-		classGroup := g.GetGroupName(class.Group)
-		if classGroup == groupName {
-			classCode, err := g.generateClass(m, &class)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+	// Generate classes for this group (if enabled)
+	if opts.GenerateClasses {
+		for _, class := range m.Classes {
+			classGroup := g.GetGroupName(class.Group)
+			if classGroup == groupName {
+				classCode, err := g.generateClass(m, &class)
+				if err != nil {
+					return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+				}
+				sb.WriteString(classCode)
+				sb.WriteString("\n")
 			}
-			sb.WriteString(classCode)
-			sb.WriteString("\n")
 		}
 	}
 

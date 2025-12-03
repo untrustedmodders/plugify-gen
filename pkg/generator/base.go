@@ -7,13 +7,19 @@ import (
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
+// GeneratorOptions contains options for code generation
+type GeneratorOptions struct {
+	// GenerateClasses controls whether to generate class wrappers
+	GenerateClasses bool
+}
+
 // Generator is the interface that all language-specific generators must implement
 type Generator interface {
 	// Name returns the generator name (e.g., "cpp", "golang")
 	Name() string
 
 	// Generate produces code from a manifest
-	Generate(m *manifest.Manifest) (*GeneratorResult, error)
+	Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error)
 }
 
 // GeneratorResult contains the generated files

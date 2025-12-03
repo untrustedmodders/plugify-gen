@@ -26,8 +26,13 @@ func NewLuaGenerator() *LuaGenerator {
 }
 
 // Generate generates Lua bindings
-func (g *LuaGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+func (g *LuaGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+
+	// Use default options if nil
+	if opts == nil {
+		opts = &GeneratorOptions{GenerateClasses: true}
+	}
 
 	var sb strings.Builder
 
@@ -54,8 +59,8 @@ func (g *LuaGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) 
 		sb.WriteString("\n")
 	}
 
-	// Generate classes
-	if len(m.Classes) > 0 {
+	// Generate classes (if enabled)
+	if opts.GenerateClasses && len(m.Classes) > 0 {
 		classesCode, err := g.generateClasses(m)
 		if err != nil {
 			return nil, err

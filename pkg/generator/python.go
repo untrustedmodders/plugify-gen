@@ -30,8 +30,13 @@ func NewPythonGenerator() *PythonGenerator {
 }
 
 // Generate generates Python bindings
-func (g *PythonGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+
+	// Use default options if nil
+	if opts == nil {
+		opts = &GeneratorOptions{GenerateClasses: true}
+	}
 
 	var sb strings.Builder
 
@@ -66,8 +71,8 @@ func (g *PythonGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 		sb.WriteString("\n")
 	}
 
-	// Generate classes
-	if len(m.Classes) > 0 {
+	// Generate classes (if enabled)
+	if opts.GenerateClasses && len(m.Classes) > 0 {
 		classesCode, err := g.generateClasses(m)
 		if err != nil {
 			return nil, err

@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 	"path/filepath"
+	"time"
 
 	"github.com/untrustedmodders/plugify-gen/pkg/generator"
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
@@ -18,12 +18,13 @@ func main() {
 	start := time.Now()
 
 	var (
-		manifestPath = flag.String("manifest", "", "Path to .pplugin manifest file (required)")
-		outputDir    = flag.String("output", "", "Output directory (required)")
-		language     = flag.String("lang", "", "Target language: cpp, v8, golang, dotnet, python, lua (required)")
-		overwrite    = flag.Bool("overwrite", false, "Overwrite existing files")
-		verbose      = flag.Bool("verbose", false, "Enable verbose output")
-		showVersion  = flag.Bool("version", false, "Show version")
+		manifestPath    = flag.String("manifest", "", "Path to .pplugin manifest file (required)")
+		outputDir       = flag.String("output", "", "Output directory (required)")
+		language        = flag.String("lang", "", "Target language: cpp, v8, golang, dotnet, python, lua (required)")
+		overwrite       = flag.Bool("overwrite", false, "Overwrite existing files")
+		verbose         = flag.Bool("verbose", false, "Enable verbose output")
+		generateClasses = flag.Bool("classes", true, "Generate class wrappers (default: true)")
+		showVersion     = flag.Bool("version", false, "Show version")
 	)
 
 	flag.Parse()
@@ -74,7 +75,11 @@ func main() {
 		fmt.Printf("Generating %s bindings...\n", *language)
 	}
 
-	result, err := gen.Generate(m)
+	opts := &generator.GeneratorOptions{
+		GenerateClasses: *generateClasses,
+	}
+
+	result, err := gen.Generate(m, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating code: %v\n", err)
 		os.Exit(1)
@@ -106,9 +111,9 @@ func main() {
 		}
 	}
 
-    elapsed := time.Since(start)
+	elapsed := time.Since(start)
 	fmt.Printf("✓ Successfully generated %s bindings in %s\n", *language, *outputDir)
 	if *verbose {
-	    fmt.Printf("Execution time: %s\n", elapsed)
+		fmt.Printf("Execution time: %s\n", elapsed)
 	}
 }

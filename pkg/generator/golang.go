@@ -36,9 +36,14 @@ func NewGolangGenerator() *GolangGenerator {
 }
 
 // Generate generates Go bindings (.go and .h files)
-func (g *GolangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
 	g.usedNames = make(map[string]bool)
+
+	// Use default options if nil
+	if opts == nil {
+		opts = &GeneratorOptions{GenerateClasses: true}
+	}
 
 	files := make(map[string]string)
 
@@ -68,13 +73,13 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, erro
 
 	// Generate group-specific files
 	for groupName := range groups {
-		goCode, err := g.generateGroupGoFile(m, groupName)
+		goCode, err := g.generateGroupGoFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
 		}
 		files[fmt.Sprintf("%s/%s.go", m.Name, groupName)] = goCode
 
-		hCode, err := g.generateGroupHFile(m, groupName)
+		hCode, err := g.generateGroupHFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s header: %w", groupName, err)
 		}
@@ -1455,7 +1460,7 @@ func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, err
 }
 
 // generateGroupGoFile generates a group-specific Go file
-func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName string) (string, error) {
+func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
 	// Package declaration
@@ -1505,15 +1510,17 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 		}
 	}
 
-	// Generate classes for this group
-	for _, class := range m.Classes {
-		classGroup := g.GetGroupName(class.Group)
-		if classGroup == groupName {
-			classCode, err := g.generateClass(m, &class)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+	// Generate classes for this group (if enabled)
+	if opts.GenerateClasses {
+		for _, class := range m.Classes {
+			classGroup := g.GetGroupName(class.Group)
+			if classGroup == groupName {
+				classCode, err := g.generateClass(m, &class)
+				if err != nil {
+					return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+				}
+				sb.WriteString(classCode)
 			}
-			sb.WriteString(classCode)
 		}
 	}
 
@@ -1521,7 +1528,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 }
 
 // generateGroupHFile generates a group-specific C header file
-func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName string) (string, error) {
+func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
 	// Header guard and includes

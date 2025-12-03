@@ -32,8 +32,13 @@ func NewV8Generator() *V8Generator {
 }
 
 // Generate generates V8/JavaScript TypeScript definitions
-func (g *V8Generator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+
+	// Use default options if nil
+	if opts == nil {
+		opts = &GeneratorOptions{GenerateClasses: true}
+	}
 
 	var sb strings.Builder
 
@@ -79,8 +84,8 @@ func (g *V8Generator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
 		sb.WriteString(methodCode)
 	}
 
-	// Generate classes
-	if len(m.Classes) > 0 {
+	// Generate classes (if enabled)
+	if opts.GenerateClasses && len(m.Classes) > 0 {
 		classesCode, err := g.generateClasses(m)
 		if err != nil {
 			return nil, err

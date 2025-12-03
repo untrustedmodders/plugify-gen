@@ -36,8 +36,13 @@ func NewCppGenerator() *CppGenerator {
 }
 
 // Generate generates C++ bindings
-func (g *CppGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) {
+func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+
+	// Use default options if nil
+	if opts == nil {
+		opts = &GeneratorOptions{GenerateClasses: true}
+	}
 
 	// Collect all unique groups from both methods and classes
 	groups := g.GetGroups(m)
@@ -61,7 +66,7 @@ func (g *CppGenerator) Generate(m *manifest.Manifest) (*GeneratorResult, error) 
 
 	// Generate a file for each group
 	for groupName := range groups {
-		groupCode, err := g.generateGroupFile(m, groupName)
+		groupCode, err := g.generateGroupFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
 		}
@@ -793,7 +798,7 @@ func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, erro
 }
 
 // generateGroupFile generates a file for a specific group containing methods and classes
-func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string) (string, error) {
+func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
 	// Header guard and includes
@@ -829,16 +834,18 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string)
 		}
 	}
 
-	// Generate classes for this group
-	for _, class := range m.Classes {
-		classGroup := g.GetGroupName(class.Group)
-		if classGroup == groupName {
-			classCode, err := g.generateClass(m, &class)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+	// Generate classes for this group (if enabled)
+	if opts.GenerateClasses {
+		for _, class := range m.Classes {
+			classGroup := g.GetGroupName(class.Group)
+			if classGroup == groupName {
+				classCode, err := g.generateClass(m, &class)
+				if err != nil {
+					return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+				}
+				sb.WriteString(classCode)
+				sb.WriteString("\n")
 			}
-			sb.WriteString(classCode)
-			sb.WriteString("\n")
 		}
 	}
 
