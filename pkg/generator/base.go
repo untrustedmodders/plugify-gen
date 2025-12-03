@@ -282,3 +282,21 @@ func RemoveLeadingTabs(b *strings.Builder, n, startChar, endChar int) {
 	b.Reset()
 	b.WriteString(strings.Join(lines, "\n"))
 }
+
+// HasConstructorWithSingleHandleParam checks if any constructor has exactly 1 parameter of the handle type
+func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest, class *manifest.Class) bool {
+	for _, ctorName := range class.Constructors {
+		// Find the constructor method
+		for i := range m.Methods {
+			method := &m.Methods[i]
+			if method.Name == ctorName || method.FuncName == ctorName {
+				// Check if it has exactly 1 parameter and that parameter is the handle type
+				if len(method.ParamTypes) == 1 && method.ParamTypes[0].Type == class.HandleType {
+					return true
+				}
+				break
+			}
+		}
+	}
+	return false
+}

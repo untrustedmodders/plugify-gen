@@ -759,10 +759,17 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 		// Internal constructor for handle wrapping
 		if hasDtor {
+			// Check if there's a constructor with exactly 1 param of handle type to avoid ambiguity
+			hasHandleOnlyConstructor := g.HasConstructorWithSingleHandleParam(m, class)
+			ownershipDefault := ""
+			if !hasHandleOnlyConstructor {
+				ownershipDefault = " = Ownership.Borrowed"
+			}
+
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 			sb.WriteString("\t\t/// </summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership) : base((nint)handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType))
+			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle, Ownership ownership%s) : base((nint)handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType, ownershipDefault))
 			sb.WriteString("\t\t{\n\t\t}\n\n")
 
 			// ReleaseHandle override
@@ -781,14 +788,14 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			sb.WriteString("\t\t/// </summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\tpublic override bool IsInvalid => handle == %s;\n\n", invalidValue))
 		} else {
-			ctorTag := ""
+			ownershipTag := ""
 			if hasCtor {
-				ctorTag = ", Ownership ownership = Ownership.Owned"
+				ownershipTag = ", Ownership ownership = Ownership.Borrowed"
 			}
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 			sb.WriteString("\t\t/// </summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\tprivate %s(%s handle%s)\n", class.Name, handleType, ctorTag))
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s(%s handle%s)\n", class.Name, handleType, ownershipTag))
 			sb.WriteString("\t\t{\n")
 			sb.WriteString("\t\t\tthis.handle = handle;\n")
 			sb.WriteString("\t\t}\n\n")

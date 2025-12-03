@@ -699,16 +699,22 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 		}
 		sb.WriteString("\t */\n")
 		if hasDtor {
-			sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership) {\n", handleType))
+			// Check if there's a constructor with exactly 1 param of handle type to avoid ambiguity
+			hasHandleOnlyConstructor := g.HasConstructorWithSingleHandleParam(m, class)
+			ownershipDefault := ""
+			if !hasHandleOnlyConstructor {
+				ownershipDefault = " = Ownership.Borrowed"
+			}
+			sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership%s) {\n", handleType, ownershipDefault))
 			sb.WriteString("\t\t_handle = handle;\n")
 			sb.WriteString("\t\t_ownership = ownership;\n")
 			sb.WriteString("\t}\n\n")
 		} else {
-			ctorTag := ""
+			ownershipTag := ""
 			if hasCtor {
-				ctorTag = ", Ownership ownership = Ownership.Owned"
+				ownershipTag = ", Ownership ownership = Ownership.Borrowed"
 			}
-			sb.WriteString(fmt.Sprintf("\tthis(%s handle%s) {\n", handleType, ctorTag))
+			sb.WriteString(fmt.Sprintf("\tthis(%s handle%s) {\n", handleType, ownershipTag))
 			sb.WriteString("\t\t_handle = handle;\n")
 			sb.WriteString("\t}\n\n")
 		}

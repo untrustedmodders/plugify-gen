@@ -878,7 +878,7 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 				return "", err
 			}
 			sb.WriteString(helperCode)
-		} else if !hasCtor {
+		} else {
 			ctorCode, err := g.generateDefaultConstructor(class)
 			if err != nil {
 				return "", err
@@ -959,7 +959,7 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 	}
 
 	if class.Destructor != nil {
-		sb.WriteString(fmt.Sprintf("\treturn new%sOwned(%s(%s))\n", class.Name, method.Name, callParams))
+		sb.WriteString(fmt.Sprintf("\treturn New%sOwned(%s(%s))\n", class.Name, method.Name, callParams))
 	} else {
 		sb.WriteString(fmt.Sprintf("\treturn &%s{\n", class.Name))
 		sb.WriteString(fmt.Sprintf("\t\thandle: %s(%s),\n", method.Name, callParams))
@@ -980,8 +980,8 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) (str
 	}
 
 	// newBorrowed helper
-	sb.WriteString(fmt.Sprintf("// new%sBorrowed creates a %s from a borrowed handle (internal use)\n", class.Name, class.Name))
-	sb.WriteString(fmt.Sprintf("func new%sBorrowed(handle %s) *%s {\n", class.Name, handleType, class.Name))
+	sb.WriteString(fmt.Sprintf("// New%sBorrowed creates a %s from a borrowed handle\n", class.Name, class.Name))
+	sb.WriteString(fmt.Sprintf("func New%sBorrowed(handle %s) *%s {\n", class.Name, handleType, class.Name))
 	sb.WriteString(fmt.Sprintf("\tif handle == %s {\n", invalidValue))
 	sb.WriteString(fmt.Sprintf("\t\treturn &%s{}\n", class.Name))
 	sb.WriteString("\t}\n")
@@ -992,8 +992,8 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) (str
 	sb.WriteString("}\n\n")
 
 	// newOwned helper
-	sb.WriteString(fmt.Sprintf("// new%sOwned creates a %s from an owned handle (internal use)\n", class.Name, class.Name))
-	sb.WriteString(fmt.Sprintf("func new%sOwned(handle %s) *%s {\n", class.Name, handleType, class.Name))
+	sb.WriteString(fmt.Sprintf("// New%sOwned creates a %s from an owned handle\n", class.Name, class.Name))
+	sb.WriteString(fmt.Sprintf("func New%sOwned(handle %s) *%s {\n", class.Name, handleType, class.Name))
 	sb.WriteString(fmt.Sprintf("\tif handle == %s {\n", invalidValue))
 	sb.WriteString(fmt.Sprintf("\t\treturn &%s{}\n", class.Name))
 	sb.WriteString("\t}\n")
@@ -1011,7 +1011,7 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) (str
 func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
-	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	_, handleType, err := g.typeMapper.MapHandleType(class)
 	if err != nil {
 		return "", err
 	}
@@ -1019,9 +1019,6 @@ func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) (str
 	// New helper
 	sb.WriteString(fmt.Sprintf("// New%s creates a %s from a handle\n", class.Name, class.Name))
 	sb.WriteString(fmt.Sprintf("func New%s(handle %s) *%s {\n", class.Name, handleType, class.Name))
-	sb.WriteString(fmt.Sprintf("\tif handle == %s {\n", invalidValue))
-	sb.WriteString(fmt.Sprintf("\t\treturn &%s{}\n", class.Name))
-	sb.WriteString("\t}\n")
 	sb.WriteString(fmt.Sprintf("\treturn &%s{\n", class.Name))
 	sb.WriteString("\t\thandle:    handle,\n")
 	sb.WriteString("\t}\n")
@@ -1262,9 +1259,9 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 			ownership := ""
 			if hasDtor || hasCtor {
 				if binding.RetAlias.Owner {
-					ownership = fmt.Sprintf("new%sOwned", binding.RetAlias.Name)
+					ownership = fmt.Sprintf("New%sOwned", binding.RetAlias.Name)
 				} else {
-					ownership = fmt.Sprintf("new%sBorrowed", binding.RetAlias.Name)
+					ownership = fmt.Sprintf("New%sBorrowed", binding.RetAlias.Name)
 				}
 			} else {
 				ownership = fmt.Sprintf("New%s", binding.RetAlias.Name)

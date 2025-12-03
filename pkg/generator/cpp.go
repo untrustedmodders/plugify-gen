@@ -391,13 +391,19 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 
 		// Constructor from handle
 		if hasDtor {
-			sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType))
-		} else {
-			ctorTag := ""
-			if hasCtor {
-				ctorTag = ", [[maybe_unused]] Ownership ownership = Ownership::Owned"
+			// Check if there's a constructor with exactly 1 param of handle type to avoid ambiguity
+			hasHandleOnlyConstructor := g.HasConstructorWithSingleHandleParam(m, class)
+			ownershipDefault := ""
+			if !hasHandleOnlyConstructor {
+				ownershipDefault = " = Ownership::Borrowed"
 			}
-			sb.WriteString(fmt.Sprintf("    explicit %s(%s handle%s) : _handle(handle) {}\n\n", class.Name, handleType, ctorTag))
+			sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership%s) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType, ownershipDefault))
+		} else {
+			ownershipTag := ""
+			if hasCtor {
+				ownershipTag = ", [[maybe_unused]] Ownership ownership = Ownership::Borrowed"
+			}
+			sb.WriteString(fmt.Sprintf("    explicit %s(%s handle%s) : _handle(handle) {}\n\n", class.Name, handleType, ownershipTag))
 		}
 
 		// Utility methods
