@@ -438,8 +438,8 @@ autoConvert.addEventListener('change', () => {
 generateClasses.addEventListener('change', () => {
     saveGenerateClassesPreference();
 
-    // Auto-convert if enabled
-    if (autoConvert.checked && manifestContent && wasmReady) {
+    // Always regenerate if manifest is loaded and files have been generated
+    if (manifestContent && wasmReady && Object.keys(generatedFiles).length > 0) {
         setTimeout(() => performConversion(), 100);
     }
 });
