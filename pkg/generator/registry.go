@@ -41,4 +41,5 @@ func init() {
 	Register(NewDotnetGenerator())
 	Register(NewGolangGenerator())
 	Register(NewDlangGenerator())
+	Register(NewRustGenerator())
 }

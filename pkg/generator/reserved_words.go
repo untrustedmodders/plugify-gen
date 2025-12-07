@@ -89,3 +89,14 @@ var DReservedWords = []string{
 	"__LINE__", "__FUNCTION__", "__PRETTY_FUNCTION__", "__gshared",
 	"__traits", "__vector", "__parameters",
 }
+
+// RustReservedWords contains Rust keywords and reserved identifiers
+var RustReservedWords = []string{
+	"as", "async", "await", "break", "const", "continue", "crate", "dyn",
+	"else", "enum", "extern", "false", "fn", "for", "if", "impl", "in",
+	"let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
+	"self", "Self", "static", "struct", "super", "trait", "true", "type",
+	"unsafe", "use", "where", "while", "abstract", "become", "box", "do",
+	"final", "macro", "override", "priv", "typeof", "unsized", "virtual",
+	"yield", "try", "union",
+}
