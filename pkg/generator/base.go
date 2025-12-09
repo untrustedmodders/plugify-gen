@@ -7,6 +7,19 @@ import (
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
+// Common constants used across generators
+const (
+	// DefaultGroupName is used when a method or class has no group specified
+	DefaultGroupName = "core"
+
+	// OwnershipEnumName is the standard name for the ownership enum
+	OwnershipEnumName = "Ownership"
+
+	// Standard error messages
+	EmptyHandleError = "empty handle"
+	NullPtrError     = "null pointer"
+)
+
 // GeneratorOptions contains options for code generation
 type GeneratorOptions struct {
 	// GenerateClasses controls whether to generate class wrappers
@@ -80,7 +93,7 @@ func (g *BaseGenerator) GetGroupName(name string) string {
 	if sanitized != "" {
 		return strings.ToLower(sanitized)
 	}
-	return "core"
+	return DefaultGroupName
 }
 
 // GetGroups gets the list of all groups from manifest
@@ -110,7 +123,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 
 	// Add default group for methods/classes without a group
 	if hasUngroupedMethods || hasUngroupedClasses {
-		groups["core"] = true
+		groups[DefaultGroupName] = true
 	}
 
 	return groups

@@ -330,13 +330,7 @@ func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) (string,
 
 func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == methodName || m.Methods[i].FuncName == methodName {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, methodName)
 	if method == nil {
 		return "", fmt.Errorf("constructor method %s not found", methodName)
 	}
@@ -381,13 +375,7 @@ func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manif
 
 func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
 	// Find the method in the manifest
-	var method *manifest.Method
-	for i := range m.Methods {
-		if m.Methods[i].Name == binding.Method || m.Methods[i].FuncName == binding.Method {
-			method = &m.Methods[i]
-			break
-		}
-	}
+	method := FindMethod(m, binding.Method)
 	if method == nil {
 		return "", fmt.Errorf("method %s not found", binding.Method)
 	}
