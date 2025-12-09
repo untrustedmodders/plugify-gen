@@ -288,7 +288,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 		return "", err
 	}
 
-	sb.WriteString("#[allow(non_snake_case)]\n")
+	sb.WriteString("#[allow(dead_code, non_snake_case)]\n")
 	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", g.SanitizeName(method.Name), params))
 	if retType != "" && retType != "()" {
 		sb.WriteString(" -> ")
@@ -632,11 +632,20 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 
 	// Generate error type for this class if it has a handle
 	if hasHandle {
-		sb.WriteString("#[derive(thiserror::Error, Debug)]\n")
+		sb.WriteString("#[derive(Debug)]\n")
 		sb.WriteString(fmt.Sprintf("pub enum %sError {\n", class.Name))
-		sb.WriteString("    #[error(\"empty handle\")]\n")
 		sb.WriteString("    EmptyHandle,\n")
 		sb.WriteString("}\n\n")
+
+		sb.WriteString(fmt.Sprintf("impl std::fmt::Display for %sError {\n", class.Name))
+		sb.WriteString("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n")
+		sb.WriteString("        match self {\n")
+		sb.WriteString(fmt.Sprintf("            %sError::EmptyHandle => write!(f, \"empty handle\"),\n", class.Name))
+		sb.WriteString("        }\n")
+		sb.WriteString("    }\n")
+		sb.WriteString("}\n\n")
+
+		sb.WriteString(fmt.Sprintf("impl std::error::Error for %sError {}\n\n", class.Name))
 	}
 
 	// Class documentation
@@ -680,11 +689,13 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 		// Generate from_raw helper constructor
 		if hasDtor {
 			sb.WriteString(fmt.Sprintf("    /// Construct from raw handle with specified ownership\n"))
+			sb.WriteString("    #[allow(dead_code)]\n")
 			sb.WriteString(fmt.Sprintf("    pub unsafe fn from_raw(handle: %s, ownership: Ownership) -> Self {\n", handleType))
 			sb.WriteString("        Self { handle, ownership }\n")
 			sb.WriteString("    }\n\n")
 		} else {
 			sb.WriteString(fmt.Sprintf("    /// Construct from raw handle (does not assume ownership)\n"))
+			sb.WriteString("    #[allow(dead_code)]\n")
 			sb.WriteString(fmt.Sprintf("    pub unsafe fn from_raw(handle: %s) -> Self {\n", handleType))
 			sb.WriteString("        Self { handle }\n")
 			sb.WriteString("    }\n\n")
@@ -770,6 +781,7 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 	}
 
 	hasDtor := class.Destructor != nil
+	sb.WriteString("    #[allow(dead_code, non_snake_case)]\n")
 	sb.WriteString(fmt.Sprintf("    pub fn %s(%s) -> Result<Self, %sError> {\n", funcName, params, class.Name))
 
 	// Generate call to underlying FFI function
@@ -805,12 +817,14 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 
 	// get method
 	sb.WriteString("    /// Returns the underlying handle\n")
+	sb.WriteString("    #[allow(dead_code)]\n")
 	sb.WriteString(fmt.Sprintf("    pub fn get(&self) -> %s {\n", handleType))
 	sb.WriteString("        self.handle\n")
 	sb.WriteString("    }\n\n")
 
 	// release method
 	sb.WriteString("    /// Release ownership and return the handle. Wrapper becomes empty & borrowed.\n")
+	sb.WriteString("    #[allow(dead_code)]\n")
 	sb.WriteString(fmt.Sprintf("    pub fn release(&mut self) -> %s {\n", handleType))
 	sb.WriteString("        let h = self.handle;\n")
 	sb.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
@@ -822,6 +836,7 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 
 	// reset method
 	sb.WriteString("    /// Destroys and resets the handle\n")
+	sb.WriteString("    #[allow(dead_code)]\n")
 	sb.WriteString("    pub fn reset(&mut self) {\n")
 	if hasDtor {
 		sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
@@ -836,6 +851,7 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 
 	// swap method
 	sb.WriteString(fmt.Sprintf("    /// Swaps two %s instances\n", class.Name))
+	sb.WriteString("    #[allow(dead_code)]\n")
 	sb.WriteString(fmt.Sprintf("    pub fn swap(&mut self, other: &mut %s) {\n", class.Name))
 	sb.WriteString("        std::mem::swap(&mut self.handle, &mut other.handle);\n")
 	if hasDtor {
@@ -845,6 +861,7 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 
 	// is_valid method
 	sb.WriteString("    /// Returns true if handle is valid (not empty)\n")
+	sb.WriteString("    #[allow(dead_code)]\n")
 	sb.WriteString("    pub fn is_valid(&self) -> bool {\n")
 	sb.WriteString(fmt.Sprintf("        self.handle != %s\n", invalidValue))
 	sb.WriteString("    }\n\n")
@@ -909,7 +926,7 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 				returnSignature = fmt.Sprintf(" -> %s", retType)
 			}
 		}
-		sb.WriteString("    #[allow(non_snake_case)]\n")
+		sb.WriteString("    #[allow(dead_code, non_snake_case)]\n")
 		sb.WriteString(fmt.Sprintf("    pub fn %s(%s)%s {\n", binding.Name, formattedParams, returnSignature))
 	} else {
 		selfRef := "&self"
@@ -938,7 +955,7 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 		} else {
 			returnSignature = fmt.Sprintf(" -> Result<(), %sError>", class.Name)
 		}
-		sb.WriteString("    #[allow(non_snake_case)]\n")
+		sb.WriteString("    #[allow(dead_code, non_snake_case)]\n")
 		sb.WriteString(fmt.Sprintf("    pub fn %s(%s", binding.Name, selfRef))
 		if formattedParams != "" {
 			sb.WriteString(fmt.Sprintf(", %s", formattedParams))
