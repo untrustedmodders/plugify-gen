@@ -14,6 +14,7 @@ const languageMap = {
     'python': 'python',
     'lua': 'lua',
     'd': 'd',
+    'rust': 'rust',
 };
 
 // DOM elements
@@ -232,7 +233,8 @@ function getHighlightLanguage(filename, defaultLang) {
         '.lua': 'lua',
         '.js': 'javascript',
         '.ts': 'typescript',
-        '.d.ts': 'typescript'
+        '.d.ts': 'typescript',
+        '.rs': 'rust'
     };
 
     // Check for .d.ts first (before .ts)

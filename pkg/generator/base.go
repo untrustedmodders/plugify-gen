@@ -80,7 +80,7 @@ func (g *BaseGenerator) GetGroupName(name string) string {
 	if sanitized != "" {
 		return strings.ToLower(sanitized)
 	}
-	return "main"
+	return "core"
 }
 
 // GetGroups gets the list of all groups from manifest
@@ -110,7 +110,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 
 	// Add default group for methods/classes without a group
 	if hasUngroupedMethods || hasUngroupedClasses {
-		groups["main"] = true
+		groups["core"] = true
 	}
 
 	return groups

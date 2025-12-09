@@ -968,8 +968,10 @@ func (m *CppTypeMapper) MapParamType(param *manifest.ParamType, context TypeCont
 			typeName = fmt.Sprintf("plg::vector<%s>", typeName)
 		}
 		// Enums are primitive types, pass by value or reference
-		if param.Ref && !param.IsArray() {
+		if param.Ref {
 			return typeName + "&", nil
+		} else if param.IsArray() {
+			return fmt.Sprintf("const %s&", typeName), nil
 		}
 		return typeName, nil
 	}

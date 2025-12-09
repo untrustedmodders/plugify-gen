@@ -53,12 +53,12 @@ func (g *RustGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (
 		files[fmt.Sprintf("%s/%s.rs", folder, groupName)] = groupCode
 	}
 
-	// Generate lib.rs that re-exports all pieces
-	libRs, err := g.generateLibFile(m, groups)
+	// Generate mod.rs that re-exports all pieces
+	modRs, err := g.generateModFile(m, groups)
 	if err != nil {
-		return nil, fmt.Errorf("generating lib.rs: %w", err)
+		return nil, fmt.Errorf("generating mod.rs: %w", err)
 	}
-	files[fmt.Sprintf("%s/lib.rs", folder)] = libRs
+	files[fmt.Sprintf("%s/mod.rs", folder)] = modRs
 
 	result := &GeneratorResult{
 		Files: files,
@@ -136,6 +136,7 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, enumType string) s
 	sb.WriteString("#[repr(")
 	sb.WriteString(underlyingType)
 	sb.WriteString(")]\n")
+	sb.WriteString("#[allow(dead_code)]\n")
 	sb.WriteString("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n")
 	sb.WriteString(fmt.Sprintf("pub enum %s {\n", enum.Name))
 
@@ -147,6 +148,7 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, enumType string) s
 	}
 
 	sb.WriteString("}\n")
+	sb.WriteString(fmt.Sprintf("vector_enum_traits!(%s, %s);\n", enum.Name, underlyingType))
 	return sb.String()
 }
 
@@ -193,8 +195,8 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 		return "", err
 	}
 
-	// Generate parameters
-	params, err := FormatParameters(proto.ParamTypes, ParamFormatTypes, g.typeMapper, g.SanitizeName)
+	// Generate parameters in Rust format (name: type)
+	params, err := g.formatRustParams(proto.ParamTypes, false)
 	if err != nil {
 		return "", err
 	}
@@ -209,6 +211,40 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 	sb.WriteString(";\n\n")
 
 	return sb.String(), nil
+}
+
+// formatRustParams formats parameters in Rust style (name: type)
+func (g *RustGenerator) formatRustParams(params []manifest.ParamType, includeNames bool) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	result := ""
+	for i, param := range params {
+		if i > 0 {
+			result += ", "
+		}
+
+		// Get the type
+		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		if err != nil {
+			return "", err
+		}
+
+		if includeNames {
+			// Rust format: name: type
+			paramName := param.Name
+			if paramName == "" {
+				paramName = fmt.Sprintf("p%d", i)
+			}
+			result += g.SanitizeName(paramName) + ": " + typeName
+		} else {
+			// Just type (for extern "C" fn signatures)
+			result += typeName
+		}
+	}
+
+	return result, nil
 }
 
 func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
@@ -247,12 +283,14 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 		return "", err
 	}
 
-	params, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	// Generate parameters in Rust format (name: type)
+	params, err := g.formatRustParams(method.ParamTypes, true)
 	if err != nil {
 		return "", err
 	}
 
 	sb.WriteString("#[inline]\n")
+	sb.WriteString("#[allow(dead_code, non_snake_case)]\n")
 	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", g.SanitizeName(method.Name), params))
 	if retType != "" && retType != "()" {
 		sb.WriteString(" -> ")
@@ -261,7 +299,8 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 	sb.WriteString(" {\n")
 
 	// Generate function body using lazy static pattern
-	funcTypeParams, err := FormatParameters(method.ParamTypes, ParamFormatTypes, g.typeMapper, g.SanitizeName)
+	// For extern "C" fn, we don't need names, just types
+	funcTypeParams, err := g.formatRustParams(method.ParamTypes, false)
 	if err != nil {
 		return "", err
 	}
@@ -274,25 +313,25 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 	}
 	sb.WriteString("> = OnceLock::new();\n")
 
-	sb.WriteString("        let func = FUNC.get_or_init(|| {\n")
+	sb.WriteString("        let __func = FUNC.get_or_init(|| {\n")
 	sb.WriteString(fmt.Sprintf("            let name = \"%s.%s\";\n", pluginName, method.Name))
-	sb.WriteString("            let ptr = init_get_method_ptr(name.as_ptr(), name.len());\n")
+	sb.WriteString("            let ptr = get_method_ptr(name.as_ptr(), name.len());\n")
 	sb.WriteString("            std::mem::transmute(ptr)\n")
 	sb.WriteString("        });\n")
 
-	// Call function
+	// Call function - just use parameter names
 	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
 
 	if method.RetType.Type == "void" {
-		sb.WriteString(fmt.Sprintf("        func(%s);\n", paramNames))
+		sb.WriteString(fmt.Sprintf("        __func(%s);\n", paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("        func(%s)\n", paramNames))
+		sb.WriteString(fmt.Sprintf("        __func(%s)\n", paramNames))
 	}
 
-	sb.WriteString("    };\n")
+	sb.WriteString("    }\n")
 	sb.WriteString("}\n")
 
 	return sb.String(), nil
@@ -303,6 +342,8 @@ func (g *RustGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) 
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use plugify::{vector_enum_traits};\n\n")
 
 	// Generate enums
 	enumsCode, err := g.generateEnums(m)
@@ -316,6 +357,7 @@ func (g *RustGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) 
 
 	// Ownership enum (if any class has destructor)
 	sb.WriteString("/// Ownership type for RAII wrappers\n")
+	sb.WriteString("#[allow(dead_code)]\n")
 	sb.WriteString("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n")
 	sb.WriteString("pub enum Ownership {\n")
 	sb.WriteString("    Borrowed,\n")
@@ -330,7 +372,10 @@ func (g *RustGenerator) generateDelegatesFile(m *manifest.Manifest) (string, err
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
-	sb.WriteString("use super::enums::*;\n\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use super::enums::*;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use plugify::{PlgString, PlgVector, PlgVariant, Vector2, Vector3, Vector4, Matrix4x4};\n\n")
 
 	// Generate delegates
 	delegatesCode, err := g.generateDelegates(m)
@@ -349,13 +394,14 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use std::sync::OnceLock;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::enums::*;\n")
-	sb.WriteString("use super::delegates::*;\n\n")
-
-	// External function declaration for getting method pointers
-	sb.WriteString("extern \"C\" {\n")
-	sb.WriteString("    fn plugify_get_method_ptr2(export_name: *const i8, out_func_ptr: *mut *mut std::ffi::c_void);\n")
-	sb.WriteString("}\n\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use super::delegates::*;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use plugify::{get_method_ptr, PlgString, PlgVector, PlgVariant, Vector2, Vector3, Vector4, Matrix4x4};\n\n")
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
@@ -378,14 +424,15 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 	return sb.String(), nil
 }
 
-// generateLibFile generates the lib.rs file that re-exports all modules
-func (g *RustGenerator) generateLibFile(m *manifest.Manifest, groups map[string]bool) (string, error) {
+// generateModFile generates the mod.rs file that re-exports all modules
+func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]bool) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n", m.Name))
 	sb.WriteString("// This module re-exports all generated components\n\n")
 
 	// Declare modules
+
 	sb.WriteString("pub mod enums;\n")
 	sb.WriteString("pub mod delegates;\n")
 	for groupName := range groups {
@@ -394,9 +441,12 @@ func (g *RustGenerator) generateLibFile(m *manifest.Manifest, groups map[string]
 	sb.WriteString("\n")
 
 	// Re-export everything
+	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("pub use enums::*;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("pub use delegates::*;\n")
 	for groupName := range groups {
+		sb.WriteString("#[allow(unused_imports)]\n")
 		sb.WriteString(fmt.Sprintf("pub use %s::*;\n", groupName))
 	}
 
@@ -452,12 +502,33 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 		mapped = fmt.Sprintf("PlgVector<%s>", mapped)
 	}
 
+	// Handle parameter context (value parameters)
+	// Object-like types pass by const& (in Rust: &) even when not ref=true
+	if context == TypeContextValue && baseType != "void" {
+		if m.isObjectLikeType(baseType) || isArray {
+			mapped = fmt.Sprintf("&%s", mapped)
+		}
+	}
+
 	// Handle reference context (ref=true parameters)
 	if context == TypeContextRef && baseType != "void" {
 		mapped = fmt.Sprintf("&mut %s", mapped)
 	}
 
 	return mapped, nil
+}
+
+// isObjectLikeType returns true for types that should be passed by reference in parameters
+func (m *RustTypeMapper) isObjectLikeType(baseType string) bool {
+	objectLikeTypes := map[string]bool{
+		"string": true,
+		"any":    true,
+		"vec2":   true,
+		"vec3":   true,
+		"vec4":   true,
+		"mat4x4": true,
+	}
+	return objectLikeTypes[baseType]
 }
 
 func (m *RustTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
@@ -468,8 +539,10 @@ func (m *RustTypeMapper) MapParamType(param *manifest.ParamType, context TypeCon
 			typeName = fmt.Sprintf("PlgVector<%s>", typeName)
 		}
 		// Handle reference
-		if param.Ref && !param.IsArray() {
+		if param.Ref {
 			return fmt.Sprintf("&mut %s", typeName), nil
+		} else if param.IsArray() {
+			return fmt.Sprintf("&%s", typeName), nil
 		}
 		return typeName, nil
 	}
