@@ -136,7 +136,6 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, enumType string) s
 	sb.WriteString("#[repr(")
 	sb.WriteString(underlyingType)
 	sb.WriteString(")]\n")
-	sb.WriteString("#[allow(dead_code)]\n")
 	sb.WriteString("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n")
 	sb.WriteString(fmt.Sprintf("pub enum %s {\n", enum.Name))
 
@@ -289,8 +288,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 		return "", err
 	}
 
-	sb.WriteString("#[inline]\n")
-	sb.WriteString("#[allow(dead_code, non_snake_case)]\n")
+	sb.WriteString("#[allow(non_snake_case)]\n")
 	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", g.SanitizeName(method.Name), params))
 	if retType != "" && retType != "()" {
 		sb.WriteString(" -> ")
@@ -357,7 +355,6 @@ func (g *RustGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) 
 
 	// Ownership enum (if any class has destructor)
 	sb.WriteString("/// Ownership type for RAII wrappers\n")
-	sb.WriteString("#[allow(dead_code)]\n")
 	sb.WriteString("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n")
 	sb.WriteString("pub enum Ownership {\n")
 	sb.WriteString("    Borrowed,\n")
@@ -416,10 +413,20 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 		}
 	}
 
-	// TODO: Generate classes for this group (if enabled) in future PR
-	// if opts.GenerateClasses {
-	//     // Class generation will be implemented later
-	// }
+	// Generate classes for this group (if enabled)
+	if opts.GenerateClasses {
+		for _, class := range m.Classes {
+			classGroup := g.GetGroupName(class.Group)
+			if classGroup == groupName {
+				classCode, err := g.generateClass(m, &class)
+				if err != nil {
+					return "", fmt.Errorf("failed to generate class %s: %w", class.Name, err)
+				}
+				sb.WriteString(classCode)
+				sb.WriteString("\n")
+			}
+		}
+	}
 
 	return sb.String(), nil
 }
@@ -594,4 +601,500 @@ func (m *RustTypeMapper) MapHandleType(class *manifest.Class) (string, string, e
 	}
 
 	return invalidValue, handleType, nil
+}
+
+func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+	var sb strings.Builder
+
+	// Check if this is a handleless class (static methods only)
+	hasHandle := class.HandleType != "" && class.HandleType != "void"
+
+	hasCtor := len(class.Constructors) > 0
+	hasDtor := class.Destructor != nil
+
+	// Validate: handleless classes should only have static methods
+	if !hasHandle {
+		for _, binding := range class.Bindings {
+			if binding.BindSelf {
+				return "", fmt.Errorf("class %s: handleless classes (handleType is void/empty) cannot have instance methods (bindSelf=true for %s)", class.Name, binding.Name)
+			}
+		}
+		if hasCtor || hasDtor {
+			return "", fmt.Errorf("class %s: handleless classes cannot have constructors or destructors", class.Name)
+		}
+	}
+
+	// Map handle type
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
+
+	// Generate error type for this class if it has a handle
+	if hasHandle {
+		sb.WriteString("#[derive(thiserror::Error, Debug)]\n")
+		sb.WriteString(fmt.Sprintf("pub enum %sError {\n", class.Name))
+		sb.WriteString("    #[error(\"empty handle\")]\n")
+		sb.WriteString("    EmptyHandle,\n")
+		sb.WriteString("}\n\n")
+	}
+
+	// Class documentation
+	if class.Description != "" {
+		sb.WriteString(fmt.Sprintf("/// %s\n", class.Description))
+	}
+
+	// Struct definition
+	if hasHandle {
+		if hasDtor {
+			sb.WriteString("#[derive(Debug)]\n")
+		} else {
+			sb.WriteString("#[derive(Debug, Clone, Copy)]\n")
+		}
+	} else {
+		sb.WriteString("#[derive(Debug, Clone, Copy)]\n")
+	}
+
+	sb.WriteString(fmt.Sprintf("pub struct %s {\n", class.Name))
+	if hasHandle {
+		sb.WriteString(fmt.Sprintf("    handle: %s,\n", handleType))
+		if hasDtor {
+			sb.WriteString("    ownership: Ownership,\n")
+		}
+	}
+	sb.WriteString("}\n\n")
+
+	// Only generate handle-related code if class has a handle
+	if hasHandle {
+		sb.WriteString(fmt.Sprintf("impl %s {\n", class.Name))
+
+		// Generate constructors
+		for _, ctorName := range class.Constructors {
+			ctorCode, err := g.generateConstructor(m, class, ctorName)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(ctorCode)
+		}
+
+		// Generate from_raw helper constructor
+		if hasDtor {
+			sb.WriteString(fmt.Sprintf("    /// Construct from raw handle with specified ownership\n"))
+			sb.WriteString(fmt.Sprintf("    pub unsafe fn from_raw(handle: %s, ownership: Ownership) -> Self {\n", handleType))
+			sb.WriteString("        Self { handle, ownership }\n")
+			sb.WriteString("    }\n\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("    /// Construct from raw handle (does not assume ownership)\n"))
+			sb.WriteString(fmt.Sprintf("    pub unsafe fn from_raw(handle: %s) -> Self {\n", handleType))
+			sb.WriteString("        Self { handle }\n")
+			sb.WriteString("    }\n\n")
+		}
+
+		// Generate utility methods
+		utilityCode, err := g.generateUtilityMethods(class, invalidValue, handleType)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(utilityCode)
+
+		// Generate class bindings
+		for _, binding := range class.Bindings {
+			methodCode, err := g.generateBinding(m, class, &binding, invalidValue)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(methodCode)
+		}
+
+		sb.WriteString("}\n\n")
+
+		// Generate Drop trait if destructor exists
+		if hasDtor {
+			dropCode, err := g.generateDropTrait(class, invalidValue)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(dropCode)
+		}
+
+		// Generate comparison traits
+		comparisonCode := g.generateComparisonTraits(class)
+		sb.WriteString(comparisonCode)
+	} else {
+		// For handleless classes, generate static methods
+		sb.WriteString(fmt.Sprintf("impl %s {\n", class.Name))
+		for _, binding := range class.Bindings {
+			methodCode, err := g.generateBinding(m, class, &binding, "")
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(methodCode)
+		}
+		sb.WriteString("}\n\n")
+	}
+
+	return sb.String(), nil
+}
+
+func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
+	// Find the method in the manifest
+	method := FindMethod(m, methodName)
+	if method == nil {
+		return "", fmt.Errorf("constructor method %s not found", methodName)
+	}
+
+	var sb strings.Builder
+
+	// Generate documentation
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("    /// %s\n", method.Description))
+	}
+
+	// Generate parameters documentation
+	for _, param := range method.ParamTypes {
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf("    /// @param %s: %s\n", param.Name, param.Description))
+		}
+	}
+
+	// Generate function signature
+	params, err := g.formatRustParams(method.ParamTypes, true)
+	if err != nil {
+		return "", err
+	}
+
+	funcName := fmt.Sprintf("new")
+	if method.Name != class.Name {
+		// If constructor method name is different from class name, use it as suffix
+		funcName = fmt.Sprintf("new_%s", method.Name)
+	}
+
+	hasDtor := class.Destructor != nil
+	sb.WriteString(fmt.Sprintf("    pub fn %s(%s) -> Result<Self, %sError> {\n", funcName, params, class.Name))
+
+	// Generate call to underlying FFI function
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	if err != nil {
+		return "", err
+	}
+
+	invalidValue, _, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
+
+	sb.WriteString(fmt.Sprintf("        let h = %s(%s);\n", method.FuncName, paramNames))
+	sb.WriteString(fmt.Sprintf("        if h == %s {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("            return Err(%sError::EmptyHandle);\n", class.Name))
+	sb.WriteString("        }\n")
+	sb.WriteString("        Ok(Self {\n")
+	sb.WriteString("            handle: h,\n")
+	if hasDtor {
+		sb.WriteString("            ownership: Ownership::Owned,\n")
+	}
+	sb.WriteString("        })\n")
+	sb.WriteString("    }\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *RustGenerator) generateUtilityMethods(class *manifest.Class, invalidValue, handleType string) (string, error) {
+	var sb strings.Builder
+
+	hasDtor := class.Destructor != nil
+
+	// get method
+	sb.WriteString("    /// Returns the underlying handle\n")
+	sb.WriteString(fmt.Sprintf("    pub fn get(&self) -> %s {\n", handleType))
+	sb.WriteString("        self.handle\n")
+	sb.WriteString("    }\n\n")
+
+	// release method
+	sb.WriteString("    /// Release ownership and return the handle. Wrapper becomes empty & borrowed.\n")
+	sb.WriteString(fmt.Sprintf("    pub fn release(&mut self) -> %s {\n", handleType))
+	sb.WriteString("        let h = self.handle;\n")
+	sb.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
+	if hasDtor {
+		sb.WriteString("        self.ownership = Ownership::Borrowed;\n")
+	}
+	sb.WriteString("        h\n")
+	sb.WriteString("    }\n\n")
+
+	// reset method
+	sb.WriteString("    /// Destroys and resets the handle\n")
+	sb.WriteString("    pub fn reset(&mut self) {\n")
+	if hasDtor {
+		sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
+		sb.WriteString(fmt.Sprintf("            %s(self.handle);\n", *class.Destructor))
+		sb.WriteString("        }\n")
+	}
+	sb.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
+	if hasDtor {
+		sb.WriteString("        self.ownership = Ownership::Borrowed;\n")
+	}
+	sb.WriteString("    }\n\n")
+
+	// swap method
+	sb.WriteString(fmt.Sprintf("    /// Swaps two %s instances\n", class.Name))
+	sb.WriteString(fmt.Sprintf("    pub fn swap(&mut self, other: &mut %s) {\n", class.Name))
+	sb.WriteString("        std::mem::swap(&mut self.handle, &mut other.handle);\n")
+	if hasDtor {
+		sb.WriteString("        std::mem::swap(&mut self.ownership, &mut other.ownership);\n")
+	}
+	sb.WriteString("    }\n\n")
+
+	// is_valid method
+	sb.WriteString("    /// Returns true if handle is valid (not empty)\n")
+	sb.WriteString("    pub fn is_valid(&self) -> bool {\n")
+	sb.WriteString(fmt.Sprintf("        self.handle != %s\n", invalidValue))
+	sb.WriteString("    }\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding, invalidValue string) (string, error) {
+	// Find the underlying method
+	method := FindMethod(m, binding.Method)
+	if method == nil {
+		return "", fmt.Errorf("method %s not found", binding.Method)
+	}
+
+	var sb strings.Builder
+
+	// Determine parameters (skip first if bindSelf)
+	params := method.ParamTypes
+	startIdx := 0
+	if binding.BindSelf && len(params) > 0 {
+		startIdx = 1
+	}
+	methodParams := params[startIdx:]
+
+	// Generate documentation
+	if method.Description != "" {
+		sb.WriteString(fmt.Sprintf("    /// %s\n", method.Description))
+	}
+
+	// Document parameters
+	for _, param := range methodParams {
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf("    /// @param %s: %s\n", param.Name, param.Description))
+		}
+	}
+
+	// Document return type
+	if method.RetType.Type != "void" && method.RetType.Description != "" {
+		sb.WriteString(fmt.Sprintf("    /// @return %s\n", method.RetType.Description))
+	}
+
+	// Generate method signature
+	formattedParams, err := g.formatClassParams(methodParams, binding.ParamAliases)
+	if err != nil {
+		return "", err
+	}
+
+	// Build return type
+	returnSignature := ""
+	hasHandle := class.HandleType != "" && class.HandleType != "void"
+
+	// Determine if method is static
+	if !binding.BindSelf {
+		if method.RetType.Type != "void" {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				returnSignature = fmt.Sprintf(" -> %s", binding.RetAlias.Name)
+			} else {
+				retType, err := g.typeMapper.MapReturnType(&method.RetType)
+				if err != nil {
+					return "", err
+				}
+				returnSignature = fmt.Sprintf(" -> %s", retType)
+			}
+		}
+		sb.WriteString("    #[allow(non_snake_case)]\n")
+		sb.WriteString(fmt.Sprintf("    pub fn %s(%s)%s {\n", binding.Name, formattedParams, returnSignature))
+	} else {
+		selfRef := "&self"
+		// Determine if we need &mut self
+		for i, param := range methodParams {
+			if param.Ref || (i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil && binding.ParamAliases[i].Owner) {
+				selfRef = "&mut self"
+				break
+			}
+		}
+		// Check if method modifies the handle (for ref parameters)
+		if len(params) > 0 && params[0].Ref {
+			selfRef = "&mut self"
+		}
+
+		if method.RetType.Type != "void" {
+			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+				returnSignature = fmt.Sprintf(" -> Result<%s, %sError>", binding.RetAlias.Name, class.Name)
+			} else {
+				retType, err := g.typeMapper.MapReturnType(&method.RetType)
+				if err != nil {
+					return "", err
+				}
+				returnSignature = fmt.Sprintf(" -> Result<%s, %sError>", retType, class.Name)
+			}
+		} else {
+			returnSignature = fmt.Sprintf(" -> Result<(), %sError>", class.Name)
+		}
+		sb.WriteString("    #[allow(non_snake_case)]\n")
+		sb.WriteString(fmt.Sprintf("    pub fn %s(%s", binding.Name, selfRef))
+		if formattedParams != "" {
+			sb.WriteString(fmt.Sprintf(", %s", formattedParams))
+		}
+		sb.WriteString(fmt.Sprintf(")%s {\n", returnSignature))
+	}
+
+	// Generate null check
+	nullPolicy := class.NullPolicy
+	if nullPolicy == "" {
+		nullPolicy = "throw"
+	}
+
+	if binding.BindSelf && hasHandle && nullPolicy == "throw" {
+		sb.WriteString(fmt.Sprintf("        if self.handle == %s {\n", invalidValue))
+		sb.WriteString(fmt.Sprintf("            return Err(%sError::EmptyHandle);\n", class.Name))
+		sb.WriteString("        }\n")
+	}
+
+	// Build call arguments
+	callArgs, err := g.formatClassCallArgs(methodParams, binding, binding.BindSelf)
+	if err != nil {
+		return "", err
+	}
+
+	hasCtor := len(class.Constructors) > 0
+	hasDtor := class.Destructor != nil
+
+	functionName := fmt.Sprintf("crate::%s::%s", m.Name, method.FuncName)
+
+	// Generate call
+	if method.RetType.Type == "void" {
+		sb.WriteString(fmt.Sprintf("        %s(%s);\n", functionName, callArgs))
+		if binding.BindSelf {
+			sb.WriteString("        Ok(())\n")
+		}
+	} else {
+		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
+			ownership := ""
+			if hasDtor || hasCtor {
+				if binding.RetAlias.Owner {
+					ownership = ", Ownership::Owned"
+				} else {
+					ownership = ", Ownership::Borrowed"
+				}
+			}
+			if binding.BindSelf {
+				sb.WriteString(fmt.Sprintf("        Ok(unsafe { %s::from_raw(%s(%s)%s) })\n", binding.RetAlias.Name, functionName, callArgs, ownership))
+			} else {
+				sb.WriteString(fmt.Sprintf("        unsafe { %s::from_raw(%s(%s)%s) }\n", binding.RetAlias.Name, functionName, callArgs, ownership))
+			}
+		} else {
+			if binding.BindSelf {
+				sb.WriteString(fmt.Sprintf("        Ok(%s(%s))\n", functionName, callArgs))
+			} else {
+				sb.WriteString(fmt.Sprintf("        %s(%s)\n", functionName, callArgs))
+			}
+		}
+	}
+
+	sb.WriteString("    }\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *RustGenerator) formatClassParams(params []manifest.ParamType, aliases []*manifest.ParamAlias) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	var parts []string
+	for i, param := range params {
+		name := g.SanitizeName(param.Name)
+
+		var typeName string
+		var err error
+
+		// Check if this parameter has an alias
+		if i < len(aliases) && aliases[i] != nil {
+			if aliases[i].Owner {
+				typeName = aliases[i].Name
+			} else {
+				typeName = fmt.Sprintf("&%s", aliases[i].Name)
+			}
+		} else {
+			typeName, err = g.typeMapper.MapParamType(&param, TypeContextValue)
+			if err != nil {
+				return "", err
+			}
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", name, typeName))
+	}
+
+	return strings.Join(parts, ", "), nil
+}
+
+func (g *RustGenerator) formatClassCallArgs(params []manifest.ParamType, binding *manifest.Binding, bindSelf bool) (string, error) {
+	var parts []string
+
+	// Add self if bindSelf
+	if bindSelf {
+		parts = append(parts, "self.handle")
+	}
+
+	// Add other parameters
+	for i, param := range params {
+		name := g.SanitizeName(param.Name)
+
+		// Check if parameter has alias
+		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
+			if binding.ParamAliases[i].Owner {
+				parts = append(parts, fmt.Sprintf("%s.release()", name))
+			} else {
+				parts = append(parts, fmt.Sprintf("%s.get()", name))
+			}
+		} else {
+			parts = append(parts, name)
+		}
+	}
+
+	return strings.Join(parts, ", "), nil
+}
+
+func (g *RustGenerator) generateDropTrait(class *manifest.Class, invalidValue string) (string, error) {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("impl Drop for %s {\n", class.Name))
+	sb.WriteString("    fn drop(&mut self) {\n")
+	sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("            %s(self.handle);\n", *class.Destructor))
+	sb.WriteString("        }\n")
+	sb.WriteString("    }\n")
+	sb.WriteString("}\n\n")
+
+	return sb.String(), nil
+}
+
+func (g *RustGenerator) generateComparisonTraits(class *manifest.Class) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("impl std::cmp::PartialEq for %s {\n", class.Name))
+	sb.WriteString(fmt.Sprintf("    fn eq(&self, other: &Self) -> bool {\n"))
+	sb.WriteString("        self.handle == other.handle\n")
+	sb.WriteString("    }\n")
+	sb.WriteString("}\n")
+	sb.WriteString(fmt.Sprintf("impl std::cmp::Eq for %s {}\n", class.Name))
+	sb.WriteString(fmt.Sprintf("impl std::cmp::PartialOrd for %s {\n", class.Name))
+	sb.WriteString("    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {\n")
+	sb.WriteString("        (self.handle).partial_cmp(&(other.handle))\n")
+	sb.WriteString("    }\n")
+	sb.WriteString("}\n")
+	sb.WriteString(fmt.Sprintf("impl std::cmp::Ord for %s {\n", class.Name))
+	sb.WriteString("    fn cmp(&self, other: &Self) -> std::cmp::Ordering {\n")
+	sb.WriteString("        (self.handle).cmp(&(other.handle))\n")
+	sb.WriteString("    }\n")
+	sb.WriteString("}\n\n")
+
+	return sb.String()
 }
