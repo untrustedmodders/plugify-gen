@@ -691,7 +691,7 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 		}
 
 		// Generate utility methods
-		utilityCode, err := g.generateUtilityMethods(class, invalidValue, handleType)
+		utilityCode, err := g.generateUtilityMethods(m, class, invalidValue, handleType)
 		if err != nil {
 			return "", err
 		}
@@ -710,7 +710,7 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 
 		// Generate Drop trait if destructor exists
 		if hasDtor {
-			dropCode, err := g.generateDropTrait(class, invalidValue)
+			dropCode, err := g.generateDropTrait(m, class, invalidValue)
 			if err != nil {
 				return "", err
 			}
@@ -783,7 +783,7 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("        let h = %s(%s);\n", method.FuncName, paramNames))
+	sb.WriteString(fmt.Sprintf("        let h = crate::%s::%s(%s);\n", m.Name, method.FuncName, paramNames))
 	sb.WriteString(fmt.Sprintf("        if h == %s {\n", invalidValue))
 	sb.WriteString(fmt.Sprintf("            return Err(%sError::EmptyHandle);\n", class.Name))
 	sb.WriteString("        }\n")
@@ -798,7 +798,7 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 	return sb.String(), nil
 }
 
-func (g *RustGenerator) generateUtilityMethods(class *manifest.Class, invalidValue, handleType string) (string, error) {
+func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *manifest.Class, invalidValue, handleType string) (string, error) {
 	var sb strings.Builder
 
 	hasDtor := class.Destructor != nil
@@ -825,7 +825,7 @@ func (g *RustGenerator) generateUtilityMethods(class *manifest.Class, invalidVal
 	sb.WriteString("    pub fn reset(&mut self) {\n")
 	if hasDtor {
 		sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
-		sb.WriteString(fmt.Sprintf("            %s(self.handle);\n", *class.Destructor))
+		sb.WriteString(fmt.Sprintf("            crate::%s::%s(self.handle);\n", m.Name, *class.Destructor))
 		sb.WriteString("        }\n")
 	}
 	sb.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
@@ -1062,13 +1062,13 @@ func (g *RustGenerator) formatClassCallArgs(params []manifest.ParamType, binding
 	return strings.Join(parts, ", "), nil
 }
 
-func (g *RustGenerator) generateDropTrait(class *manifest.Class, invalidValue string) (string, error) {
+func (g *RustGenerator) generateDropTrait(m *manifest.Manifest, class *manifest.Class, invalidValue string) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("impl Drop for %s {\n", class.Name))
 	sb.WriteString("    fn drop(&mut self) {\n")
 	sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
-	sb.WriteString(fmt.Sprintf("            %s(self.handle);\n", *class.Destructor))
+	sb.WriteString(fmt.Sprintf("            crate::%s::%s(self.handle);\n", m.Name, *class.Destructor))
 	sb.WriteString("        }\n")
 	sb.WriteString("    }\n")
 	sb.WriteString("}\n\n")
