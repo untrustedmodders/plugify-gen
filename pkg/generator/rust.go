@@ -68,70 +68,15 @@ func (g *RustGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (
 }
 
 func (g *RustGenerator) generateEnums(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
-			enumCode := g.generateEnum(method.RetType.Enum, method.RetType.Type)
-			sb.WriteString(enumCode)
-			sb.WriteString("\n")
-			g.CacheEnum(method.RetType.Enum.Name)
-		}
-
-		// Check return type prototype
-		if method.RetType.Prototype != nil {
-			g.processPrototypeEnums(method.RetType.Prototype, &sb)
-		}
-
-		// Check parameters
-		for _, param := range method.ParamTypes {
-			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumCode := g.generateEnum(param.Enum, param.Type)
-				sb.WriteString(enumCode)
-				sb.WriteString("\n")
-				g.CacheEnum(param.Enum.Name)
-			}
-
-			// Check nested prototypes
-			if param.Prototype != nil {
-				g.processPrototypeEnums(param.Prototype, &sb)
-			}
-		}
-	}
-
-	return sb.String(), nil
+	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *RustGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
-	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
-		enumCode := g.generateEnum(proto.RetType.Enum, proto.RetType.Type)
-		sb.WriteString(enumCode)
-		sb.WriteString("\n")
-		g.CacheEnum(proto.RetType.Enum.Name)
-	}
-
-	for _, param := range proto.ParamTypes {
-		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-			enumCode := g.generateEnum(param.Enum, param.Type)
-			sb.WriteString(enumCode)
-			sb.WriteString("\n")
-			g.CacheEnum(param.Enum.Name)
-		}
-		if param.Prototype != nil {
-			g.processPrototypeEnums(param.Prototype, sb)
-		}
-	}
-}
-
-func (g *RustGenerator) generateEnum(enum *manifest.EnumType, enumType string) string {
+func (g *RustGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("/// %s\n", enum.Description))
 	}
-
-	underlyingType, _ := g.typeMapper.MapType(enumType, TypeContextReturn, false)
 
 	sb.WriteString("#[repr(")
 	sb.WriteString(underlyingType)
@@ -148,37 +93,11 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, enumType string) s
 
 	sb.WriteString("}\n")
 	sb.WriteString(fmt.Sprintf("vector_enum_traits!(%s, %s);\n", enum.Name, underlyingType))
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (g *RustGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
-			delegateCode, err := g.generateDelegate(method.RetType.Prototype)
-			if err != nil {
-				return "", err
-			}
-			sb.WriteString(delegateCode)
-			g.CacheDelegate(method.RetType.Prototype.Name)
-		}
-
-		// Check parameters
-		for _, param := range method.ParamTypes {
-			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
-				delegateCode, err := g.generateDelegate(param.Prototype)
-				if err != nil {
-					return "", err
-				}
-				sb.WriteString(delegateCode)
-				g.CacheDelegate(param.Prototype.Name)
-			}
-		}
-	}
-
-	return sb.String(), nil
+	return g.CollectDelegates(m, g.generateDelegate)
 }
 
 func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {

@@ -12,6 +12,7 @@ type GolangGenerator struct {
 	*BaseGenerator
 	typeMapper *GolangTypeMapper
 	usedNames  map[string]bool
+	usedLocals map[string]int
 }
 
 // NewGolangGenerator creates a new Go generator
@@ -80,115 +81,50 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 
 // generateEnums generates enum definitions
 func (g *GolangGenerator) generateEnums(m *manifest.Manifest) (string, error) {
+	return g.CollectEnums(m, g.generateEnum)
+}
+
+func (g *GolangGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
 	var sb strings.Builder
-	localUsed := make(map[string]int)
 
-	var processEnum func(enum *manifest.EnumType, enumType string) error
-	processEnum = func(enum *manifest.EnumType, enumType string) error {
-		if g.IsEnumCached(enum.Name) {
-			return nil
-		}
-		g.CacheEnum(enum.Name)
-
-		goType, err := g.typeMapper.MapType(enumType, TypeContextValue, false)
-		if err != nil {
-			return err
-		}
-
-		// Add enum description
-		if enum.Description != "" {
-			sb.WriteString(fmt.Sprintf("// %s - %s\n", enum.Name, enum.Description))
-		}
-
-		sb.WriteString(fmt.Sprintf("type %s = %s\n\n", enum.Name, goType))
-		sb.WriteString("const (\n")
-
-		for i, value := range enum.Values {
-			rawName := value.Name
-			if rawName == "" {
-				rawName = fmt.Sprintf("Value%d", i)
-			}
-
-			baseName := g.SanitizeName(rawName)
-
-			// Track local duplicates
-			localUsed[baseName]++
-			isLocalDup := localUsed[baseName] > 1
-
-			candidate := enum.Name + "_" + baseName
-
-			// Resolve conflicts
-			if g.usedNames[candidate] || isLocalDup {
-				candidate = g.resolveConflict(candidate)
-			}
-
-			g.usedNames[candidate] = true
-
-			// Add value description
-			if value.Description != "" {
-				sb.WriteString(fmt.Sprintf("\t// %s - %s\n", rawName, value.Description))
-			}
-
-			sb.WriteString(fmt.Sprintf("\t%s %s = %d\n", candidate, enum.Name, value.Value))
-		}
-
-		sb.WriteString(")\n")
-		return nil
+	// Add enum description
+	if enum.Description != "" {
+		sb.WriteString(fmt.Sprintf("// %s - %s\n", enum.Name, enum.Description))
 	}
 
-	var processPrototype func(proto *manifest.Prototype) error
-	processPrototype = func(proto *manifest.Prototype) error {
-		// Check return type
-		if proto.RetType.Type != "void" && proto.RetType.Enum != nil {
-			if err := processEnum(proto.RetType.Enum, proto.RetType.Type); err != nil {
-				return err
-			}
+	sb.WriteString(fmt.Sprintf("type %s = %s\n\n", enum.Name, underlyingType))
+	sb.WriteString("const (\n")
+
+	for i, value := range enum.Values {
+		rawName := value.Name
+		if rawName == "" {
+			rawName = fmt.Sprintf("Value%d", i)
 		}
-		// Check parameters
-		for _, param := range proto.ParamTypes {
-			if param.Enum != nil {
-				if err := processEnum(param.Enum, param.Type); err != nil {
-					return err
-				}
-			}
-			if param.Prototype != nil {
-				if err := processPrototype(param.Prototype); err != nil {
-					return err
-				}
-			}
+
+		baseName := g.SanitizeName(rawName)
+
+		// Track local duplicates
+		g.usedLocals[baseName]++
+		isLocalDup := g.usedLocals[baseName] > 1
+
+		candidate := enum.Name + "_" + baseName
+
+		// Resolve conflicts
+		if g.usedNames[candidate] || isLocalDup {
+			candidate = g.resolveConflict(candidate)
 		}
-		return nil
+
+		g.usedNames[candidate] = true
+
+		// Add value description
+		if value.Description != "" {
+			sb.WriteString(fmt.Sprintf("\t// %s - %s\n", rawName, value.Description))
+		}
+
+		sb.WriteString(fmt.Sprintf("\t%s %s = %d\n", candidate, enum.Name, value.Value))
 	}
 
-	// Process all methods
-	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Type != "void" && method.RetType.Enum != nil {
-			if err := processEnum(method.RetType.Enum, method.RetType.Type); err != nil {
-				return "", err
-			}
-		}
-		// Check return type prototype
-		if method.RetType.Prototype != nil {
-			if err := processPrototype(method.RetType.Prototype); err != nil {
-				return "", err
-			}
-		}
-		// Check parameters
-		for _, param := range method.ParamTypes {
-			if param.Enum != nil {
-				if err := processEnum(param.Enum, param.Type); err != nil {
-					return "", err
-				}
-			}
-			if param.Prototype != nil {
-				if err := processPrototype(param.Prototype); err != nil {
-					return "", err
-				}
-			}
-		}
-	}
-
+	sb.WriteString(")\n")
 	return sb.String(), nil
 }
 
@@ -210,62 +146,38 @@ func (g *GolangGenerator) resolveConflict(name string) string {
 
 // generateDelegates generates delegate (function type) definitions
 func (g *GolangGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
+	return g.CollectDelegates(m, g.generateDelegate)
+}
+
+func (g *GolangGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
-	var processPrototype func(proto *manifest.Prototype) error
-	processPrototype = func(proto *manifest.Prototype) error {
-		if g.IsDelegateCached(proto.Name) {
-			return nil
-		}
-		g.CacheDelegate(proto.Name)
+	// Add delegate description
+	if proto.Description != "" {
+		sb.WriteString(fmt.Sprintf("// %s - %s\n", proto.Name, proto.Description))
+	}
 
-		// Add delegate description
-		if proto.Description != "" {
-			sb.WriteString(fmt.Sprintf("// %s - %s\n", proto.Name, proto.Description))
-		}
+	// Generate parameter list
+	params, err := g.formatParams(proto.ParamTypes, true)
+	if err != nil {
+		return "", err
+	}
 
-		// Generate parameter list
-		params, err := g.formatParams(proto.ParamTypes, true)
+	// Generate return type
+	returnType := ""
+	if proto.RetType.Type != "void" {
+		returnType, err = g.typeMapper.MapReturnType(&proto.RetType)
 		if err != nil {
-			return err
-		}
-
-		// Generate return type
-		returnType := ""
-		if proto.RetType.Type != "void" {
-			returnType, err = g.typeMapper.MapReturnType(&proto.RetType)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Generate function type
-		sb.WriteString(fmt.Sprintf("type %s func(%s)", proto.Name, params))
-		if returnType != "" {
-			sb.WriteString(fmt.Sprintf(" %s", returnType))
-		}
-		sb.WriteString("\n\n")
-
-		return nil
-	}
-
-	// Process all methods
-	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Type != "void" && method.RetType.Prototype != nil {
-			if err := processPrototype(method.RetType.Prototype); err != nil {
-				return "", err
-			}
-		}
-		// Check parameters
-		for _, param := range method.ParamTypes {
-			if param.Prototype != nil {
-				if err := processPrototype(param.Prototype); err != nil {
-					return "", err
-				}
-			}
+			return "", err
 		}
 	}
+
+	// Generate function type
+	sb.WriteString(fmt.Sprintf("type %s func(%s)", proto.Name, params))
+	if returnType != "" {
+		sb.WriteString(fmt.Sprintf(" %s", returnType))
+	}
+	sb.WriteString("\n\n")
 
 	return sb.String(), nil
 }

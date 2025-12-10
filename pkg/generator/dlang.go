@@ -71,36 +71,12 @@ func (g *DlangGenerator) generateEnumsFile(m *manifest.Manifest) (string, error)
 	sb.WriteString("\tOwned = true\n")
 	sb.WriteString("}\n\n")
 
-	// Collect all enums
-	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
-			enumCode := g.generateEnum(method.RetType.Enum, method.RetType.Type)
-			sb.WriteString(enumCode)
-			sb.WriteString("\n")
-			g.CacheEnum(method.RetType.Enum.Name)
-		}
-
-		// Check parameters
-		for _, param := range method.ParamTypes {
-			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumCode := g.generateEnum(param.Enum, param.Type)
-				sb.WriteString(enumCode)
-				sb.WriteString("\n")
-				g.CacheEnum(param.Enum.Name)
-			}
-
-			// Check nested prototypes
-			if param.Prototype != nil {
-				g.processPrototypeEnums(param.Prototype, &sb)
-			}
-		}
-
-		// Check return type prototype
-		if method.RetType.Prototype != nil {
-			g.processPrototypeEnums(method.RetType.Prototype, &sb)
-		}
+	// Use the base generator's CollectEnums helper
+	enumsCode, err := g.CollectEnums(m, g.generateEnum)
+	if err != nil {
+		return "", fmt.Errorf("generating enums file: %w", err)
 	}
+	sb.WriteString(enumsCode)
 
 	return sb.String(), nil
 }
@@ -122,33 +98,12 @@ func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName st
 	return sb.String()
 }
 
-func (g *DlangGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
-	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
-		sb.WriteString(g.generateEnum(proto.RetType.Enum, proto.RetType.Type))
-		sb.WriteString("\n")
-		g.CacheEnum(proto.RetType.Enum.Name)
-	}
-
-	for _, param := range proto.ParamTypes {
-		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-			sb.WriteString(g.generateEnum(param.Enum, param.Type))
-			sb.WriteString("\n")
-			g.CacheEnum(param.Enum.Name)
-		}
-		if param.Prototype != nil {
-			g.processPrototypeEnums(param.Prototype, sb)
-		}
-	}
-}
-
-func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, enumType string) string {
+func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("/// %s\n", enum.Description))
 	}
-
-	underlyingType, _ := g.typeMapper.MapType(enumType, TypeContextReturn, false)
 
 	sb.WriteString(fmt.Sprintf("enum %s : %s {\n", enum.Name, underlyingType))
 
@@ -175,7 +130,7 @@ func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, enumType string) 
 	}
 
 	sb.WriteString("}\n")
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, groupName string, opts *GeneratorOptions) (string, error) {

@@ -180,6 +180,12 @@ const (
 	TypeContextCast                      // Cast expression
 )
 
+// EnumGenerator is a callback function that generates code for an enum type
+// It takes an enum and returns the generated code as a string
+type EnumGenerator func(*manifest.EnumType, string) (string, error)
+
+type DelegateGenerator func(*manifest.Prototype) (string, error)
+
 // ParameterFormat specifies what format parameters should be generated in
 type ParameterFormat int
 
@@ -329,4 +335,172 @@ func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest
 		}
 	}
 	return false
+}
+
+// ProcessPrototypeEnums recursively processes a prototype to find and generate all enum types.
+// This helper eliminates duplicated enum processing logic across all generators.
+//
+// Parameters:
+//   - proto: The prototype to process
+//   - sb: String builder to write generated enum code to
+//   - enumGen: Callback function that generates code for an enum type
+//
+// The function:
+//  1. Checks the return type for enums
+//  2. Recursively processes nested prototypes in the return type
+//  3. Checks all parameters for enums
+//  4. Recursively processes nested prototypes in parameters
+//
+// Enums are automatically cached to prevent duplicates.
+func (g *BaseGenerator) ProcessPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder, enumGen EnumGenerator) error {
+	// Check return type for enum
+	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
+		enumType, err := g.typeMapper.MapType(proto.RetType.Type, TypeContextReturn, false)
+		if err != nil {
+			return err
+		}
+		enumCode, err := enumGen(proto.RetType.Enum, enumType)
+		if err != nil {
+			return err
+		}
+		sb.WriteString(enumCode)
+		sb.WriteString("\n")
+		g.CacheEnum(proto.RetType.Enum.Name)
+	}
+
+	// Recursively process return type prototype
+	if proto.RetType.Prototype != nil {
+		err := g.ProcessPrototypeEnums(proto.RetType.Prototype, sb, enumGen)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Check parameters for enums and nested prototypes
+	for _, param := range proto.ParamTypes {
+		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
+			enumType, err := g.typeMapper.MapType(param.Type, TypeContextReturn, false)
+			if err != nil {
+				return err
+			}
+			enumCode, err := enumGen(param.Enum, enumType)
+			if err != nil {
+				return err
+			}
+			sb.WriteString(enumCode)
+			sb.WriteString("\n")
+			g.CacheEnum(param.Enum.Name)
+		}
+		if param.Prototype != nil {
+			err := g.ProcessPrototypeEnums(param.Prototype, sb, enumGen)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// CollectEnums collects and generates all enum types from methods in a manifest.
+// This helper eliminates duplicated enum collection logic across all generators.
+//
+// Parameters:
+//   - m: The manifest containing methods to process
+//   - enumGen: Callback function that generates code for an enum type
+//
+// Returns:
+//   - Generated code for all enums as a string
+//
+// The function processes:
+//  1. Method return types for enums
+//  2. Method return type prototypes (recursively)
+//  3. Method parameters for enums
+//  4. Method parameter prototypes (recursively)
+//
+// Enums are automatically cached to prevent duplicates.
+func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator) (string, error) {
+	var sb strings.Builder
+
+	for _, method := range m.Methods {
+		// Check return type for enum
+		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
+			enumType, err := g.typeMapper.MapType(method.RetType.Type, TypeContextReturn, false)
+			if err != nil {
+				return "", err
+			}
+			enumCode, err := enumGen(method.RetType.Enum, enumType)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(enumCode)
+			sb.WriteString("\n")
+			g.CacheEnum(method.RetType.Enum.Name)
+		}
+
+		// Process return type prototype
+		if method.RetType.Prototype != nil {
+			err := g.ProcessPrototypeEnums(method.RetType.Prototype, &sb, enumGen)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		// Check each parameter for enum
+		for _, param := range method.ParamTypes {
+			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
+				enumType, err := g.typeMapper.MapType(method.RetType.Type, TypeContextReturn, false)
+				if err != nil {
+					return "", err
+				}
+				enumCode, err := enumGen(param.Enum, enumType)
+				if err != nil {
+					return "", err
+				}
+				sb.WriteString(enumCode)
+				sb.WriteString("\n")
+				g.CacheEnum(param.Enum.Name)
+			}
+
+			// Process nested prototypes
+			if param.Prototype != nil {
+				err := g.ProcessPrototypeEnums(param.Prototype, &sb, enumGen)
+				if err != nil {
+					return "", err
+				}
+			}
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func (g *BaseGenerator) CollectDelegates(m *manifest.Manifest, delegateGenerator DelegateGenerator) (string, error) {
+	var sb strings.Builder
+
+	for _, method := range m.Methods {
+		// Check return type
+		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
+			delegateCode, err := delegateGenerator(method.RetType.Prototype)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(delegateCode)
+			g.CacheDelegate(method.RetType.Prototype.Name)
+		}
+
+		// Check parameters
+		for _, param := range method.ParamTypes {
+			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
+				delegateCode, err := delegateGenerator(param.Prototype)
+				if err != nil {
+					return "", err
+				}
+				sb.WriteString(delegateCode)
+				g.CacheDelegate(param.Prototype.Name)
+			}
+		}
+	}
+
+	return sb.String(), nil
 }

@@ -69,61 +69,11 @@ func (g *LuaGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 }
 
 func (g *LuaGenerator) generateEnums(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
-			enumCode := g.generateEnum(method.RetType.Enum)
-			sb.WriteString(enumCode)
-			sb.WriteString("\n")
-			g.CacheEnum(method.RetType.Enum.Name)
-		}
-
-		// Check parameters
-		for _, param := range method.ParamTypes {
-			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumCode := g.generateEnum(param.Enum)
-				sb.WriteString(enumCode)
-				sb.WriteString("\n")
-				g.CacheEnum(param.Enum.Name)
-			}
-
-			// Check nested prototypes
-			if param.Prototype != nil {
-				g.processPrototypeEnums(param.Prototype, &sb)
-			}
-		}
-
-		// Check return type prototype
-		if method.RetType.Prototype != nil {
-			g.processPrototypeEnums(method.RetType.Prototype, &sb)
-		}
-	}
-
-	return sb.String(), nil
+	// Use the base generator's CollectEnums helper
+	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *LuaGenerator) processPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder) {
-	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
-		sb.WriteString(g.generateEnum(proto.RetType.Enum))
-		sb.WriteString("\n")
-		g.CacheEnum(proto.RetType.Enum.Name)
-	}
-
-	for _, param := range proto.ParamTypes {
-		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-			sb.WriteString(g.generateEnum(param.Enum))
-			sb.WriteString("\n")
-			g.CacheEnum(param.Enum.Name)
-		}
-		if param.Prototype != nil {
-			g.processPrototypeEnums(param.Prototype, sb)
-		}
-	}
-}
-
-func (g *LuaGenerator) generateEnum(enum *manifest.EnumType) string {
+func (g *LuaGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	// Enum comment
@@ -145,7 +95,7 @@ func (g *LuaGenerator) generateEnum(enum *manifest.EnumType) string {
 
 	sb.WriteString("}\n")
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (g *LuaGenerator) generateClasses(m *manifest.Manifest) (string, error) {
