@@ -337,6 +337,49 @@ func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest
 	return false
 }
 
+// FindDependentGroups finds other groups that this group depends on (methods used by classes)
+func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupName string) map[string]bool {
+	groupName := g.GetGroupName(currentGroupName)
+	// Pre-index methods for O(1) lookup.
+	methodToGroup := make(map[string]string, len(m.Methods))
+	for i := range m.Methods {
+		method := &m.Methods[i]
+		methodGroup := g.GetGroupName(method.Group)
+
+		methodToGroup[method.Name] = methodGroup
+		//methodToGroup[method.FuncName] = methodGroup
+	}
+
+	referencedGroups := make(map[string]bool)
+
+	for _, class := range m.Classes {
+		classGroup := g.GetGroupName(class.Group)
+		if classGroup != groupName {
+			continue
+		}
+
+		for _, ctorName := range class.Constructors {
+			if refGroup, ok := methodToGroup[ctorName]; ok && refGroup != classGroup {
+				referencedGroups[refGroup] = true
+			}
+		}
+
+		if class.Destructor != nil {
+			if refGroup, ok := methodToGroup[*class.Destructor]; ok && refGroup != classGroup {
+				referencedGroups[refGroup] = true
+			}
+		}
+
+		for _, binding := range class.Bindings {
+			if refGroup, ok := methodToGroup[binding.Method]; ok && refGroup != classGroup {
+				referencedGroups[refGroup] = true
+			}
+		}
+	}
+
+	return referencedGroups
+}
+
 // ProcessPrototypeEnums recursively processes a prototype to find and generate all enum types.
 // This helper eliminates duplicated enum processing logic across all generators.
 //

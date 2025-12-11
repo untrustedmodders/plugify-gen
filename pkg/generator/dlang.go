@@ -39,6 +39,13 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) 
 	}
 	files[fmt.Sprintf("source/imported/%s/enums.d", moduleName)] = enumsCode
 
+	// Secondly, generate delegates file
+	delegateCode, err := g.generateDelegatesFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating delegates file: %w", err)
+	}
+	files[fmt.Sprintf("source/imported/%s/delegates.d", moduleName)] = delegateCode
+
 	// Generate package.d file with all public imports
 	packageCode := g.generatePackageFile(m, moduleName, groups)
 	files[fmt.Sprintf("source/imported/%s/package.d", moduleName)] = packageCode
@@ -72,13 +79,37 @@ func (g *DlangGenerator) generateEnumsFile(m *manifest.Manifest) (string, error)
 	sb.WriteString("}\n\n")
 
 	// Use the base generator's CollectEnums helper
-	enumsCode, err := g.CollectEnums(m, g.generateEnum)
+	enumsCode, err := g.generateEnums(m)
 	if err != nil {
 		return "", fmt.Errorf("generating enums file: %w", err)
 	}
 	sb.WriteString(enumsCode)
 
 	return sb.String(), nil
+}
+
+func (g *DlangGenerator) generateEnums(m *manifest.Manifest) (string, error) {
+	return g.CollectEnums(m, g.generateEnum)
+}
+
+func (g *DlangGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	moduleName := strings.ToLower(m.Name)
+	sb.WriteString(fmt.Sprintf("module imported.%s.delegates;\n\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n\n", moduleName))
+
+	delegatesCode, err := g.generateDelegates(m)
+	if err != nil {
+		return "", fmt.Errorf("generating delegates file: %w", err)
+	}
+	sb.WriteString(delegatesCode)
+
+	return sb.String(), nil
+}
+
+func (g *DlangGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
+	return g.CollectDelegates(m, g.generateDelegate)
 }
 
 func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName string, groups map[string]bool) string {
@@ -89,6 +120,7 @@ func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName st
 
 	// Always import enums first
 	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.delegates;\n", moduleName))
 
 	// Import all group modules
 	for groupName := range groups {
@@ -136,61 +168,6 @@ func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, underlyingType st
 func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
-	// Collect methods for this group first (needed to determine imports)
-	var methods []*manifest.Method
-	delegates := make(map[string]*manifest.Prototype)
-	methodToGroup := make(map[string]string) // Track which group each method belongs to
-
-	for i := range m.Methods {
-		method := &m.Methods[i]
-		methodGroup := g.GetGroupName(method.Group)
-
-		// Track all methods and their groups
-		methodToGroup[method.Name] = methodGroup
-		methodToGroup[method.FuncName] = methodGroup
-
-		if methodGroup == groupName {
-			methods = append(methods, method)
-
-			// Collect delegates from parameters
-			for _, param := range method.ParamTypes {
-				if param.Prototype != nil {
-					delegates[param.Prototype.Name] = param.Prototype
-				}
-			}
-			// Collect delegates from return type
-			if method.RetType.Prototype != nil {
-				delegates[method.RetType.Prototype.Name] = method.RetType.Prototype
-			}
-		}
-	}
-
-	// Collect groups referenced by classes in this group
-	referencedGroups := make(map[string]bool)
-	for _, class := range m.Classes {
-		classGroup := g.GetGroupName(class.Group)
-		if classGroup == groupName {
-			// Check constructors
-			for _, ctorName := range class.Constructors {
-				if refGroup, ok := methodToGroup[ctorName]; ok && refGroup != groupName {
-					referencedGroups[refGroup] = true
-				}
-			}
-			// Check destructor
-			if class.Destructor != nil {
-				if refGroup, ok := methodToGroup[*class.Destructor]; ok && refGroup != groupName {
-					referencedGroups[refGroup] = true
-				}
-			}
-			// Check bindings
-			for _, binding := range class.Bindings {
-				if refGroup, ok := methodToGroup[binding.Method]; ok && refGroup != groupName {
-					referencedGroups[refGroup] = true
-				}
-			}
-		}
-	}
-
 	// Module declaration
 	sb.WriteString(fmt.Sprintf("module imported.%s.%s;\n\n", moduleName, groupName))
 
@@ -198,36 +175,37 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	sb.WriteString("import plugify.internals;\n")
 	sb.WriteString("public import plugify;\n")
 	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.delegates;\n", moduleName))
 
-	// Import other group modules if classes reference methods from them
-	if len(referencedGroups) > 0 {
-		for refGroup := range referencedGroups {
-			sb.WriteString(fmt.Sprintf("import imported.%s.%s;\n", moduleName, refGroup))
+	// Find which other groups this group depends on (for method calls from classes)
+	if len(m.Classes) > 0 {
+		dependentGroups := g.FindDependentGroups(m, groupName)
+		if len(dependentGroups) > 0 {
+			for depGroup := range dependentGroups {
+				sb.WriteString(fmt.Sprintf("import imported.%s.%s;\n", moduleName, depGroup))
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("\n")
 	}
 
 	sb.WriteString("import std.exception : enforce;\n")
 	sb.WriteString("import std.algorithm.mutation : swap;\n\n")
 
-	// Generate delegate aliases
-	for _, proto := range delegates {
-		delegateCode, err := g.generateDelegate(proto)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(delegateCode)
-		sb.WriteString("\n")
-	}
+	// Collect methods for this group first (needed to determine imports)
+	var methods []*manifest.Method
 
-	// Generate wrapper functions
-	for _, method := range methods {
-		wrapperCode, err := g.generateMethodWrapper(method)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+	// Generate methods for this group
+	for _, method := range m.Methods {
+		methodGroup := g.GetGroupName(method.Group)
+		if methodGroup == groupName {
+			methodCode, err := g.generateMethodWrapper(&method)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+			}
+			sb.WriteString(methodCode)
+			sb.WriteString("\n")
+			methods = append(methods, &method)
 		}
-		sb.WriteString(wrapperCode)
-		sb.WriteString("\n")
 	}
 
 	// Generate classes for this group (if enabled)
