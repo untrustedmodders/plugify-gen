@@ -202,67 +202,57 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 	}
 
 	// Generate parameters in Rust format (name: type)
-	params, err := g.formatRustParams(method.ParamTypes, true)
+	paramTypes, err := g.formatRustParams(method.ParamTypes, true)
 	if err != nil {
 		return "", err
 	}
 
-	sb.WriteString("#[allow(dead_code, non_snake_case)]\n")
-	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", g.SanitizeName(method.Name), params))
-	if retType != "" && retType != "()" {
-		sb.WriteString(" -> ")
-		sb.WriteString(retType)
+	// Call function - just use parameter names
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	if err != nil {
+		return "", err
 	}
-	sb.WriteString(" {\n")
 
-	// Generate function body using RwLock<Option<fn>> pattern
+	// Generate function body using lazy static pattern
+	// For extern "C" fn, we don't need names, just types
 	funcTypeParams, err := g.formatRustParams(method.ParamTypes, false)
 	if err != nil {
 		return "", err
 	}
 
-	sb.WriteString("    static __FUNC: RwLock<Option<unsafe extern \"C\" fn(")
-	sb.WriteString(funcTypeParams)
-	sb.WriteString(")")
+	// Generate wrapper function
+	sb.WriteString(fmt.Sprintf("#[allow(dead_code, non_snake_case)]\n"))
+	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", g.SanitizeName(method.Name), paramTypes))
 	if retType != "" && retType != "()" {
 		sb.WriteString(" -> ")
 		sb.WriteString(retType)
 	}
-	sb.WriteString(">> = RwLock::new(None);\n\n")
-
-	// Fast path: try read lock first
-	sb.WriteString("    if let Ok(__read) = __FUNC.read() {\n")
-	sb.WriteString("        if let Some(__func) = *__read {\n")
-	sb.WriteString("            return unsafe { __func(")
-	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
-	if err != nil {
-		return "", err
-	}
-	sb.WriteString(paramNames)
-	sb.WriteString(") };\n")
-	sb.WriteString("        }\n")
-	sb.WriteString("    }\n\n")
-
-	// Cleanup function
-	sb.WriteString("    extern \"C\" fn __cleanup() {\n")
-	sb.WriteString("        if let Ok(mut __write) = __FUNC.write() {\n")
-	sb.WriteString("            *__write = None;\n")
-	sb.WriteString("        }\n")
-	sb.WriteString("    }\n\n")
-
-	// Slow path: initialize
-	sb.WriteString("    let mut __write = __FUNC.write().unwrap();\n")
-	sb.WriteString("    if __write.is_none() {\n")
-	sb.WriteString(fmt.Sprintf("        let __name = \"%s.%s\";\n", pluginName, method.Name))
-	sb.WriteString("        let __ptr = get_method_ptr(__name.as_ptr(), __name.len(), __cleanup);\n")
-	sb.WriteString("        *__write = Some(unsafe { std::mem::transmute(__ptr) });\n")
-	sb.WriteString("    }\n\n")
-
-	// Call the function
-	sb.WriteString("    unsafe { __write.unwrap()(")
+	sb.WriteString(" {\n")
+	sb.WriteString("    unsafe { ")
+	sb.WriteString(fmt.Sprintf("%s_%s", pluginName, method.Name))
+	sb.WriteString(".expect(\"")
+	sb.WriteString(method.Name)
+	sb.WriteString(" function was not found\")(")
 	sb.WriteString(paramNames)
 	sb.WriteString(") }\n")
 	sb.WriteString("}\n")
+
+	// pub type FuncType = unsafe extern "C" fn(params...) -> ret;
+	sb.WriteString(fmt.Sprintf("pub type _%s = unsafe extern \"C\" fn(%s)",
+		method.Name,
+		funcTypeParams,
+	))
+
+	if retType != "" && retType != "()" {
+		sb.WriteString(" -> ")
+		sb.WriteString(retType)
+	}
+
+	sb.WriteString(";\n")
+
+	// Generate static extern function pointer
+	sb.WriteString(fmt.Sprintf("#[allow(dead_code, non_upper_case_globals)]\n#[unsafe(no_mangle)]\n"))
+	sb.WriteString(fmt.Sprintf("pub static mut %s_%s: Option<_%s> = None;\n", pluginName, method.Name, method.Name))
 
 	return sb.String(), nil
 }

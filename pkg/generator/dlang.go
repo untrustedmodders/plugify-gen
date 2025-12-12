@@ -191,20 +191,21 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	sb.WriteString("import std.exception : enforce;\n")
 	sb.WriteString("import std.algorithm.mutation : swap;\n\n")
 
-	// Collect methods for this group first (needed to determine imports)
-	var methods []*manifest.Method
-
 	// Generate methods for this group
 	for _, method := range m.Methods {
 		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethodWrapper(&method)
+			methodCode, err := g.generateMethodWrapper(&method, m.Name)
 			if err != nil {
-				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
+				return "", fmt.Errorf("failed to generate method wrapper %s: %w", method.Name, err)
 			}
 			sb.WriteString(methodCode)
+			aliasCode, err := g.generateMethodAlias(&method, m.Name)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate method alias %s: %w", method.Name, err)
+			}
+			sb.WriteString(aliasCode)
 			sb.WriteString("\n")
-			methods = append(methods, &method)
 		}
 	}
 
@@ -222,25 +223,6 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 			}
 		}
 	}
-
-	// Generate private section with function pointers
-	sb.WriteString("private {\n")
-	for _, method := range methods {
-		aliasCode, err := g.generateMethodAlias(method)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(aliasCode)
-	}
-	sb.WriteString("}\n\n")
-
-	// Generate static initialization
-	sb.WriteString("shared static this() {\n")
-	for _, method := range methods {
-		sb.WriteString(fmt.Sprintf("\t__%s = cast(_%s)_MethodPointer(\"%s.%s\");\n",
-			method.Name, method.Name, moduleName, method.FuncName))
-	}
-	sb.WriteString("}\n")
 
 	return sb.String(), nil
 }
@@ -308,7 +290,7 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 	return sb.String(), nil
 }
 
-func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method) (string, error) {
+func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginName string) (string, error) {
 	var sb strings.Builder
 
 	// Documentation
@@ -339,7 +321,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method) (string,
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("%s %s(", retType, method.Name))
+	sb.WriteString(fmt.Sprintf("%s %s(", retType, g.SanitizeName(method.Name)))
 
 	// Parameters
 	params := []string{}
@@ -405,7 +387,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method) (string,
 		sb.WriteString("return ")
 	}
 
-	sb.WriteString(fmt.Sprintf("__%s(", method.Name))
+	sb.WriteString(fmt.Sprintf("%s_%s(", pluginName, method.Name))
 	sb.WriteString(strings.Join(callArgs, ", "))
 	sb.WriteString(")")
 
@@ -422,7 +404,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method) (string,
 	return sb.String(), nil
 }
 
-func (g *DlangGenerator) generateMethodAlias(method *manifest.Method) (string, error) {
+func (g *DlangGenerator) generateMethodAlias(method *manifest.Method, pluginName string) (string, error) {
 	var sb strings.Builder
 
 	// Get C ABI return type
@@ -434,7 +416,7 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method) (string, e
 		cRetType = strings.TrimPrefix(cRetType, "ref ")
 	}
 
-	sb.WriteString(fmt.Sprintf("\talias _%s = extern (C) %s function(", method.Name, cRetType))
+	sb.WriteString(fmt.Sprintf("alias _%s = extern (C) %s function(", method.Name, cRetType))
 
 	// Parameters
 	params := []string{}
@@ -466,7 +448,7 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method) (string, e
 	sb.WriteString(strings.Join(params, ", "))
 	sb.WriteString(");\n")
 
-	sb.WriteString(fmt.Sprintf("\t__gshared _%s __%s;\n", method.Name, method.Name))
+	sb.WriteString(fmt.Sprintf("export __gshared _%s %s_%s = null;\n", method.Name, pluginName, method.Name))
 
 	return sb.String(), nil
 }

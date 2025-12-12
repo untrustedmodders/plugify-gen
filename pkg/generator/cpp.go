@@ -158,39 +158,34 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 		return "", err
 	}
 
-	params, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("  inline %s %s(%s) {\n", retType, g.SanitizeName(method.Name), params))
-
-	// Generate function body
-	// Type alias for function pointer
+	// Generate type alias for function pointer
 	funcTypeParams, err := FormatParameters(method.ParamTypes, ParamFormatTypes, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
-	sb.WriteString(fmt.Sprintf("    using %sFn = %s (*)(%s);\n", method.Name, retType, funcTypeParams))
-	sb.WriteString(fmt.Sprintf("    static %sFn __func = nullptr;\n", method.Name))
-	sb.WriteString("    static std::once_flag __flag;\n")
-	sb.WriteString("    std::call_once(__flag, [] {\n")
-	sb.WriteString(fmt.Sprintf("      __func = reinterpret_cast<%sFn>(plg::GetMethodPtr(\"%s.%s\", [] { __flag.~once_flag(); new (&__flag) std::once_flag(); }));\n", method.Name, pluginName, method.Name))
+	sb.WriteString(fmt.Sprintf("using _%s = %s (*)(%s);\n", method.Name, retType, funcTypeParams))
 
-	sb.WriteString("    });\n")
-	// Call function
+	// Generate exported wrapper function
 	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
 
+	sb.WriteString(fmt.Sprintf("\nexport %s %s(%s) {\n", retType, g.SanitizeName(method.Name), formattedParams))
 	if method.RetType.Type == "void" {
-		sb.WriteString(fmt.Sprintf("    __func(%s);\n", paramNames))
+		sb.WriteString(fmt.Sprintf("  return %s_%s(%s);\n", pluginName, method.Name, paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("    return __func(%s);\n", paramNames))
+		sb.WriteString(fmt.Sprintf("  return %s_%s(%s);\n", pluginName, method.Name, paramNames))
 	}
+	sb.WriteString("}\n\n")
 
-	sb.WriteString("  }\n")
+	// Generate global exported function pointer
+	sb.WriteString(fmt.Sprintf("export API _%s %s_%s = nullptr;\n\n", method.Name, pluginName, method.Name))
 
 	return sb.String(), nil
 }
@@ -427,12 +422,12 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	sb.WriteString("     */\n")
 
 	// Generate constructor signature
-	params, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("    explicit %s(%s)\n", class.Name, params))
+	sb.WriteString(fmt.Sprintf("    explicit %s(%s)\n", class.Name, formattedParams))
 
 	// Generate initialization list
 	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)

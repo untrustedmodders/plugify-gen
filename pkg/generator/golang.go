@@ -59,13 +59,6 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	}
 	files[fmt.Sprintf("%s/shared.h", m.Name)] = sharedHCode
 
-	// Generate .h file for enums
-	sharedGoCode, err := g.generateSharedGoFile(m)
-	if err != nil {
-		return nil, fmt.Errorf("generating shared file: %w", err)
-	}
-	files[fmt.Sprintf("%s/shared.go", m.Name)] = sharedGoCode
-
 	// Generate group-specific files
 	for groupName := range groups {
 		goCode, err := g.generateGroupGoFile(m, groupName, opts)
@@ -79,6 +72,12 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 			return nil, fmt.Errorf("failed to generate group %s header: %w", groupName, err)
 		}
 		files[fmt.Sprintf("%s/%s.h", m.Name, groupName)] = hCode
+
+		cCode, err := g.generateGroupCFile(m, groupName, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate group %s impl: %w", groupName, err)
+		}
+		files[fmt.Sprintf("%s/%s.c", m.Name, groupName)] = cCode
 	}
 
 	result := &GeneratorResult{
@@ -226,7 +225,7 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method) (string, error
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("func %s(%s)", method.Name, params))
+	sb.WriteString(fmt.Sprintf("func %s(%s)", g.SanitizeName(method.Name), params))
 	if returnType != "" {
 		sb.WriteString(fmt.Sprintf(" %s", returnType))
 	}
@@ -622,34 +621,42 @@ func (g *GolangGenerator) generateHMethod(method *manifest.Method, pluginName st
 		return "", err
 	}
 
-	// Generate function
-	fnTypedef := fmt.Sprintf("typedef %s (*%s_Fn)(%s);\n", retType, method.Name, paramTypes)
+	/// Generate extern pointer
+	sb.WriteString(fmt.Sprintf("extern %s (*%s_%s)(%s);\n\n",
+		retType, pluginName, method.Name, paramTypes))
 
-	sb.WriteString(fnTypedef)
-	sb.WriteString(fmt.Sprintf("static %s_Fn %s_func = NULL;\n", method.Name, method.Name))
-	sb.WriteString(fmt.Sprintf("static once_flag %s_flag = ONCE_FLAG_INIT;\n\n", method.Name))
-
-	sb.WriteString(fmt.Sprintf("static void %s_cleanup() {\n", method.Name))
-	sb.WriteString(fmt.Sprintf("\t%s_flag = ONCE_FLAG_INIT;\n", method.Name))
-	sb.WriteString("}\n\n")
-
-	sb.WriteString(fmt.Sprintf("static void %s_init() {\n", method.Name))
-	sb.WriteString(fmt.Sprintf("\t%s_func = (%s_Fn)Plugify_GetMethodPtr(\n", method.Name, method.Name))
-	sb.WriteString(fmt.Sprintf("\t\t\"%s.%s\",\n", pluginName, method.Name))
-	sb.WriteString(fmt.Sprintf("\t\t%s_cleanup\n", method.Name))
-	sb.WriteString("\t);\n")
-	sb.WriteString("}\n\n")
-
-	sb.WriteString(fmt.Sprintf("%s %s(%s) {\n", retType, method.Name, paramList))
-	sb.WriteString(fmt.Sprintf("\tcall_once(&%s_flag, %s_init);\n", method.Name, method.Name))
+	// Generate wrapper function
+	sb.WriteString(fmt.Sprintf("static %s %s(%s) {\n", retType, method.Name, paramList))
 
 	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("\treturn %s_func(%s);\n", method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("\treturn %s_%s(%s);\n", pluginName, method.Name, paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("\t%s_func(%s);\n", method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("\t%s_%s(%s);\n", pluginName, method.Name, paramNames))
 	}
 
 	sb.WriteString("}\n")
+
+	return sb.String(), nil
+}
+
+// generateCMethod generates a single C method in the .c file
+func (g *GolangGenerator) generateCMethod(method *manifest.Method, pluginName string) (string, error) {
+	var sb strings.Builder
+
+	// Get return type
+	retType := "void"
+	if method.RetType.Type != "void" {
+		retType = g.typeMapper.GetCType(method.RetType.Type, false, true)
+	}
+
+	paramTypes, err := g.formatCParams(method.ParamTypes, false)
+	if err != nil {
+		return "", err
+	}
+
+	/// Generate impl pointer
+	sb.WriteString(fmt.Sprintf("PLUGIFY_EXPORT %s (*%s_%s)(%s) = NULL;\n\n",
+		retType, pluginName, method.Name, paramTypes))
 
 	return sb.String(), nil
 }
@@ -1325,21 +1332,10 @@ func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, err
 	sb.WriteString("#include <stdint.h>\n")
 	sb.WriteString("#include <stdbool.h>\n\n")
 
-	// Call once staff
-	sb.WriteString("#ifdef _WIN32\n")
-	sb.WriteString("#include <windows.h>\n\n")
-	sb.WriteString("typedef INIT_ONCE once_flag;\n")
-	sb.WriteString("#define ONCE_FLAG_INIT INIT_ONCE_STATIC_INIT\n\n")
-	sb.WriteString("static BOOL CALLBACK call_once_adapter(PINIT_ONCE once, PVOID param, PVOID *context) {\n")
-	sb.WriteString("\tvoid (*func)() = (void (*)())param;\n")
-	sb.WriteString("\tfunc();\n")
-	sb.WriteString("\treturn TRUE;\n")
-	sb.WriteString("}\n\n")
-	sb.WriteString("static void call_once(once_flag *flag, void (*func)()) {\n")
-	sb.WriteString("\tInitOnceExecuteOnce(flag, call_once_adapter, (PVOID)func, NULL);\n")
-	sb.WriteString("}\n")
+	sb.WriteString("#if defined(_WIN32)\n")
+	sb.WriteString("#define PLUGIFY_EXPORT __declspec(dllexport)\n")
 	sb.WriteString("#else\n")
-	sb.WriteString("#include <threads.h>\n")
+	sb.WriteString("#define PLUGIFY_EXPORT __attribute__((visibility(\"default\")))\n")
 	sb.WriteString("#endif\n\n")
 
 	// Type definitions
@@ -1376,28 +1372,6 @@ func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, err
 	sb.WriteString("#endif\n")
 	sb.WriteString("\tuint8_t current;\n")
 	sb.WriteString("} Variant;\n\n")
-
-	// External declarations
-	sb.WriteString("extern void* Plugify_GetMethodPtr(const char* method, void(*cleanup));\n")
-	sb.WriteString("extern void Plugify_GetMethodPtr2(const char* method, void** address);\n\n")
-
-	return sb.String(), nil
-}
-
-// generateSharedGoFile generates the .go file for types
-func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	// Package declaration
-	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
-
-	// CGo comment block
-	sb.WriteString("/*\n")
-	sb.WriteString("#cgo CFLAGS: -std=c23\n")
-	sb.WriteString("#cgo !windows LDFLAGS: -lpthread\n")
-	sb.WriteString("#include <shared.h>\n")
-	sb.WriteString("*/\n")
-	sb.WriteString("import \"C\"\n")
 
 	return sb.String(), nil
 }
@@ -1483,6 +1457,29 @@ func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName str
 		methodGroup := g.GetGroupName(method.Group)
 		if methodGroup == groupName {
 			methodCode, err := g.generateHMethod(&method, m.Name)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(methodCode)
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String(), nil
+}
+
+// generateGroupCFile generates a group-specific C impl file
+func (g *GolangGenerator) generateGroupCFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
+	var sb strings.Builder
+
+	// Header guard and includes
+	sb.WriteString("#include \"shared.h\"\n\n")
+
+	// Method implementations for this group
+	for _, method := range m.Methods {
+		methodGroup := g.GetGroupName(method.Group)
+		if methodGroup == groupName {
+			methodCode, err := g.generateCMethod(&method, m.Name)
 			if err != nil {
 				return "", err
 			}

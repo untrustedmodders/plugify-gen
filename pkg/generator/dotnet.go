@@ -354,17 +354,19 @@ func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, e
 		innerIndent = indent + "\t"
 	}
 
+	methodName := g.SanitizeName(method.Name)
+
 	// Function call
 	callParams := g.generateCallParameters(method)
 	if isObjectReturn {
-		sb.WriteString(fmt.Sprintf("%s__retVal_native = __%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
+		sb.WriteString(fmt.Sprintf("%s__retVal_native = __%s(%s);\n", innerIndent, methodName, callParams))
 	} else if hasTry || declareRetVal {
-		sb.WriteString(fmt.Sprintf("%s__retVal = __%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
+		sb.WriteString(fmt.Sprintf("%s__retVal = __%s(%s);\n", innerIndent, methodName, callParams))
 	} else if hasReturn {
 		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
-		sb.WriteString(fmt.Sprintf("%s%s __retVal = __%s(%s);\n", innerIndent, retTypeName, g.SanitizeName(method.Name), callParams))
+		sb.WriteString(fmt.Sprintf("%s%s __retVal = __%s(%s);\n", innerIndent, retTypeName, methodName, callParams))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s__%s(%s);\n", innerIndent, g.SanitizeName(method.Name), callParams))
+		sb.WriteString(fmt.Sprintf("%s__%s(%s);\n", innerIndent, methodName, callParams))
 	}
 
 	// Unmarshal return value and ref parameters
@@ -838,12 +840,12 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 
 	if hasDtor {
 		sb.WriteString(fmt.Sprintf(" : this(%s.%s(%s), Ownership.Owned)\n",
-			m.Name, g.SanitizeName(method.Name), strings.Join(paramNames, ", ")))
+			m.Name, methodName, strings.Join(paramNames, ", ")))
 		sb.WriteString("\t\t{\n\t\t}\n\n")
 	} else {
 		sb.WriteString("\n\t\t{\n")
 		sb.WriteString(fmt.Sprintf("\t\t\tthis.handle = %s.%s(%s);\n",
-			m.Name, g.SanitizeName(method.Name), strings.Join(paramNames, ", ")))
+			m.Name, methodName, strings.Join(paramNames, ", ")))
 		sb.WriteString("\t\t}\n\n")
 	}
 
@@ -959,6 +961,8 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
+	methodName := g.SanitizeName(method.Name)
+
 	// Generate method body for SafeHandle classes (need ref counting)
 	if hasDtor && binding.BindSelf {
 		sb.WriteString("\t\t\tbool success = false;\n")
@@ -972,7 +976,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		// Generate call
 		if method.RetType.Type == "void" {
 			sb.WriteString(fmt.Sprintf("\t\t\t\t%s.%s(%s);\n",
-				m.Name, g.SanitizeName(method.Name), callArgs))
+				m.Name, methodName, callArgs))
 		} else {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 				ownership := ""
@@ -984,10 +988,10 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 					}
 				}
 				sb.WriteString(fmt.Sprintf("\t\t\t\treturn new %s(%s.%s(%s)%s);\n",
-					binding.RetAlias.Name, m.Name, g.SanitizeName(method.Name), callArgs, ownership))
+					binding.RetAlias.Name, m.Name, methodName, callArgs, ownership))
 			} else {
 				sb.WriteString(fmt.Sprintf("\t\t\t\treturn %s.%s(%s);\n",
-					m.Name, g.SanitizeName(method.Name), callArgs))
+					m.Name, methodName, callArgs))
 			}
 		}
 
@@ -1003,7 +1007,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		// Generate call
 		if method.RetType.Type == "void" {
 			sb.WriteString(fmt.Sprintf("\t\t\t%s.%s(%s);\n",
-				m.Name, g.SanitizeName(method.Name), callArgs))
+				m.Name, methodName, callArgs))
 		} else {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 				ownership := ""
@@ -1015,10 +1019,10 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 					}
 				}
 				sb.WriteString(fmt.Sprintf("\t\t\treturn new %s(%s.%s(%s)%s);\n",
-					binding.RetAlias.Name, m.Name, g.SanitizeName(method.Name), callArgs, ownership))
+					binding.RetAlias.Name, m.Name, methodName, callArgs, ownership))
 			} else {
 				sb.WriteString(fmt.Sprintf("\t\t\treturn %s.%s(%s);\n",
-					m.Name, g.SanitizeName(method.Name), callArgs))
+					m.Name, methodName, callArgs))
 			}
 		}
 	}
