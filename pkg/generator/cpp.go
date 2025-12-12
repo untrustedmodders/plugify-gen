@@ -173,8 +173,11 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	}
 	sb.WriteString(fmt.Sprintf("    using %sFn = %s (*)(%s);\n", method.Name, retType, funcTypeParams))
 	sb.WriteString(fmt.Sprintf("    static %sFn __func = nullptr;\n", method.Name))
-	sb.WriteString(fmt.Sprintf("    if (__func == nullptr) plg::GetMethodPtr2(\"%s.%s\", reinterpret_cast<void**>(&__func));\n", pluginName, method.Name))
+	sb.WriteString("    static std::once_flag __flag;\n")
+	sb.WriteString("    std::call_once(__flag, [] {\n")
+	sb.WriteString(fmt.Sprintf("      __func = reinterpret_cast<%sFn>(plg::GetMethodPtr(\"%s.%s\", [] { __flag.~once_flag(); new (&__flag) std::once_flag(); }));\n", method.Name, pluginName, method.Name))
 
+	sb.WriteString("    });\n")
 	// Call function
 	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
@@ -251,7 +254,10 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	// Only generate handle-related code if class has a handle
 	if hasHandle {
 		// Default constructor
-		sb.WriteString(fmt.Sprintf("    %s() = default;\n\n", class.Name))
+		hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
+		if !hasDefaultConstructor {
+			sb.WriteString(fmt.Sprintf("    %s() = default;\n\n", class.Name))
+		}
 
 		// Generate constructors from methods
 		for _, ctorName := range class.Constructors {
@@ -630,7 +636,8 @@ func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 
 	// Header guard and includes
 	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include <cstdint>\n\n")
+	sb.WriteString("#include <cstdint>\n")
+	sb.WriteString("#include <mutex>\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 
 	// Namespace
@@ -893,7 +900,8 @@ func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string, er
 		return "", "", err
 	}
 
-	if class.HandleType == "ptr64" && invalidValue == "0" {
+	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
+	if class.HandleType == "ptr64" && nullptr {
 		invalidValue = "nullptr"
 	} else if invalidValue == "" {
 		invalidValue = "{}"

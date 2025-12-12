@@ -22,6 +22,7 @@ func NewGolangGenerator() *GolangGenerator {
 		BaseGenerator: NewBaseGenerator("golang", mapper, GoReservedWords),
 		typeMapper:    mapper,
 		usedNames:     make(map[string]bool),
+		usedLocals:    make(map[string]int),
 	}
 }
 
@@ -29,6 +30,7 @@ func NewGolangGenerator() *GolangGenerator {
 func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
 	g.usedNames = make(map[string]bool)
+	g.usedLocals = make(map[string]int)
 	opts = EnsureOptions(opts)
 
 	files := make(map[string]string)
@@ -56,6 +58,13 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 		return nil, fmt.Errorf("generating shared header: %w", err)
 	}
 	files[fmt.Sprintf("%s/shared.h", m.Name)] = sharedHCode
+
+	// Generate .h file for enums
+	sharedGoCode, err := g.generateSharedGoFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating shared file: %w", err)
+	}
+	files[fmt.Sprintf("%s/shared.go", m.Name)] = sharedGoCode
 
 	// Generate group-specific files
 	for groupName := range groups {
@@ -614,16 +623,30 @@ func (g *GolangGenerator) generateHMethod(method *manifest.Method, pluginName st
 	}
 
 	// Generate function
-	sb.WriteString(fmt.Sprintf("static %s %s(%s) {\n", retType, method.Name, paramList))
-	sb.WriteString(fmt.Sprintf("\ttypedef %s (*%sFn)(%s);\n", retType, method.Name, paramTypes))
-	sb.WriteString(fmt.Sprintf("\tstatic %sFn __func = NULL;\n", method.Name))
-	sb.WriteString(fmt.Sprintf("\tif (__func == NULL) Plugify_GetMethodPtr2(\"%s.%s\", (void**)&__func);\n",
-		pluginName, method.Name))
+	fnTypedef := fmt.Sprintf("typedef %s (*%s_Fn)(%s);\n", retType, method.Name, paramTypes)
+
+	sb.WriteString(fnTypedef)
+	sb.WriteString(fmt.Sprintf("static %s_Fn %s_func = NULL;\n", method.Name, method.Name))
+	sb.WriteString(fmt.Sprintf("static once_flag %s_flag = ONCE_FLAG_INIT;\n\n", method.Name))
+
+	sb.WriteString(fmt.Sprintf("static void %s_cleanup() {\n", method.Name))
+	sb.WriteString(fmt.Sprintf("\t%s_flag = ONCE_FLAG_INIT;\n", method.Name))
+	sb.WriteString("}\n\n")
+
+	sb.WriteString(fmt.Sprintf("static void %s_init() {\n", method.Name))
+	sb.WriteString(fmt.Sprintf("\t%s_func = (%s_Fn)Plugify_GetMethodPtr(\n", method.Name, method.Name))
+	sb.WriteString(fmt.Sprintf("\t\t\"%s.%s\",\n", pluginName, method.Name))
+	sb.WriteString(fmt.Sprintf("\t\t%s_cleanup\n", method.Name))
+	sb.WriteString("\t);\n")
+	sb.WriteString("}\n\n")
+
+	sb.WriteString(fmt.Sprintf("%s %s(%s) {\n", retType, method.Name, paramList))
+	sb.WriteString(fmt.Sprintf("\tcall_once(&%s_flag, %s_init);\n", method.Name, method.Name))
 
 	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("\treturn __func(%s);\n", paramNames))
+		sb.WriteString(fmt.Sprintf("\treturn %s_func(%s);\n", method.Name, paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("\t__func(%s);\n", paramNames))
+		sb.WriteString(fmt.Sprintf("\t%s_func(%s);\n", method.Name, paramNames))
 	}
 
 	sb.WriteString("}\n")
@@ -1302,6 +1325,23 @@ func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, err
 	sb.WriteString("#include <stdint.h>\n")
 	sb.WriteString("#include <stdbool.h>\n\n")
 
+	// Call once staff
+	sb.WriteString("#ifdef _WIN32\n")
+	sb.WriteString("#include <windows.h>\n\n")
+	sb.WriteString("typedef INIT_ONCE once_flag;\n")
+	sb.WriteString("#define ONCE_FLAG_INIT INIT_ONCE_STATIC_INIT\n\n")
+	sb.WriteString("static BOOL CALLBACK call_once_adapter(PINIT_ONCE once, PVOID param, PVOID *context) {\n")
+	sb.WriteString("\tvoid (*func)() = (void (*)())param;\n")
+	sb.WriteString("\tfunc();\n")
+	sb.WriteString("\treturn TRUE;\n")
+	sb.WriteString("}\n\n")
+	sb.WriteString("static void call_once(once_flag *flag, void (*func)()) {\n")
+	sb.WriteString("\tInitOnceExecuteOnce(flag, call_once_adapter, (PVOID)func, NULL);\n")
+	sb.WriteString("}\n")
+	sb.WriteString("#else\n")
+	sb.WriteString("#include <threads.h>\n")
+	sb.WriteString("#endif\n\n")
+
 	// Type definitions
 	sb.WriteString("typedef struct String { char* data; size_t size; size_t cap; } String;\n")
 	sb.WriteString("typedef struct Vector { void* begin; void* end; void* capacity; } Vector;\n")
@@ -1338,8 +1378,26 @@ func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, err
 	sb.WriteString("} Variant;\n\n")
 
 	// External declarations
-	sb.WriteString("extern void* Plugify_GetMethodPtr(const char* methodName);\n")
-	sb.WriteString("extern void Plugify_GetMethodPtr2(const char* methodName, void** addressDest);\n\n")
+	sb.WriteString("extern void* Plugify_GetMethodPtr(const char* method, void(*cleanup));\n")
+	sb.WriteString("extern void Plugify_GetMethodPtr2(const char* method, void** address);\n\n")
+
+	return sb.String(), nil
+}
+
+// generateSharedGoFile generates the .go file for types
+func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	// CGo comment block
+	sb.WriteString("/*\n")
+	sb.WriteString("#cgo CFLAGS: -std=c23\n")
+	sb.WriteString("#cgo !windows LDFLAGS: -lpthread\n")
+	sb.WriteString("#include <shared.h>\n")
+	sb.WriteString("*/\n")
+	sb.WriteString("import \"C\"\n")
 
 	return sb.String(), nil
 }

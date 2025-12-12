@@ -156,8 +156,11 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		}
 	} else {
 		// Default constructor if no constructors specified
-		sb.WriteString("    def __init__(self) -> None:\n")
-		sb.WriteString("        ...\n\n")
+		hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
+		if !hasDefaultConstructor {
+			sb.WriteString("    def __init__(self) -> None:\n")
+			sb.WriteString("        ...\n\n")
+		}
 
 		// Main constructor if no constructors and destructors specified
 		if !hasDtor {

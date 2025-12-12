@@ -326,6 +326,17 @@ func FindMethod(m *manifest.Manifest, name string) *manifest.Method {
 	return nil
 }
 
+// HasConstructorWithNoParam checks if any constructor has exactly 0 parameter
+func (g *BaseGenerator) HasConstructorWithNoParam(m *manifest.Manifest, class *manifest.Class) bool {
+	for _, ctorName := range class.Constructors {
+		method := FindMethod(m, ctorName)
+		if method != nil && len(method.ParamTypes) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // HasConstructorWithSingleHandleParam checks if any constructor has exactly 1 parameter of the handle type
 func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest, class *manifest.Class) bool {
 	for _, ctorName := range class.Constructors {

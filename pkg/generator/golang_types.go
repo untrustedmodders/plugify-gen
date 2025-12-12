@@ -473,7 +473,8 @@ func (m *GolangTypeMapper) MapHandleType(class *manifest.Class) (string, string,
 		return "", "", err
 	}
 
-	if class.HandleType == "ptr64" && invalidValue == "0" {
+	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
+	if class.HandleType == "ptr64" && nullptr {
 		invalidValue = "0"
 	} else if invalidValue == "" {
 		invalidValue = "{}"

@@ -653,6 +653,12 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 
 	// Only generate handle-related code if class has a handle
 	if hasHandle {
+		// Default constructor
+		hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
+		if !hasDefaultConstructor {
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s() {}\n", class.Name))
+		}
+
 		// Generate constructors
 		for _, ctorName := range class.Constructors {
 			ctorCode, err := g.generateClassConstructor(m, class, ctorName)

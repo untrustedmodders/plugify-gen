@@ -368,7 +368,10 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 		}
 	} else {
 		// Default constructor if no constructors specified
-		sb.WriteString("    constructor();\n\n")
+		hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
+		if !hasDefaultConstructor {
+			sb.WriteString("    constructor();\n\n")
+		}
 
 		// Main constructor if no constructors and destructors specified
 		if !hasDtor {

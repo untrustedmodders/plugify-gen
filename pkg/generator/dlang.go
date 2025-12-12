@@ -584,6 +584,13 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 		sb.WriteString(fmt.Sprintf("\tprivate %s _handle = %s;\n", handleType, invalidValue))
 		if hasDtor {
 			sb.WriteString("\tprivate Ownership _ownership = Ownership.Borrowed;\n\n")
+
+			// Default constructor
+			hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
+			if !hasDefaultConstructor {
+				sb.WriteString("\tthis()\n\n")
+			}
+
 			// Disable default postblit to prevent accidental copies
 			sb.WriteString("\t/// Disable default postblit to prevent accidental copies\n")
 			sb.WriteString("\t@disable this(this);\n\n")
@@ -1070,7 +1077,8 @@ func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string, 
 		return "", "", err
 	}
 
-	if class.HandleType == "ptr64" && invalidValue == "0" {
+	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
+	if class.HandleType == "ptr64" && nullptr {
 		invalidValue = "null"
 	} else if invalidValue == "" {
 		invalidValue = fmt.Sprintf("%s.init", handleType)

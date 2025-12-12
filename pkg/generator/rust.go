@@ -215,40 +215,53 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 	}
 	sb.WriteString(" {\n")
 
-	// Generate function body using lazy static pattern
-	// For extern "C" fn, we don't need names, just types
+	// Generate function body using RwLock<Option<fn>> pattern
 	funcTypeParams, err := g.formatRustParams(method.ParamTypes, false)
 	if err != nil {
 		return "", err
 	}
 
-	sb.WriteString("    unsafe {\n")
-	sb.WriteString(fmt.Sprintf("        static FUNC: OnceLock<unsafe extern \"C\" fn(%s)", funcTypeParams))
+	sb.WriteString("    static __FUNC: RwLock<Option<unsafe extern \"C\" fn(")
+	sb.WriteString(funcTypeParams)
+	sb.WriteString(")")
 	if retType != "" && retType != "()" {
 		sb.WriteString(" -> ")
 		sb.WriteString(retType)
 	}
-	sb.WriteString("> = OnceLock::new();\n")
+	sb.WriteString(">> = RwLock::new(None);\n\n")
 
-	sb.WriteString("        let __func = FUNC.get_or_init(|| {\n")
-	sb.WriteString(fmt.Sprintf("            let name = \"%s.%s\";\n", pluginName, method.Name))
-	sb.WriteString("            let ptr = get_method_ptr(name.as_ptr(), name.len());\n")
-	sb.WriteString("            std::mem::transmute(ptr)\n")
-	sb.WriteString("        });\n")
-
-	// Call function - just use parameter names
+	// Fast path: try read lock first
+	sb.WriteString("    if let Ok(__read) = __FUNC.read() {\n")
+	sb.WriteString("        if let Some(__func) = *__read {\n")
+	sb.WriteString("            return unsafe { __func(")
 	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
+	sb.WriteString(paramNames)
+	sb.WriteString(") };\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("    }\n\n")
 
-	if method.RetType.Type == "void" {
-		sb.WriteString(fmt.Sprintf("        __func(%s);\n", paramNames))
-	} else {
-		sb.WriteString(fmt.Sprintf("        __func(%s)\n", paramNames))
-	}
+	// Cleanup function
+	sb.WriteString("    extern \"C\" fn __cleanup() {\n")
+	sb.WriteString("        if let Ok(mut __write) = __FUNC.write() {\n")
+	sb.WriteString("            *__write = None;\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("    }\n\n")
 
-	sb.WriteString("    }\n")
+	// Slow path: initialize
+	sb.WriteString("    let mut __write = __FUNC.write().unwrap();\n")
+	sb.WriteString("    if __write.is_none() {\n")
+	sb.WriteString(fmt.Sprintf("        let __name = \"%s.%s\";\n", pluginName, method.Name))
+	sb.WriteString("        let __ptr = get_method_ptr(__name.as_ptr(), __name.len(), __cleanup);\n")
+	sb.WriteString("        *__write = Some(unsafe { std::mem::transmute(__ptr) });\n")
+	sb.WriteString("    }\n\n")
+
+	// Call the function
+	sb.WriteString("    unsafe { __write.unwrap()(")
+	sb.WriteString(paramNames)
+	sb.WriteString(") }\n")
 	sb.WriteString("}\n")
 
 	return sb.String(), nil
@@ -311,7 +324,7 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
 	sb.WriteString("#[allow(unused_imports)]\n")
-	sb.WriteString("use std::sync::OnceLock;\n")
+	sb.WriteString("use std::sync::RwLock;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::enums::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
@@ -513,7 +526,8 @@ func (m *RustTypeMapper) MapHandleType(class *manifest.Class) (string, string, e
 		return "", "", err
 	}
 
-	if class.HandleType == "ptr64" && invalidValue == "0" {
+	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
+	if class.HandleType == "ptr64" && nullptr {
 		invalidValue = "0"
 	} else if invalidValue == "" {
 		invalidValue = "Default::default()"

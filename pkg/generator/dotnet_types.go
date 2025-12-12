@@ -304,7 +304,8 @@ func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string,
 		return "", "", err
 	}
 
-	if class.HandleType == "ptr64" && invalidValue == "0" {
+	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
+	if class.HandleType == "ptr64" && nullptr {
 		invalidValue = "nint.Zero"
 	} else if invalidValue == "" {
 		invalidValue = "default"

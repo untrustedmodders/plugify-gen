@@ -143,8 +143,11 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		}
 	} else {
 		// Default constructor if no constructors specified
-		sb.WriteString(fmt.Sprintf("--- Constructor for %s\n", class.Name))
-		sb.WriteString(fmt.Sprintf("function %s.new() end\n\n", class.Name))
+		hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
+		if !hasDefaultConstructor {
+			sb.WriteString(fmt.Sprintf("--- Constructor for %s\n", class.Name))
+			sb.WriteString(fmt.Sprintf("function %s.new() end\n\n", class.Name))
+		}
 
 		// Main constructor if no constructors and destructors specified
 		if !hasDtor {
