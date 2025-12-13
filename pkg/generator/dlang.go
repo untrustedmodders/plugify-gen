@@ -387,7 +387,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 		sb.WriteString("return ")
 	}
 
-	sb.WriteString(fmt.Sprintf("%s_%s(", pluginName, method.Name))
+	sb.WriteString(fmt.Sprintf("__%s_%s(", pluginName, method.Name))
 	sb.WriteString(strings.Join(callArgs, ", "))
 	sb.WriteString(")")
 
@@ -448,7 +448,7 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method, pluginName
 	sb.WriteString(strings.Join(params, ", "))
 	sb.WriteString(");\n")
 
-	sb.WriteString(fmt.Sprintf("export __gshared _%s %s_%s = null;\n", method.Name, pluginName, method.Name))
+	sb.WriteString(fmt.Sprintf("export __gshared _%s __%s_%s = null;\n", method.Name, pluginName, method.Name))
 
 	return sb.String(), nil
 }

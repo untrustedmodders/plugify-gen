@@ -503,7 +503,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 		// Check each parameter for enum
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumType, err := g.typeMapper.MapType(method.RetType.Type, TypeContextReturn, false)
+				enumType, err := g.typeMapper.MapType(param.Type, TypeContextReturn, false)
 				if err != nil {
 					return "", err
 				}

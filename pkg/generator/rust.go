@@ -229,7 +229,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 	}
 	sb.WriteString(" {\n")
 	sb.WriteString("    unsafe { ")
-	sb.WriteString(fmt.Sprintf("%s_%s", pluginName, method.Name))
+	sb.WriteString(fmt.Sprintf("__%s_%s", pluginName, method.Name))
 	sb.WriteString(".expect(\"")
 	sb.WriteString(method.Name)
 	sb.WriteString(" function was not found\")(")
@@ -252,7 +252,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 
 	// Generate static extern function pointer
 	sb.WriteString(fmt.Sprintf("#[allow(dead_code, non_upper_case_globals)]\n#[unsafe(no_mangle)]\n"))
-	sb.WriteString(fmt.Sprintf("pub static mut %s_%s: Option<_%s> = None;\n", pluginName, method.Name, method.Name))
+	sb.WriteString(fmt.Sprintf("pub static mut __%s_%s: Option<_%s> = None;\n", pluginName, method.Name, method.Name))
 
 	return sb.String(), nil
 }

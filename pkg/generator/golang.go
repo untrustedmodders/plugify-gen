@@ -622,16 +622,16 @@ func (g *GolangGenerator) generateHMethod(method *manifest.Method, pluginName st
 	}
 
 	/// Generate extern pointer
-	sb.WriteString(fmt.Sprintf("extern %s (*%s_%s)(%s);\n\n",
+	sb.WriteString(fmt.Sprintf("extern %s (*__%s_%s)(%s);\n\n",
 		retType, pluginName, method.Name, paramTypes))
 
 	// Generate wrapper function
 	sb.WriteString(fmt.Sprintf("static %s %s(%s) {\n", retType, method.Name, paramList))
 
 	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("\treturn %s_%s(%s);\n", pluginName, method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("\treturn __%s_%s(%s);\n", pluginName, method.Name, paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("\t%s_%s(%s);\n", pluginName, method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("\t__%s_%s(%s);\n", pluginName, method.Name, paramNames))
 	}
 
 	sb.WriteString("}\n")
@@ -655,7 +655,7 @@ func (g *GolangGenerator) generateCMethod(method *manifest.Method, pluginName st
 	}
 
 	/// Generate impl pointer
-	sb.WriteString(fmt.Sprintf("PLUGIFY_EXPORT %s (*%s_%s)(%s) = NULL;\n\n",
+	sb.WriteString(fmt.Sprintf("PLUGIFY_EXPORT %s (*__%s_%s)(%s) = NULL;\n\n",
 		retType, pluginName, method.Name, paramTypes))
 
 	return sb.String(), nil

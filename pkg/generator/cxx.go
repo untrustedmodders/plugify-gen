@@ -7,20 +7,20 @@ import (
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
-// CppGenerator generates C++ header files
-type CppGenerator struct {
+// CxxGenerator generates C++ header files
+type CxxGenerator struct {
 	*BaseGenerator
 }
 
-// NewCppGenerator creates a new C++ generator
-func NewCppGenerator() *CppGenerator {
-	return &CppGenerator{
-		BaseGenerator: NewBaseGenerator("cpp", NewCppTypeMapper(), CppReservedWords),
+// NewCxxGenerator creates a new C++ generator
+func NewCxxGenerator() *CxxGenerator {
+	return &CxxGenerator{
+		BaseGenerator: NewBaseGenerator("cpp", NewCxxTypeMapper(), CppReservedWords),
 	}
 }
 
 // Generate generates C++ bindings
-func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
+func (g *CxxGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
 	opts = EnsureOptions(opts)
 
@@ -28,44 +28,37 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	groups := g.GetGroups(m)
 
 	files := make(map[string]string)
-	folder := fmt.Sprintf("external/plugify/include/%s", m.Name)
+	folder := fmt.Sprintf("external/plugify/modules/%s", m.Name)
 
-	// Generate separate enums file
+	// Generate separate enums module
 	enumsCode, err := g.generateEnumsFile(m)
 	if err != nil {
 		return nil, fmt.Errorf("generating enums file: %w", err)
 	}
-	files[fmt.Sprintf("%s/%s/enums.hpp", folder, m.Name)] = enumsCode
+	files[fmt.Sprintf("%s/enums.ixx", folder)] = enumsCode
 
-	// Generate separate delegates file
+	// Generate separate delegates module
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
 		return nil, fmt.Errorf("generating delegates file: %w", err)
 	}
-	files[fmt.Sprintf("%s/%s/delegates.hpp", folder, m.Name)] = delegatesCode
+	files[fmt.Sprintf("%s/delegates.ixx", folder)] = delegatesCode
 
-	// Generate a file for each group
+	// Generate a module file for each group
 	for groupName := range groups {
 		groupCode, err := g.generateGroupFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
 		}
-		files[fmt.Sprintf("%s/%s/%s.hpp", folder, m.Name, groupName)] = groupCode
+		files[fmt.Sprintf("%s/%s.ixx", folder, groupName)] = groupCode
 	}
 
-	// Generate main header that includes all pieces
-	mainHeader, err := g.generateMainHeader(m, groups)
+	// Generate main module interface that re-exports all pieces
+	mainModule, err := g.generateMainHeader(m, groups)
 	if err != nil {
-		return nil, fmt.Errorf("generating main header: %w", err)
+		return nil, fmt.Errorf("generating main module: %w", err)
 	}
-	files[fmt.Sprintf("%s/%s.hpp", folder, m.Name)] = mainHeader
-
-	// Generate main impl that includes all pieces
-	mainImpl, err := g.generateMainImpl(m)
-	if err != nil {
-		return nil, fmt.Errorf("generating main impl: %w", err)
-	}
-	files[fmt.Sprintf("%s/%s.cpp", folder, m.Name)] = mainImpl
+	files[fmt.Sprintf("%s/package.ixx", folder)] = mainModule
 
 	result := &GeneratorResult{
 		Files: files,
@@ -74,12 +67,12 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	return result, nil
 }
 
-func (g *CppGenerator) generateEnums(m *manifest.Manifest) (string, error) {
+func (g *CxxGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	// Use the base generator's CollectEnums helper
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *CppGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *CxxGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
@@ -104,11 +97,11 @@ func (g *CppGenerator) generateEnum(enum *manifest.EnumType, underlyingType stri
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
+func (g *CxxGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
 	return g.CollectDelegates(m, g.generateDelegate)
 }
 
-func (g *CppGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
+func (g *CxxGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
 	if proto.Description != "" {
@@ -131,16 +124,16 @@ func (g *CppGenerator) generateDelegate(proto *manifest.Prototype) (string, erro
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
+func (g *CxxGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
-	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	// Generate function signature
+	retType, err := g.typeMapper.MapReturnType(&method.RetType)
 	if err != nil {
 		return "", err
 	}
 
-	// Generate function signature
-	retType, err := g.typeMapper.MapReturnType(&method.RetType)
+	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
@@ -151,17 +144,15 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 		return "", err
 	}
 	sb.WriteString(fmt.Sprintf("  using _%s = %s (*)(%s);\n", method.Name, retType, funcTypeParams))
-	sb.WriteString("}\n")
+
+	// Generate global exported function pointer
+	sb.WriteString(fmt.Sprintf("  PLUGIFY_EXPORT _%s %s_%s = nullptr;\n", method.Name, pluginName, method.Name))
 
 	// Generate exported wrapper function
 	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
 	if err != nil {
 		return "", err
 	}
-
-	// Generate global exported function pointer
-	sb.WriteString(fmt.Sprintf("extern \"C\" PLUGIN_API %s::_%s __%s_%s;\n", pluginName, method.Name, pluginName, method.Name))
-	sb.WriteString(fmt.Sprintf("namespace %s {\n", pluginName))
 
 	// Generate documentation comment
 	sb.WriteString("  /**\n")
@@ -188,18 +179,18 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	}
 	sb.WriteString("   */\n")
 
-	sb.WriteString(fmt.Sprintf("  inline %s %s(%s) {\n", retType, g.SanitizeName(method.Name), formattedParams))
+	sb.WriteString(fmt.Sprintf("\n  %s %s(%s) {\n", retType, g.SanitizeName(method.Name), formattedParams))
 	if method.RetType.Type == "void" {
-		sb.WriteString(fmt.Sprintf("    return __%s_%s(%s);\n", pluginName, method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("    return %s_%s(%s);\n", pluginName, method.Name, paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("    return __%s_%s(%s);\n", pluginName, method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("    return %s_%s(%s);\n", pluginName, method.Name, paramNames))
 	}
-	sb.WriteString("  }\n")
+	sb.WriteString("  }\n\n")
 
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) generateClasses(m *manifest.Manifest) (string, error) {
+func (g *CxxGenerator) generateClasses(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
 	for i, class := range m.Classes {
@@ -216,7 +207,7 @@ func (g *CppGenerator) generateClasses(m *manifest.Manifest) (string, error) {
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
+func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
 	// Get handle type and invalid value
@@ -401,7 +392,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
+func (g *CxxGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
 	method := FindMethod(m, methodName)
 	if method == nil {
@@ -449,7 +440,7 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
+func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Class, binding *manifest.Binding) (string, error) {
 	// Find the underlying method
 	method := FindMethod(m, binding.Method)
 	if method == nil {
@@ -606,7 +597,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	return sb.String(), nil
 }
 
-func (g *CppGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []*manifest.ParamAlias) string {
+func (g *CxxGenerator) applyParamAliases(formattedParams string, params []manifest.ParamType, aliases []*manifest.ParamAlias) string {
 	// This is a simplified implementation
 	// In reality, you might need more sophisticated parsing
 	result := formattedParams
@@ -635,16 +626,18 @@ func (g *CppGenerator) applyParamAliases(formattedParams string, params []manife
 }
 
 // generateEnumsFile generates a file containing all enums
-func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
+func (g *CxxGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
-	// Header guard and includes
-	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include <cstdint>\n")
+	// Module declaration
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export module %s.enums;\n\n", m.Name))
+
+	// Global module fragment for standard library includes
+	sb.WriteString("import <cstdint>;\n\n")
 
 	// Namespace
-	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export namespace %s {\n\n", m.Name))
 
 	// Generate enums
 	enumsCode, err := g.generateEnums(m)
@@ -667,18 +660,22 @@ func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 }
 
 // generateDelegatesFile generates a file containing all delegate typedefs
-func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
+func (g *CxxGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
-	// Header guard and includes
-	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include \"enums.hpp\"\n")
-	sb.WriteString("#include <plg/plugin.hpp>\n")
-	sb.WriteString("#include <plg/any.hpp>\n\n")
+	// Module declaration
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export module %s.delegates;\n\n", m.Name))
+
+	// Import enums module
+	sb.WriteString(fmt.Sprintf("export import %s.enums;\n\n", m.Name))
+
+	sb.WriteString("import <cstdint>;\n\n")
+	sb.WriteString("import <plg/plugin.hpp>;\n")
+	sb.WriteString("import <plg/any.hpp>;\n\n")
 
 	// Namespace
-	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export namespace %s {\n\n", m.Name))
 
 	// Generate delegates
 	delegatesCode, err := g.generateDelegates(m)
@@ -696,30 +693,41 @@ func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, erro
 }
 
 // generateGroupFile generates a file for a specific group containing methods and classes
-func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
+func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
-	// Header guard and includes
-	sb.WriteString("#pragma once\n\n")
-	sb.WriteString("#include \"enums.hpp\"\n")
-	sb.WriteString("#include \"delegates.hpp\"\n")
-	sb.WriteString("#include <plugin_export.h>\n\n")
+	// Module declaration
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
+	sb.WriteString(fmt.Sprintf("export module %s.%s;\n", m.Name, groupName))
+
+	// Import delegates module
+	sb.WriteString(fmt.Sprintf("export import %s.enums;\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export import %s.delegates;\n\n", m.Name))
+
+	sb.WriteString("import <cstdint>;\n\n")
+	sb.WriteString("import <plg/plugin.hpp>;\n")
+	sb.WriteString("import <plg/any.hpp>;\n\n")
 
 	// Find which other groups this group depends on (for method calls from classes)
 	if len(m.Classes) > 0 {
 		dependentGroups := g.FindDependentGroups(m, groupName)
 		if len(dependentGroups) > 0 {
 			for depGroup := range dependentGroups {
-				sb.WriteString(fmt.Sprintf("#include \"%s.hpp\"\n", depGroup))
+				sb.WriteString(fmt.Sprintf("import %s.%s;\n", m.Name, depGroup))
 			}
 			sb.WriteString("\n")
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin (group: %s)\n\n", m.Name, groupName))
+	// Export
+	sb.WriteString("#if defined(_WIN32)\n")
+	sb.WriteString("#define PLUGIFY_EXPORT __declspec(dllexport)\n")
+	sb.WriteString("#else\n")
+	sb.WriteString("#define PLUGIFY_EXPORT __attribute__((visibility(\"default\")))\n")
+	sb.WriteString("#endif\n\n")
 
 	// Namespace
-	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export namespace %s {\n\n", m.Name))
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
@@ -755,51 +763,35 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 	return sb.String(), nil
 }
 
-// generateMainHeader generates the main header file that includes all group files
-func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]bool) (string, error) {
+// generateMainHeader generates the main module interface file that re-exports all submodules
+func (g *CxxGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]bool) (string, error) {
 	var sb strings.Builder
 
-	// Header guard
-	sb.WriteString("#pragma once\n\n")
+	// Module declaration
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n", m.Name))
-	sb.WriteString("// This header includes all generated components\n\n")
+	sb.WriteString("// This is the primary module interface that re-exports all components\n\n")
+	sb.WriteString(fmt.Sprintf("export module %s;\n\n", m.Name))
 
-	// Include enums and delegates first
-	sb.WriteString(fmt.Sprintf("#include \"%s/enums.hpp\"\n", m.Name))
-	sb.WriteString(fmt.Sprintf("#include \"%s/delegates.hpp\"\n", m.Name))
+	// Re-export enums and delegates
+	sb.WriteString(fmt.Sprintf("export import %s.enums;\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export import %s.delegates;\n", m.Name))
 
-	// Import all group headers
+	// Re-export all group modules
 	for groupName := range groups {
-		sb.WriteString(fmt.Sprintf("#include \"%s/%s.hpp\"\n", m.Name, groupName))
+		sb.WriteString(fmt.Sprintf("export import %s.%s;\n", m.Name, groupName))
 	}
 
 	return sb.String(), nil
 }
 
-// generateMainImpl generates the main impl file that includes all group files
-func (g *CppGenerator) generateMainImpl(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
+// CxxTypeMapper implements type mapping for C++
+type CxxTypeMapper struct{}
 
-	sb.WriteString(fmt.Sprintf("#include \"%s.hpp\"\n\n", m.Name))
-
-	for i := range m.Methods {
-		method := &m.Methods[i]
-
-		// Generate global exported function pointer impl
-		sb.WriteString(fmt.Sprintf("%s::_%s __%s_%s = nullptr;\n\n", m.Name, method.Name, m.Name, method.Name))
-	}
-
-	return sb.String(), nil
+func NewCxxTypeMapper() *CxxTypeMapper {
+	return &CxxTypeMapper{}
 }
 
-// CppTypeMapper implements type mapping for C++
-type CppTypeMapper struct{}
-
-func NewCppTypeMapper() *CppTypeMapper {
-	return &CppTypeMapper{}
-}
-
-func (m *CppTypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
+func (m *CxxTypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
 	// Base type mapping
 	typeMap := map[string]string{
 		"void":   "void",
@@ -853,7 +845,7 @@ func (m *CppTypeMapper) MapType(baseType string, context TypeContext, isArray bo
 }
 
 // isObjectLikeType returns true for types that should be passed by const& in parameters
-func (m *CppTypeMapper) isObjectLikeType(baseType string) bool {
+func (m *CxxTypeMapper) isObjectLikeType(baseType string) bool {
 	objectLikeTypes := map[string]bool{
 		"string": true,
 		"any":    true,
@@ -865,7 +857,7 @@ func (m *CppTypeMapper) isObjectLikeType(baseType string) bool {
 	return objectLikeTypes[baseType]
 }
 
-func (m *CppTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
+func (m *CxxTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
 	// Check for enum type first
 	if param.Enum != nil {
 		typeName := param.Enum.Name
@@ -895,7 +887,7 @@ func (m *CppTypeMapper) MapParamType(param *manifest.ParamType, context TypeCont
 	return m.MapType(param.BaseType(), ctx, param.IsArray())
 }
 
-func (m *CppTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
+func (m *CxxTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
 	// Check for enum type
 	if retType.Enum != nil {
 		typeName := retType.Enum.Name
@@ -914,7 +906,7 @@ func (m *CppTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error
 	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
 }
 
-func (m *CppTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
+func (m *CxxTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
 	invalidValue := class.InvalidValue
 	handleType, err := m.MapType(class.HandleType, TypeContextReturn, false)
 	if err != nil {
