@@ -464,7 +464,7 @@ func (g *V8Generator) generateConstructor(m *manifest.Manifest, class *manifest.
 		sb.WriteString(fmt.Sprintf("     * %s\n", method.Description))
 	}
 	for _, param := range method.ParamTypes {
-		sb.WriteString(fmt.Sprintf("     * @param %s", g.SanitizeName(param.Name)))
+		sb.WriteString(fmt.Sprintf("     * @param %s", param.Name))
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(" - %s", param.Description))
 		}
@@ -530,7 +530,7 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 
 	if len(methodParams) > 0 {
 		for i, param := range methodParams {
-			sb.WriteString(fmt.Sprintf("     * @param %s", g.SanitizeName(param.Name)))
+			sb.WriteString(fmt.Sprintf("     * @param %s", param.Name))
 
 			// Check if this parameter has an alias
 			if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
@@ -569,10 +569,6 @@ func (g *V8Generator) applyParamAliases(formattedParams string, params []manifes
 	for i, alias := range aliases {
 		if i < len(params) && alias.Name != "" {
 			paramName := params[i].Name
-			if paramName == "" {
-				paramName = fmt.Sprintf("p%d", i)
-			}
-			paramName = g.SanitizeName(paramName)
 
 			// Find and replace the type for this parameter
 			// Look for "paramName: OldType" and replace with "paramName: NewType"
@@ -645,12 +641,9 @@ func (g *V8Generator) formatTSParameters(params []manifest.ParamType) (string, e
 		}
 
 		paramName := param.Name
-		if paramName == "" {
-			paramName = fmt.Sprintf("p%d", i)
-		}
 
 		// TypeScript style: name: type
-		result += g.SanitizeName(paramName) + ": " + typeName
+		result += paramName + ": " + typeName
 	}
 
 	return result, nil
@@ -665,7 +658,7 @@ func (g *V8Generator) generateMethod(method *manifest.Method) (string, error) {
 		sb.WriteString(fmt.Sprintf("   * %s\n", method.Description))
 	}
 	for _, param := range method.ParamTypes {
-		sb.WriteString(fmt.Sprintf("   * @param %s", g.SanitizeName(param.Name)))
+		sb.WriteString(fmt.Sprintf("   * @param %s", param.Name))
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(" - %s", param.Description))
 		}
@@ -687,7 +680,7 @@ func (g *V8Generator) generateMethod(method *manifest.Method) (string, error) {
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("  export function %s(%s): %s;\n\n", g.SanitizeName(method.Name), params, retType))
+	sb.WriteString(fmt.Sprintf("  export function %s(%s): %s;\n\n", method.Name, params, retType))
 
 	return sb.String(), nil
 }

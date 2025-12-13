@@ -224,11 +224,8 @@ func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	// Parameters
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
-		if paramName == "" {
-			paramName = "unnamed"
-		}
 		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-			g.SanitizeName(paramName), param.Type, param.Description))
+			paramName, param.Type, param.Description))
 	}
 
 	// Return type (the class instance)
@@ -268,9 +265,6 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	// Parameters (excluding self if bindSelf)
 	for _, param := range methodParams {
 		paramName := param.Name
-		if paramName == "" {
-			paramName = "unnamed"
-		}
 		// Check if this parameter has an alias
 		paramType := param.Type
 		for i, alias := range binding.ParamAliases {
@@ -280,7 +274,7 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 			}
 		}
 		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-			g.SanitizeName(paramName), paramType, param.Description))
+			paramName, paramType, param.Description))
 	}
 
 	// Return type
@@ -316,7 +310,7 @@ func (g *LuaGenerator) generateMethod(method *manifest.Method) (string, error) {
 
 	// Generate function signature
 	params := g.formatParameters(method.ParamTypes)
-	sb.WriteString(fmt.Sprintf("function %s(%s) end\n", g.SanitizeName(method.Name), params))
+	sb.WriteString(fmt.Sprintf("function %s(%s) end\n", method.Name, params))
 
 	return sb.String(), nil
 }
@@ -333,11 +327,7 @@ func (g *LuaGenerator) formatParameters(params []manifest.ParamType) string {
 		}
 
 		paramName := param.Name
-		if paramName == "" {
-			paramName = fmt.Sprintf("p%d", i)
-		}
-
-		result += g.SanitizeName(paramName)
+		result += paramName
 	}
 
 	return result
@@ -356,14 +346,11 @@ func (g *LuaGenerator) generateDocumentation(method *manifest.Method) string {
 	// Parameters
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
-		if paramName == "" {
-			paramName = "unnamed"
-		}
 		paramType := param.Type
 		paramDesc := param.Description
 
 		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-			g.SanitizeName(paramName), paramType, paramDesc))
+			paramName, paramType, paramDesc))
 	}
 
 	// Return type
@@ -378,17 +365,14 @@ func (g *LuaGenerator) generateDocumentation(method *manifest.Method) string {
 			proto := param.Prototype
 			protoName := proto.Name
 			protoDesc := proto.Description
-			if protoDesc == "" {
-				protoDesc = "Callback function"
-			}
 
 			sb.WriteString(fmt.Sprintf("-- @callback %s %s - %s\n",
-				protoName, g.SanitizeName(param.Name), protoDesc))
+				protoName, param.Name, protoDesc))
 
 			// Callback parameters
 			for _, protoParam := range proto.ParamTypes {
 				sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-					g.SanitizeName(protoParam.Name), protoParam.Type, protoParam.Description))
+					protoParam.Name, protoParam.Type, protoParam.Description))
 			}
 
 			// Callback return

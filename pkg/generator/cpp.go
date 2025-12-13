@@ -122,7 +122,7 @@ func (g *CppGenerator) generateDelegate(proto *manifest.Prototype) (string, erro
 	}
 
 	// Generate parameters
-	params, err := FormatParameters(proto.ParamTypes, ParamFormatTypes, g.typeMapper, g.SanitizeName)
+	params, err := FormatParameters(proto.ParamTypes, ParamFormatTypes, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -134,7 +134,7 @@ func (g *CppGenerator) generateDelegate(proto *manifest.Prototype) (string, erro
 func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
-	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +146,7 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	}
 
 	// Generate type alias for function pointer
-	funcTypeParams, err := FormatParameters(method.ParamTypes, ParamFormatTypes, g.typeMapper, g.SanitizeName)
+	funcTypeParams, err := FormatParameters(method.ParamTypes, ParamFormatTypes, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +154,7 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	sb.WriteString("}\n")
 
 	// Generate exported wrapper function
-	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -173,7 +173,7 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 		if param.Ref {
 			paramType += "&"
 		}
-		sb.WriteString(fmt.Sprintf("   * @param %s (%s)", g.SanitizeName(param.Name), paramType))
+		sb.WriteString(fmt.Sprintf("   * @param %s (%s)", param.Name, paramType))
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(": %s", param.Description))
 		}
@@ -188,7 +188,7 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	}
 	sb.WriteString("   */\n")
 
-	sb.WriteString(fmt.Sprintf("  inline %s %s(%s) {\n", retType, g.SanitizeName(method.Name), formattedParams))
+	sb.WriteString(fmt.Sprintf("  inline %s %s(%s) {\n", retType, method.Name, formattedParams))
 	if method.RetType.Type == "void" {
 		sb.WriteString(fmt.Sprintf("    return __%s_%s(%s);\n", pluginName, method.Name, paramNames))
 	} else {
@@ -422,7 +422,7 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 		if param.Ref {
 			paramType += "&"
 		}
-		sb.WriteString(fmt.Sprintf("     * @param %s (%s)", g.SanitizeName(param.Name), paramType))
+		sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, paramType))
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(": %s", param.Description))
 		}
@@ -431,7 +431,7 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	sb.WriteString("     */\n")
 
 	// Generate constructor signature
-	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -439,7 +439,7 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	sb.WriteString(fmt.Sprintf("    explicit %s(%s)\n", class.Name, formattedParams))
 
 	// Generate initialization list
-	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -486,9 +486,9 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		}
 
 		if aliasName != "" {
-			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", g.SanitizeName(param.Name), aliasName))
+			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, aliasName))
 		} else {
-			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", g.SanitizeName(param.Name), paramType))
+			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, paramType))
 		}
 
 		if param.Description != "" {
@@ -522,7 +522,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		retType = binding.RetAlias.Name
 	}
 
-	formattedParams, err := FormatParameters(methodParams, ParamFormatTypesAndNames, g.typeMapper, g.SanitizeName)
+	formattedParams, err := FormatParameters(methodParams, ParamFormatTypesAndNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -564,7 +564,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 			callArgs += ", "
 		}
 
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 
 		// Check if parameter has alias and needs .release() or .get()
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
@@ -625,8 +625,8 @@ func (g *CppGenerator) applyParamAliases(formattedParams string, params []manife
 			}
 
 			// Replace in the formatted params
-			oldPattern := fmt.Sprintf("%s %s", paramType, g.SanitizeName(param.Name))
-			newPattern := fmt.Sprintf("%s %s", replacementType, g.SanitizeName(param.Name))
+			oldPattern := fmt.Sprintf("%s %s", paramType, param.Name)
+			newPattern := fmt.Sprintf("%s %s", replacementType, param.Name)
 			result = strings.ReplaceAll(result, oldPattern, newPattern)
 		}
 	}

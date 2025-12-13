@@ -143,11 +143,8 @@ func (g *DotnetGenerator) formatDelegateParameters(params []manifest.ParamType) 
 		}
 
 		paramName := param.Name
-		if paramName == "" {
-			paramName = fmt.Sprintf("p%d", i)
-		}
 
-		result += typeName + " " + g.SanitizeName(paramName)
+		result += typeName + " " + paramName
 	}
 
 	return result, nil
@@ -170,7 +167,7 @@ func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName str
 		return "", err
 	}
 
-	methodName := g.SanitizeName(method.Name)
+	methodName := method.Name
 
 	// Managed delegate pointer
 	sb.WriteString(fmt.Sprintf("\t\tinternal static delegate*<%s> %s = &___%s;\n", managedTypes, methodName, methodName))
@@ -217,7 +214,7 @@ func (g *DotnetGenerator) generateDocumentation(method *manifest.Method) string 
 
 	for _, param := range method.ParamTypes {
 		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
-			g.SanitizeName(param.Name), param.Description))
+			param.Name, param.Description))
 	}
 
 	if method.RetType.Type != "void" && method.RetType.Description != "" {
@@ -286,11 +283,8 @@ func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (s
 		}
 
 		paramName := param.Name
-		if paramName == "" {
-			paramName = fmt.Sprintf("p%d", i)
-		}
 
-		result += typeName + " " + g.SanitizeName(paramName)
+		result += typeName + " " + paramName
 
 		if param.Default != nil {
 			result += fmt.Sprintf(" = %d", *param.Default)
@@ -354,7 +348,7 @@ func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, e
 		innerIndent = indent + "\t"
 	}
 
-	methodName := g.SanitizeName(method.Name)
+	methodName := method.Name
 
 	// Function call
 	callParams := g.generateCallParameters(method)
@@ -435,7 +429,7 @@ func (g *DotnetGenerator) generateFixedBlocks(method *manifest.Method, indent st
 			continue
 		}
 
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		var typeName string
 
 		if param.Enum != nil {
@@ -460,7 +454,7 @@ func (g *DotnetGenerator) generateParameterMarshaling(method *manifest.Method, i
 			continue
 		}
 
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 
 		// Use NativeMethodsT for enum parameters
 		if param.Enum != nil {
@@ -484,7 +478,7 @@ func (g *DotnetGenerator) generateCallParameters(method *manifest.Method) string
 	params := []string{}
 
 	for _, param := range method.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 
 		if g.typeMapper.isObjectReturn(param.Type) {
 			params = append(params, fmt.Sprintf("&__%s", paramName))
@@ -540,7 +534,7 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 			continue
 		}
 
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 
 		// Use NativeMethodsT for enum parameters
 		if param.Enum != nil {
@@ -577,7 +571,7 @@ func (g *DotnetGenerator) generateCleanup(method *manifest.Method, indent string
 			continue
 		}
 
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		sb.WriteString(fmt.Sprintf("%s%s(&__%s);\n", indent, destructor, paramName))
 	}
 
@@ -819,7 +813,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	// Document parameters
 	for _, param := range method.ParamTypes {
 		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
-			g.SanitizeName(param.Name), param.Description))
+			param.Name, param.Description))
 	}
 
 	// Generate constructor signature
@@ -833,7 +827,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	// Generate initialization
 	paramNames := []string{}
 	for _, param := range method.ParamTypes {
-		paramNames = append(paramNames, g.SanitizeName(param.Name))
+		paramNames = append(paramNames, param.Name)
 	}
 
 	hasDtor := class.Destructor != nil
@@ -892,7 +886,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		}
 
 		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
-			g.SanitizeName(param.Name), desc))
+			param.Name, desc))
 	}
 
 	// Document return type
@@ -936,7 +930,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 			paramType = binding.ParamAliases[i].Name
 		}
 
-		formattedParams += paramType + " " + g.SanitizeName(param.Name)
+		formattedParams += paramType + " " + param.Name
 
 		// Add default value if present
 		if param.Default != nil {
@@ -961,7 +955,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
-	methodName := g.SanitizeName(method.Name)
+	methodName := method.Name
 
 	// Generate method body for SafeHandle classes (need ref counting)
 	if hasDtor && binding.BindSelf {
@@ -1050,7 +1044,7 @@ func (g *DotnetGenerator) buildCallArguments(binding *manifest.Binding, methodPa
 		if param.Ref {
 			paramName += "ref "
 		}
-		paramName += g.SanitizeName(param.Name)
+		paramName += param.Name
 
 		// Check if parameter has alias and needs .Release() or .Get()
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {

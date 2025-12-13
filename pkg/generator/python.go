@@ -310,11 +310,8 @@ func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manif
 			sb.WriteString("\n        Args:\n")
 			for _, param := range method.ParamTypes {
 				paramName := param.Name
-				if paramName == "" {
-					paramName = "unnamed"
-				}
 				sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
-					g.SanitizeName(paramName), param.Type, param.Description))
+					paramName, param.Type, param.Description))
 			}
 		}
 		sb.WriteString("        \"\"\"\n")
@@ -390,9 +387,6 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 			sb.WriteString("\n        Args:\n")
 			for i, param := range methodParams {
 				paramName := param.Name
-				if paramName == "" {
-					paramName = "unnamed"
-				}
 
 				// Check if this parameter has an alias
 				paramType := param.Type
@@ -401,7 +395,7 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 				}
 
 				sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
-					g.SanitizeName(paramName), paramType, param.Description))
+					paramName, paramType, param.Description))
 			}
 		}
 
@@ -428,10 +422,6 @@ func (g *PythonGenerator) applyParamAliases(formattedParams string, params []man
 	for i, alias := range aliases {
 		if i < len(params) && alias.Name != "" {
 			paramName := params[i].Name
-			if paramName == "" {
-				paramName = fmt.Sprintf("p%d", i)
-			}
-			paramName = g.SanitizeName(paramName)
 
 			// Find and replace the type for this parameter
 			// Look for "paramName: OldType" and replace with "paramName: NewType"
@@ -467,7 +457,7 @@ func (g *PythonGenerator) generateMethod(method *manifest.Method) (string, error
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("def %s(%s) -> %s:\n", g.SanitizeName(method.Name), params, retType))
+	sb.WriteString(fmt.Sprintf("def %s(%s) -> %s:\n", method.Name, params, retType))
 
 	// Generate docstring
 	sb.WriteString(g.generateDocstring(method))
@@ -495,11 +485,8 @@ func (g *PythonGenerator) formatParameters(params []manifest.ParamType) (string,
 		}
 
 		paramName := param.Name
-		if paramName == "" {
-			paramName = fmt.Sprintf("p%d", i)
-		}
 
-		result += g.SanitizeName(paramName) + ": " + typeName
+		result += paramName + ": " + typeName
 	}
 
 	return result, nil
@@ -551,11 +538,8 @@ func (g *PythonGenerator) generateDocstring(method *manifest.Method) string {
 		sb.WriteString("    Args:\n")
 		for _, param := range method.ParamTypes {
 			paramName := param.Name
-			if paramName == "" {
-				paramName = "unnamed"
-			}
 			sb.WriteString(fmt.Sprintf("        %s (%s): %s\n",
-				g.SanitizeName(paramName), param.Type, param.Description))
+				paramName, param.Type, param.Description))
 		}
 	}
 

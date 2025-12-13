@@ -239,7 +239,7 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 	if len(proto.ParamTypes) > 0 {
 		sb.WriteString("\tParams:\n")
 		for _, param := range proto.ParamTypes {
-			paramName := g.SanitizeName(param.Name)
+			paramName := param.Name
 			sb.WriteString(fmt.Sprintf("\t\t%s = %s\n", paramName, param.Description))
 		}
 	}
@@ -262,7 +262,7 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 	// Generate parameters
 	params := []string{}
 	for _, param := range proto.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
 		if err != nil {
 			return "", err
@@ -303,7 +303,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 	if len(method.ParamTypes) > 0 {
 		sb.WriteString("\tParams:\n")
 		for _, param := range method.ParamTypes {
-			paramName := g.SanitizeName(param.Name)
+			paramName := param.Name
 			sb.WriteString(fmt.Sprintf("\t\t%s = %s\n", paramName, param.Description))
 		}
 	}
@@ -321,12 +321,12 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("%s %s(", retType, g.SanitizeName(method.Name)))
+	sb.WriteString(fmt.Sprintf("%s %s(", retType, method.Name))
 
 	// Parameters
 	params := []string{}
 	for _, param := range method.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
 		if err != nil {
 			return "", err
@@ -348,7 +348,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 	var cleanups strings.Builder
 
 	for i, param := range method.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
 
 		// Check if we need conversion
@@ -421,7 +421,7 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method, pluginName
 	// Parameters
 	params := []string{}
 	for _, param := range method.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
 
 		cType, _ := g.toCType(paramType, &manifest.TypeInfo{
@@ -756,11 +756,8 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 	if len(method.ParamTypes) > 0 {
 		sb.WriteString("\t * Params:\n")
 		for _, param := range method.ParamTypes {
-			paramName := g.SanitizeName(param.Name)
+			paramName := param.Name
 			description := param.Description
-			if description == "" {
-				description = "Parameter"
-			}
 			sb.WriteString(fmt.Sprintf("\t *   %s = %s\n", paramName, description))
 		}
 	}
@@ -772,7 +769,7 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 	// Parameters
 	params := []string{}
 	for _, param := range method.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
 		if err != nil {
 			return "", err
@@ -791,7 +788,7 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 	// Constructor body - call the method and capture handle
 	callArgs := []string{}
 	for _, param := range method.ParamTypes {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		callArgs = append(callArgs, paramName)
 	}
 
@@ -830,11 +827,8 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	if len(methodParams) > 0 {
 		sb.WriteString("\t * Params:\n")
 		for _, param := range methodParams {
-			paramName := g.SanitizeName(param.Name)
+			paramName := param.Name
 			description := param.Description
-			if description == "" {
-				description = "Parameter"
-			}
 			sb.WriteString(fmt.Sprintf("\t *   %s = %s\n", paramName, description))
 		}
 	}
@@ -876,7 +870,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	// Parameters (excluding self if bindSelf)
 	paramStrs := []string{}
 	for i, param := range methodParams {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
 		paramRef := param.Ref
 		paramMode := "ref"
@@ -920,7 +914,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	}
 
 	for i, param := range methodParams {
-		paramName := g.SanitizeName(param.Name)
+		paramName := param.Name
 
 		// Check if parameter has alias and needs .release() or .get()
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {

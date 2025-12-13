@@ -103,13 +103,9 @@ func (g *GolangGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 	sb.WriteString(fmt.Sprintf("type %s = %s\n\n", enum.Name, underlyingType))
 	sb.WriteString("const (\n")
 
-	for i, value := range enum.Values {
+	for _, value := range enum.Values {
 		rawName := value.Name
-		if rawName == "" {
-			rawName = fmt.Sprintf("Value%d", i)
-		}
-
-		baseName := g.SanitizeName(rawName)
+		baseName := rawName
 
 		// Track local duplicates
 		g.usedLocals[baseName]++
@@ -225,7 +221,7 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method) (string, error
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("func %s(%s)", g.SanitizeName(method.Name), params))
+	sb.WriteString(fmt.Sprintf("func %s(%s)", method.Name, params))
 	if returnType != "" {
 		sb.WriteString(fmt.Sprintf(" %s", returnType))
 	}
@@ -390,7 +386,7 @@ func (g *GolangGenerator) generateParamsCast(method *manifest.Method, indent str
 // generateParamCast generates casting code for a single parameter
 func (g *GolangGenerator) generateParamCast(param *manifest.ParamType, indent string) (string, error) {
 	paramType := g.typeMapper.valTypeCastMap[param.Type]
-	name := g.SanitizeName(param.Name)
+	name := param.Name
 
 	if paramType == "" {
 		return "", nil
@@ -445,7 +441,7 @@ func (g *GolangGenerator) generateParamsCastAssign(method *manifest.Method, inde
 // generateParamAssign generates assignment code for a ref parameter
 func (g *GolangGenerator) generateParamAssign(param *manifest.ParamType, indent string) (string, error) {
 	paramType := g.typeMapper.assTypeCastMap[param.Type]
-	name := g.SanitizeName(param.Name)
+	name := param.Name
 
 	if paramType == "" {
 		return "", nil
@@ -518,7 +514,7 @@ func (g *GolangGenerator) generateParamCleanup(param *manifest.ParamType) string
 		return ""
 	}
 
-	name := g.SanitizeName(param.Name)
+	name := param.Name
 	return fmt.Sprintf("%s(&__%s)\n", paramType, name)
 }
 
@@ -549,12 +545,8 @@ func (g *GolangGenerator) formatParams(params []manifest.ParamType, withTypes bo
 	}
 
 	var parts []string
-	for i, param := range params {
+	for _, param := range params {
 		name := param.Name
-		if name == "" {
-			name = fmt.Sprintf("p%d", i)
-		}
-		name = g.SanitizeName(name)
 
 		if withTypes {
 			typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
@@ -578,7 +570,7 @@ func (g *GolangGenerator) formatCastParams(params []manifest.ParamType) (string,
 
 	var parts []string
 	for _, param := range params {
-		name := g.SanitizeName(param.Name)
+		name := param.Name
 
 		if g.typeMapper.IsObjType(param.Type) {
 			ctype := g.typeMapper.ctypesMap[param.Type]
@@ -668,14 +660,11 @@ func (g *GolangGenerator) formatCParams(params []manifest.ParamType, withNames b
 	}
 
 	var parts []string
-	for i, param := range params {
+	for _, param := range params {
 		typeName := g.typeMapper.GetCType(param.Type, param.Ref, false)
 
 		if withNames {
 			name := param.Name
-			if name == "" {
-				name = fmt.Sprintf("p%d", i)
-			}
 			parts = append(parts, fmt.Sprintf("%s %s", typeName, name))
 		} else {
 			parts = append(parts, typeName)
@@ -692,11 +681,8 @@ func (g *GolangGenerator) formatCParamNames(params []manifest.ParamType) (string
 	}
 
 	var parts []string
-	for i, param := range params {
+	for _, param := range params {
 		name := param.Name
-		if name == "" {
-			name = fmt.Sprintf("p%d", i)
-		}
 		parts = append(parts, name)
 	}
 
@@ -1204,7 +1190,7 @@ func (g *GolangGenerator) formatClassParams(params []manifest.ParamType, aliases
 
 	var parts []string
 	for i, param := range params {
-		name := g.SanitizeName(param.Name)
+		name := param.Name
 
 		if withTypes {
 			typeName := ""
@@ -1238,7 +1224,7 @@ func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, bindi
 
 	// Add other parameters
 	for i, param := range params {
-		name := g.SanitizeName(param.Name)
+		name := param.Name
 
 		// Check if parameter has alias
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {

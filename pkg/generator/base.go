@@ -89,9 +89,8 @@ func (g *BaseGenerator) SanitizeName(name string) string {
 
 // GetGroupName handles reserved keywords by appending underscore
 func (g *BaseGenerator) GetGroupName(name string) string {
-	sanitized := g.SanitizeName(name)
-	if sanitized != "" {
-		return strings.ToLower(sanitized)
+	if name != "" {
+		return strings.ToLower(name)
 	}
 	return DefaultGroupName
 }
@@ -104,7 +103,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	hasUngroupedClasses := false
 
 	for _, method := range m.Methods {
-		groupName := strings.ToLower(g.SanitizeName(method.Group))
+		groupName := strings.ToLower(method.Group)
 		if groupName != "" {
 			groups[groupName] = true
 		} else {
@@ -113,7 +112,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	}
 
 	for _, class := range m.Classes {
-		groupName := strings.ToLower(g.SanitizeName(class.Group))
+		groupName := strings.ToLower(class.Group)
 		if groupName != "" {
 			groups[groupName] = true
 		} else {
@@ -196,7 +195,7 @@ const (
 )
 
 // FormatParameters is a helper to format method parameters
-func FormatParameters(params []manifest.ParamType, format ParameterFormat, mapper TypeMapper, sanitize func(string) string) (string, error) {
+func FormatParameters(params []manifest.ParamType, format ParameterFormat, mapper TypeMapper) (string, error) {
 	if len(params) == 0 {
 		return "", nil
 	}
@@ -217,10 +216,7 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 
 		case ParamFormatNames:
 			paramName := param.Name
-			if paramName == "" {
-				paramName = fmt.Sprintf("p%d", i)
-			}
-			result += sanitize(paramName)
+			result += paramName
 
 		case ParamFormatTypesAndNames:
 			typeName, err := mapper.MapParamType(&param, TypeContextValue)
@@ -228,10 +224,7 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 				return "", err
 			}
 			paramName := param.Name
-			if paramName == "" {
-				paramName = fmt.Sprintf("p%d", i)
-			}
-			result += typeName + " " + sanitize(paramName)
+			result += typeName + " " + paramName
 			if param.Default != nil {
 				result += fmt.Sprintf(" = %d", *param.Default)
 			}

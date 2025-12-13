@@ -152,10 +152,7 @@ func (g *RustGenerator) formatRustParams(params []manifest.ParamType, includeNam
 		if includeNames {
 			// Rust format: name: type
 			paramName := param.Name
-			if paramName == "" {
-				paramName = fmt.Sprintf("p%d", i)
-			}
-			result += g.SanitizeName(paramName) + ": " + typeName
+			result += paramName + ": " + typeName
 		} else {
 			// Just type (for extern "C" fn signatures)
 			result += typeName
@@ -179,7 +176,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 			paramType += "&"
 		}
 		sb.WriteString(fmt.Sprintf("/// # Arguments\n"))
-		sb.WriteString(fmt.Sprintf("/// * `%s` - (%s)", g.SanitizeName(param.Name), paramType))
+		sb.WriteString(fmt.Sprintf("/// * `%s` - (%s)", param.Name, paramType))
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(": %s", param.Description))
 		}
@@ -208,7 +205,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 	}
 
 	// Call function - just use parameter names
-	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -222,7 +219,7 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 
 	// Generate wrapper function
 	sb.WriteString(fmt.Sprintf("#[allow(dead_code, non_snake_case)]\n"))
-	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", g.SanitizeName(method.Name), paramTypes))
+	sb.WriteString(fmt.Sprintf("pub fn %s(%s)", method.Name, paramTypes))
 	if retType != "" && retType != "()" {
 		sb.WriteString(" -> ")
 		sb.WriteString(retType)
@@ -708,7 +705,7 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 	sb.WriteString(fmt.Sprintf("    pub fn %s(%s) -> Result<Self, %sError> {\n", funcName, params, class.Name))
 
 	// Generate call to underlying FFI function
-	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper, g.SanitizeName)
+	paramNames, err := FormatParameters(method.ParamTypes, ParamFormatNames, g.typeMapper)
 	if err != nil {
 		return "", err
 	}
@@ -951,7 +948,7 @@ func (g *RustGenerator) formatClassParams(params []manifest.ParamType, aliases [
 
 	var parts []string
 	for i, param := range params {
-		name := g.SanitizeName(param.Name)
+		name := param.Name
 
 		var typeName string
 		var err error
@@ -985,7 +982,7 @@ func (g *RustGenerator) formatClassCallArgs(params []manifest.ParamType, binding
 
 	// Add other parameters
 	for i, param := range params {
-		name := g.SanitizeName(param.Name)
+		name := param.Name
 
 		// Check if parameter has alias
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
