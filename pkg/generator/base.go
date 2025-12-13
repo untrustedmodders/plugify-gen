@@ -79,20 +79,12 @@ func (g *BaseGenerator) Name() string {
 	return g.name
 }
 
-// SanitizeName handles reserved keywords by appending underscore
-func (g *BaseGenerator) SanitizeName(name string) string {
+// Sanitizer handles reserved keywords by appending underscore
+func (g *BaseGenerator) Sanitizer(name string) string {
 	if g.invalidNames[name] {
 		return name + "_"
 	}
 	return name
-}
-
-// GetGroupName handles reserved keywords by appending underscore
-func (g *BaseGenerator) GetGroupName(name string) string {
-	if name != "" {
-		return strings.ToLower(name)
-	}
-	return DefaultGroupName
 }
 
 // GetGroups gets the list of all groups from manifest
@@ -343,12 +335,12 @@ func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest
 
 // FindDependentGroups finds other groups that this group depends on (methods used by classes)
 func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupName string) map[string]bool {
-	groupName := g.GetGroupName(currentGroupName)
+	groupName := currentGroupName
 	// Pre-index methods for O(1) lookup.
 	methodToGroup := make(map[string]string, len(m.Methods))
 	for i := range m.Methods {
 		method := &m.Methods[i]
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 
 		methodToGroup[method.Name] = methodGroup
 		//methodToGroup[method.FuncName] = methodGroup
@@ -357,7 +349,7 @@ func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupNa
 	referencedGroups := make(map[string]bool)
 
 	for _, class := range m.Classes {
-		classGroup := g.GetGroupName(class.Group)
+		classGroup := class.Group
 		if classGroup != groupName {
 			continue
 		}

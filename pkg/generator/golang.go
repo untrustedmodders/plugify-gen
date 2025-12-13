@@ -29,6 +29,7 @@ func NewGolangGenerator() *GolangGenerator {
 // Generate generates Go bindings (.go and .h files)
 func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+	m.Sanitize(g.Sanitizer)
 	g.usedNames = make(map[string]bool)
 	g.usedLocals = make(map[string]int)
 	opts = EnsureOptions(opts)
@@ -1375,7 +1376,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Add noescape directives for methods in this group
 	for _, method := range m.Methods {
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 		if methodGroup == groupName {
 			sb.WriteString(fmt.Sprintf("#cgo noescape %s\n", method.Name))
 		}
@@ -1402,7 +1403,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 		if methodGroup == groupName {
 			methodCode, err := g.generateMethod(&method)
 			if err != nil {
@@ -1416,7 +1417,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	// Generate classes for this group (if enabled)
 	if opts.GenerateClasses {
 		for _, class := range m.Classes {
-			classGroup := g.GetGroupName(class.Group)
+			classGroup := class.Group
 			if classGroup == groupName {
 				classCode, err := g.generateClass(m, &class)
 				if err != nil {
@@ -1440,7 +1441,7 @@ func (g *GolangGenerator) generateGroupHFile(m *manifest.Manifest, groupName str
 
 	// Method implementations for this group
 	for _, method := range m.Methods {
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 		if methodGroup == groupName {
 			methodCode, err := g.generateHMethod(&method, m.Name)
 			if err != nil {
@@ -1463,7 +1464,7 @@ func (g *GolangGenerator) generateGroupCFile(m *manifest.Manifest, groupName str
 
 	// Method implementations for this group
 	for _, method := range m.Methods {
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 		if methodGroup == groupName {
 			methodCode, err := g.generateCMethod(&method, m.Name)
 			if err != nil {

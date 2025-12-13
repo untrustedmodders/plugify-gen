@@ -22,6 +22,7 @@ func NewDlangGenerator() *DlangGenerator {
 // Generate generates D language bindings
 func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+	m.Sanitize(g.Sanitizer)
 	opts = EnsureOptions(opts)
 
 	// Module declaration
@@ -193,7 +194,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 		if methodGroup == groupName {
 			methodCode, err := g.generateMethodWrapper(&method, m.Name)
 			if err != nil {
@@ -212,7 +213,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	// Generate classes for this group (if enabled)
 	if opts.GenerateClasses {
 		for _, class := range m.Classes {
-			classGroup := g.GetGroupName(class.Group)
+			classGroup := class.Group
 			if classGroup == groupName {
 				classCode, err := g.generateClass(m, &class)
 				if err != nil {

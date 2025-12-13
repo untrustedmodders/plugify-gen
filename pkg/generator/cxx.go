@@ -22,6 +22,7 @@ func NewCxxGenerator() *CxxGenerator {
 // Generate generates C++ bindings
 func (g *CxxGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+	m.Sanitize(g.Sanitizer)
 	opts = EnsureOptions(opts)
 
 	// Collect all unique groups from both methods and classes
@@ -731,7 +732,7 @@ func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		methodGroup := g.GetGroupName(method.Group)
+		methodGroup := method.Group
 		if methodGroup == groupName {
 			methodCode, err := g.generateMethod(m.Name, &method)
 			if err != nil {
@@ -745,7 +746,7 @@ func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 	// Generate classes for this group (if enabled)
 	if opts.GenerateClasses {
 		for _, class := range m.Classes {
-			classGroup := g.GetGroupName(class.Group)
+			classGroup := class.Group
 			if classGroup == groupName {
 				classCode, err := g.generateClass(m, &class)
 				if err != nil {

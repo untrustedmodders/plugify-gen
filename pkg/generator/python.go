@@ -22,6 +22,7 @@ func NewPythonGenerator() *PythonGenerator {
 // Generate generates Python bindings
 func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+	m.Sanitize(g.Sanitizer)
 	opts = EnsureOptions(opts)
 
 	var sb strings.Builder

@@ -22,6 +22,7 @@ func NewV8Generator() *V8Generator {
 // Generate generates V8/JavaScript TypeScript definitions
 func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+	m.Sanitize(g.Sanitizer)
 	opts = EnsureOptions(opts)
 
 	var sb strings.Builder

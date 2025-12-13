@@ -22,6 +22,7 @@ func NewLuaGenerator() *LuaGenerator {
 // Generate generates Lua bindings
 func (g *LuaGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
+	m.Sanitize(g.Sanitizer)
 	opts = EnsureOptions(opts)
 
 	var sb strings.Builder
