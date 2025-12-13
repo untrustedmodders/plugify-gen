@@ -125,6 +125,64 @@ func (g *CxxGenerator) generateDelegate(proto *manifest.Prototype) (string, erro
 	return sb.String(), nil
 }
 
+// CxxDocOptions configures Doxygen-style documentation generation for C++
+type CxxDocOptions struct {
+	Description  string
+	Params       []manifest.ParamType
+	ParamAliases []*manifest.ParamAlias
+	RetType      *manifest.TypeInfo
+	RetAlias     *manifest.RetAlias
+	Indent       string // "  " for module-level, "    " for class members
+}
+
+// generateCxxDocumentation generates Doxygen-style comments for C++ methods
+func (g *CxxGenerator) generateCxxDocumentation(opts CxxDocOptions) string {
+	var sb strings.Builder
+
+	sb.WriteString(opts.Indent + "/**\n")
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s * @brief %s\n", opts.Indent, opts.Description))
+	}
+
+	// Parameters section
+	for i, param := range opts.Params {
+		paramType := param.Type
+		if param.Ref {
+			paramType += "&"
+		}
+
+		// Apply parameter alias if provided
+		if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil {
+			paramType = opts.ParamAliases[i].Name
+		}
+
+		sb.WriteString(fmt.Sprintf("%s * @param %s (%s)", opts.Indent, param.Name, paramType))
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", param.Description))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Return type section
+	if opts.RetType != nil && opts.RetType.Type != "void" {
+		returnType := opts.RetType.Type
+
+		// Apply return alias if provided
+		if opts.RetAlias != nil && opts.RetAlias.Name != "" {
+			returnType = opts.RetAlias.Name
+		}
+
+		sb.WriteString(fmt.Sprintf("%s * @return %s", opts.Indent, returnType))
+		if opts.RetType.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", opts.RetType.Description))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString(opts.Indent + " */\n")
+	return sb.String()
+}
+
 func (g *CxxGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
@@ -156,29 +214,12 @@ func (g *CxxGenerator) generateMethod(pluginName string, method *manifest.Method
 	}
 
 	// Generate documentation comment
-	sb.WriteString("  /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("   * @brief %s\n", method.Description))
-	}
-	for _, param := range method.ParamTypes {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-		sb.WriteString(fmt.Sprintf("   * @param %s (%s)", param.Name, paramType))
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
-	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("   * @return %s", method.RetType.Type))
-		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", method.RetType.Description))
-		}
-		sb.WriteString("\n")
-	}
-	sb.WriteString("   */\n")
+	sb.WriteString(g.generateCxxDocumentation(CxxDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		RetType:     &method.RetType,
+		Indent:      "  ",
+	}))
 
 	sb.WriteString(fmt.Sprintf("\n  %s %s(%s) {\n", retType, method.Name, formattedParams))
 	if method.RetType.Type == "void" {
@@ -265,36 +306,7 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		}
 
 		// Destructor and copy/move semantics
-		if hasDtor {
-			sb.WriteString(fmt.Sprintf("    ~%s() {\n", class.Name))
-			sb.WriteString("      destroy();\n")
-			sb.WriteString("    }\n\n")
-
-			sb.WriteString(fmt.Sprintf("    %s(const %s&) = delete;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = delete;\n\n", class.Name, class.Name))
-
-			sb.WriteString(fmt.Sprintf("    %s(%s&& other) noexcept\n", class.Name, class.Name))
-			sb.WriteString("      : _handle(other._handle)\n")
-			sb.WriteString("      , _ownership(other._ownership) {\n")
-			sb.WriteString("      other.nullify();\n")
-			sb.WriteString("    }\n\n")
-
-			sb.WriteString(fmt.Sprintf("    %s& operator=(%s&& other) noexcept {\n", class.Name, class.Name))
-			sb.WriteString("      if (this != &other) {\n")
-			sb.WriteString("        destroy();\n")
-			sb.WriteString("        _handle = other._handle;\n")
-			sb.WriteString("        _ownership = other._ownership;\n")
-			sb.WriteString("        other.nullify();\n")
-			sb.WriteString("      }\n")
-			sb.WriteString("      return *this;\n")
-			sb.WriteString("    }\n\n")
-		} else {
-			sb.WriteString(fmt.Sprintf("    %s(const %s&) = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s(%s&&) noexcept = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s& operator=(%s&&) noexcept = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    ~%s() = default;\n\n", class.Name))
-		}
+		sb.WriteString(g.generateCopyMoveSemantics(class.Name, hasDtor))
 
 		// Constructor from handle
 		if hasDtor {
@@ -367,18 +379,7 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		sb.WriteString("  private:\n")
 
 		if hasDtor {
-			// Destroy helper
-			sb.WriteString("    void destroy() const noexcept {\n")
-			sb.WriteString(fmt.Sprintf("      if (_handle != %s && _ownership == Ownership::Owned) {\n", invalidValue))
-			sb.WriteString(fmt.Sprintf("        %s(_handle);\n", *class.Destructor))
-			sb.WriteString("      }\n")
-			sb.WriteString("    }\n\n")
-
-			// Nullify helper
-			sb.WriteString("    void nullify() noexcept {\n")
-			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-			sb.WriteString("      _ownership = Ownership::Borrowed;\n")
-			sb.WriteString("    }\n\n")
+			sb.WriteString(g.generatePrivateHelpers(class, invalidValue))
 		}
 
 		// Member variables
@@ -393,6 +394,62 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	return sb.String(), nil
 }
 
+// generatePrivateHelpers generates private helper methods for classes with destructors
+func (g *CxxGenerator) generatePrivateHelpers(class *manifest.Class, invalidValue string) string {
+	return fmt.Sprintf(`    void destroy() const noexcept {
+      if (_handle != %s && _ownership == Ownership::Owned) {
+        %s(_handle);
+      }
+    }
+
+    void nullify() noexcept {
+      _handle = %s;
+      _ownership = Ownership::Borrowed;
+    }
+
+`, invalidValue, *class.Destructor, invalidValue)
+}
+
+// generateCopyMoveSemantics generates copy/move constructors and assignment operators
+func (g *CxxGenerator) generateCopyMoveSemantics(className string, hasDtor bool) string {
+	if hasDtor {
+		// Custom move semantics for classes with destructor
+		return fmt.Sprintf(`    ~%s() {
+      destroy();
+    }
+
+    %s(const %s&) = delete;
+    %s& operator=(const %s&) = delete;
+
+    %s(%s&& other) noexcept
+      : _handle(other._handle)
+      , _ownership(other._ownership) {
+      other.nullify();
+    }
+
+    %s& operator=(%s&& other) noexcept {
+      if (this != &other) {
+        destroy();
+        _handle = other._handle;
+        _ownership = other._ownership;
+        other.nullify();
+      }
+      return *this;
+    }
+
+`, className, className, className, className, className, className, className, className, className)
+	}
+
+	// Default semantics for classes without destructor
+	return fmt.Sprintf(`    %s(const %s&) = default;
+    %s& operator=(const %s&) = default;
+    %s(%s&&) noexcept = default;
+    %s& operator=(%s&&) noexcept = default;
+    ~%s() = default;
+
+`, className, className, className, className, className, className, className, className, className)
+}
+
 func (g *CxxGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
 	method := FindMethod(m, methodName)
@@ -403,24 +460,11 @@ func (g *CxxGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	var sb strings.Builder
 
 	// Generate documentation
-	sb.WriteString("    /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("     * @brief %s\n", method.Description))
-	}
-
-	// Document parameters (skip first param if it's the return handle in C API)
-	for _, param := range method.ParamTypes {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-		sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, paramType))
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
-	sb.WriteString("     */\n")
+	sb.WriteString(g.generateCxxDocumentation(CxxDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		Indent:      "    ",
+	}))
 
 	// Generate constructor signature
 	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper)
@@ -459,49 +503,14 @@ func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	methodParams := params[startIdx:]
 
 	// Generate documentation
-	sb.WriteString("    /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("     * @brief %s\n", method.Description))
-	}
-
-	// Document parameters (excluding self if bindSelf)
-	for i, param := range methodParams {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-
-		// Check if this parameter has an alias
-		var aliasName string
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
-			aliasName = binding.ParamAliases[i].Name
-		}
-
-		if aliasName != "" {
-			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, aliasName))
-		} else {
-			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, paramType))
-		}
-
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
-
-	// Document return type
-	if method.RetType.Type != "void" {
-		returnType := method.RetType.Type
-		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-			returnType = binding.RetAlias.Name
-		}
-		sb.WriteString(fmt.Sprintf("     * @return %s", returnType))
-		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", method.RetType.Description))
-		}
-		sb.WriteString("\n")
-	}
-	sb.WriteString("     */\n")
+	sb.WriteString(g.generateCxxDocumentation(CxxDocOptions{
+		Description:  method.Description,
+		Params:       methodParams,
+		ParamAliases: binding.ParamAliases,
+		RetType:      &method.RetType,
+		RetAlias:     binding.RetAlias,
+		Indent:       "    ",
+	}))
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

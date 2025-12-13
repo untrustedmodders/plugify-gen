@@ -197,87 +197,71 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 }
 
 func (g *PythonGenerator) generateDestructorMethods(class *manifest.Class) string {
-	var sb strings.Builder
+	return fmt.Sprintf(`    def __del__(self) -> None:
+        """
+        Destructor. Releases the underlying handle if owned.
+        """
+        ...
 
-	// __del__ method
-	sb.WriteString("    def __del__(self) -> None:\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Destructor. Releases the underlying handle if owned.\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
+    def close(self) -> None:
+        """
+        Close/destroy the handle if owned.
+        """
+        ...
 
-	// close method
-	sb.WriteString("    def close(self) -> None:\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Close/destroy the handle if owned.\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
+    def __enter__(self) -> "%s":
+        """
+        Enter the runtime context for this object.
 
-	// __enter__ method for context manager
-	sb.WriteString(fmt.Sprintf("    def __enter__(self) -> \"%s\":\n", class.Name))
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Enter the runtime context for this object.\n\n")
-	sb.WriteString("        Returns:\n")
-	sb.WriteString(fmt.Sprintf("            %s: self\n", class.Name))
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
+        Returns:
+            %s: self
+        """
+        ...
 
-	// __exit__ method for context manager
-	sb.WriteString("    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Exit the runtime context and release resources.\n\n")
-	sb.WriteString("        Args:\n")
-	sb.WriteString("            exc_type (type[BaseException] | None): Exception type if an exception was raised\n")
-	sb.WriteString("            exc_val (BaseException | None): Exception value if an exception was raised\n")
-	sb.WriteString("            exc_tb (object): Traceback if an exception was raised\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+        """
+        Exit the runtime context and release resources.
 
-	return sb.String()
+        Args:
+            exc_type (type[BaseException] | None): Exception type if an exception was raised
+            exc_val (BaseException | None): Exception value if an exception was raised
+            exc_tb (object): Traceback if an exception was raised
+        """
+        ...
+
+`, class.Name, class.Name)
 }
 
 func (g *PythonGenerator) generateUtilityMethods(class *manifest.Class) (string, error) {
-	var sb strings.Builder
-
 	// Get the handle type mapped to Python
 	_, handleType, err := g.typeMapper.MapHandleType(class)
 	if err != nil {
 		return "", err
 	}
 
-	// get() method
-	sb.WriteString(fmt.Sprintf("    def get(self) -> %s:\n", handleType))
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Get the raw handle value without transferring ownership.\n\n")
-	sb.WriteString("        Returns:\n")
-	sb.WriteString(fmt.Sprintf("            %s: The underlying handle value\n", handleType))
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
+	methods := []struct {
+		name        string
+		returnType  string
+		description string
+		returnDesc  string
+	}{
+		{"get", handleType, "Get the raw handle value without transferring ownership.", "The underlying handle value"},
+		{"release", handleType, "Release ownership of the handle and return it.", "The released handle value"},
+		{"reset", "None", "Reset the handle by closing it.", ""},
+		{"valid", "bool", "Check if the handle is valid.", "True if the handle is valid, False otherwise"},
+	}
 
-	// release() method
-	sb.WriteString(fmt.Sprintf("    def release(self) -> %s:\n", handleType))
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Release ownership of the handle and return it.\n\n")
-	sb.WriteString("        Returns:\n")
-	sb.WriteString(fmt.Sprintf("            %s: The released handle value\n", handleType))
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
-
-	// reset() method
-	sb.WriteString("    def reset(self) -> None:\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Reset the handle by closing it.\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
-
-	// valid() method
-	sb.WriteString("    def valid(self) -> bool:\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        Check if the handle is valid.\n\n")
-	sb.WriteString("        Returns:\n")
-	sb.WriteString("            bool: True if the handle is valid, False otherwise\n")
-	sb.WriteString("        \"\"\"\n")
-	sb.WriteString("        ...\n\n")
+	var sb strings.Builder
+	for _, method := range methods {
+		sb.WriteString(fmt.Sprintf("    def %s(self) -> %s:\n", method.name, method.returnType))
+		sb.WriteString("        \"\"\"\n")
+		sb.WriteString(fmt.Sprintf("        %s\n", method.description))
+		if method.returnDesc != "" {
+			sb.WriteString(fmt.Sprintf("\n        Returns:\n            %s: %s\n", method.returnType, method.returnDesc))
+		}
+		sb.WriteString("        \"\"\"\n")
+		sb.WriteString("        ...\n\n")
+	}
 
 	return sb.String(), nil
 }
@@ -305,17 +289,11 @@ func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manif
 
 	// Generate docstring
 	if method.Description != "" {
-		sb.WriteString("        \"\"\"\n")
-		sb.WriteString(fmt.Sprintf("        %s\n", method.Description))
-		if len(method.ParamTypes) > 0 {
-			sb.WriteString("\n        Args:\n")
-			for _, param := range method.ParamTypes {
-				paramName := param.Name
-				sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
-					paramName, param.Type, param.Description))
-			}
-		}
-		sb.WriteString("        \"\"\"\n")
+		sb.WriteString(g.generatePythonDocstring(PythonDocOptions{
+			Description: method.Description,
+			Params:      method.ParamTypes,
+			Indent:      "    ",
+		}))
 	}
 
 	// Stub body
@@ -381,35 +359,14 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 
 	// Generate docstring
 	if method.Description != "" {
-		sb.WriteString("        \"\"\"\n")
-		sb.WriteString(fmt.Sprintf("        %s\n", method.Description))
-
-		if len(methodParams) > 0 {
-			sb.WriteString("\n        Args:\n")
-			for i, param := range methodParams {
-				paramName := param.Name
-
-				// Check if this parameter has an alias
-				paramType := param.Type
-				if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
-					paramType = binding.ParamAliases[i].Name
-				}
-
-				sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
-					paramName, paramType, param.Description))
-			}
-		}
-
-		if method.RetType.Type != "void" {
-			returnType := method.RetType.Type
-			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-				returnType = binding.RetAlias.Name
-			}
-			sb.WriteString(fmt.Sprintf("\n        Returns:\n            %s: %s\n",
-				returnType, method.RetType.Description))
-		}
-
-		sb.WriteString("        \"\"\"\n")
+		sb.WriteString(g.generatePythonDocstring(PythonDocOptions{
+			Description:  method.Description,
+			Params:       methodParams,
+			ParamAliases: binding.ParamAliases,
+			RetType:      &method.RetType,
+			RetAlias:     binding.RetAlias,
+			Indent:       "    ",
+		}))
 	}
 
 	// Stub body
@@ -527,51 +484,91 @@ func (g *PythonGenerator) generateReturnType(retType *manifest.TypeInfo, params 
 	return fmt.Sprintf("tuple[%s]", strings.Join(types, ", ")), nil
 }
 
-func (g *PythonGenerator) generateDocstring(method *manifest.Method) string {
+// PythonDocOptions configures Python docstring generation
+type PythonDocOptions struct {
+	Description      string
+	Params           []manifest.ParamType
+	ParamAliases     []*manifest.ParamAlias
+	RetType          *manifest.TypeInfo
+	RetAlias         *manifest.RetAlias
+	IncludeCallbacks bool
+	Indent           string // "    " for class methods, "" for top-level
+}
+
+// generatePythonDocstring generates a Python docstring with Args and Returns sections
+func (g *PythonGenerator) generatePythonDocstring(opts PythonDocOptions) string {
 	var sb strings.Builder
 
-	sb.WriteString("    \"\"\"\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("    %s\n\n", method.Description))
+	sb.WriteString(opts.Indent + "    \"\"\"\n")
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s    %s\n", opts.Indent, opts.Description))
 	}
 
-	if len(method.ParamTypes) > 0 {
-		sb.WriteString("    Args:\n")
-		for _, param := range method.ParamTypes {
+	// Parameters section
+	if len(opts.Params) > 0 {
+		sb.WriteString(fmt.Sprintf("\n%s    Args:\n", opts.Indent))
+		for i, param := range opts.Params {
 			paramName := param.Name
-			sb.WriteString(fmt.Sprintf("        %s (%s): %s\n",
-				paramName, param.Type, param.Description))
+			paramType := param.Type
+
+			// Apply parameter alias if provided
+			if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil {
+				paramType = opts.ParamAliases[i].Name
+			}
+
+			sb.WriteString(fmt.Sprintf("%s        %s (%s): %s\n",
+				opts.Indent, paramName, paramType, param.Description))
 		}
 	}
 
-	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("\n    Returns:\n        %s: %s\n",
-			method.RetType.Type, method.RetType.Description))
+	// Return type section
+	if opts.RetType != nil && opts.RetType.Type != "void" {
+		returnType := opts.RetType.Type
+
+		// Apply return alias if provided
+		if opts.RetAlias != nil && opts.RetAlias.Name != "" {
+			returnType = opts.RetAlias.Name
+		}
+
+		sb.WriteString(fmt.Sprintf("\n%s    Returns:\n%s        %s: %s\n",
+			opts.Indent, opts.Indent, returnType, opts.RetType.Description))
 	}
 
-	// Add callback prototypes
-	for _, param := range method.ParamTypes {
-		if param.Prototype != nil {
-			sb.WriteString(fmt.Sprintf("\n    Callback Prototype (%s):\n", param.Prototype.Name))
-			if param.Prototype.Description != "" {
-				sb.WriteString(fmt.Sprintf("        %s\n\n", param.Prototype.Description))
-			}
-			if len(param.Prototype.ParamTypes) > 0 {
-				sb.WriteString("        Args:\n")
-				for _, protoParam := range param.Prototype.ParamTypes {
-					sb.WriteString(fmt.Sprintf("            %s (%s): %s\n",
-						protoParam.Name, protoParam.Type, protoParam.Description))
+	// Callback prototypes
+	if opts.IncludeCallbacks {
+		for _, param := range opts.Params {
+			if param.Prototype != nil {
+				sb.WriteString(fmt.Sprintf("\n%s    Callback Prototype (%s):\n", opts.Indent, param.Prototype.Name))
+				if param.Prototype.Description != "" {
+					sb.WriteString(fmt.Sprintf("%s        %s\n\n", opts.Indent, param.Prototype.Description))
+				}
+				if len(param.Prototype.ParamTypes) > 0 {
+					sb.WriteString(fmt.Sprintf("%s        Args:\n", opts.Indent))
+					for _, protoParam := range param.Prototype.ParamTypes {
+						sb.WriteString(fmt.Sprintf("%s            %s (%s): %s\n",
+							opts.Indent, protoParam.Name, protoParam.Type, protoParam.Description))
+					}
+				}
+				if param.Prototype.RetType.Type != "void" {
+					sb.WriteString(fmt.Sprintf("\n%s        Returns:\n%s            %s: %s\n",
+						opts.Indent, opts.Indent, param.Prototype.RetType.Type, param.Prototype.RetType.Description))
 				}
 			}
-			if param.Prototype.RetType.Type != "void" {
-				sb.WriteString(fmt.Sprintf("\n        Returns:\n            %s: %s\n",
-					param.Prototype.RetType.Type, param.Prototype.RetType.Description))
-			}
 		}
 	}
 
-	sb.WriteString("    \"\"\"\n")
+	sb.WriteString(opts.Indent + "    \"\"\"\n")
 	return sb.String()
+}
+
+func (g *PythonGenerator) generateDocstring(method *manifest.Method) string {
+	return g.generatePythonDocstring(PythonDocOptions{
+		Description:      method.Description,
+		Params:           method.ParamTypes,
+		RetType:          &method.RetType,
+		IncludeCallbacks: true,
+		Indent:           "",
+	})
 }
 
 // PythonTypeMapper implements type mapping for Python

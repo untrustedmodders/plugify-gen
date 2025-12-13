@@ -68,6 +68,71 @@ func (g *RustGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (
 	return result, nil
 }
 
+// RustDocOptions configures Rust documentation generation
+type RustDocOptions struct {
+	Description string
+	Params      []manifest.ParamType
+	Returns     string
+	Indent      string
+}
+
+// generateRustDocumentation generates Rust-style documentation comments (///)
+func (g *RustGenerator) generateRustDocumentation(opts RustDocOptions) string {
+	var sb strings.Builder
+
+	// Main description
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.Description))
+	}
+
+	// Parameters
+	if len(opts.Params) > 0 {
+		if opts.Description != "" {
+			sb.WriteString(fmt.Sprintf("%s///\n", opts.Indent))
+		}
+		sb.WriteString(fmt.Sprintf("%s/// # Arguments\n", opts.Indent))
+		for _, param := range opts.Params {
+			paramType := param.Type
+			if param.Ref {
+				paramType += "&"
+			}
+			sb.WriteString(fmt.Sprintf("%s/// * `%s` - (%s)", opts.Indent, param.Name, paramType))
+			if param.Description != "" {
+				sb.WriteString(fmt.Sprintf(": %s", param.Description))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	// Returns
+	if opts.Returns != "" {
+		sb.WriteString(fmt.Sprintf("%s///\n", opts.Indent))
+		sb.WriteString(fmt.Sprintf("%s/// # Returns\n", opts.Indent))
+		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.Returns))
+	}
+
+	return sb.String()
+}
+
+// formatParameters is a generic helper that formats parameters using a custom formatter function
+func (g *RustGenerator) formatParameters(params []manifest.ParamType, formatter func(int, *manifest.ParamType) (string, error)) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	parts := []string{}
+	for i, param := range params {
+		part, err := formatter(i, &param)
+		if err != nil {
+			return "", err
+		}
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, ", "), nil
+}
+
 func (g *RustGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
@@ -76,7 +141,10 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, underlyingType str
 	var sb strings.Builder
 
 	if enum.Description != "" {
-		sb.WriteString(fmt.Sprintf("/// %s\n", enum.Description))
+		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+			Description: enum.Description,
+			Indent:      "",
+		}))
 	}
 
 	sb.WriteString("#[repr(")
@@ -87,7 +155,10 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, underlyingType str
 
 	for _, val := range enum.Values {
 		if val.Description != "" {
-			sb.WriteString(fmt.Sprintf("    /// %s\n", val.Description))
+			sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+				Description: val.Description,
+				Indent:      "    ",
+			}))
 		}
 		sb.WriteString(fmt.Sprintf("    %s = %d,\n", val.Name, val.Value))
 	}
@@ -105,7 +176,10 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 	var sb strings.Builder
 
 	if proto.Description != "" {
-		sb.WriteString(fmt.Sprintf("/// %s\n", proto.Description))
+		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+			Description: proto.Description,
+			Indent:      "",
+		}))
 	}
 
 	// Generate return type
@@ -134,64 +208,37 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 
 // formatRustParams formats parameters in Rust style (name: type)
 func (g *RustGenerator) formatRustParams(params []manifest.ParamType, includeNames bool) (string, error) {
-	if len(params) == 0 {
-		return "", nil
-	}
-
-	result := ""
-	for i, param := range params {
-		if i > 0 {
-			result += ", "
-		}
-
-		// Get the type
-		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+	return g.formatParameters(params, func(_ int, param *manifest.ParamType) (string, error) {
+		typeName, err := g.typeMapper.MapParamType(param, TypeContextValue)
 		if err != nil {
 			return "", err
 		}
 
 		if includeNames {
-			// Rust format: name: type
-			paramName := param.Name
-			result += paramName + ": " + typeName
-		} else {
-			// Just type (for extern "C" fn signatures)
-			result += typeName
+			return param.Name + ": " + typeName, nil
 		}
-	}
-
-	return result, nil
+		return typeName, nil
+	})
 }
 
 func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
 	// Generate documentation comment
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("/// %s\n", method.Description))
-		sb.WriteString("///\n")
-	}
-	for _, param := range method.ParamTypes {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-		sb.WriteString(fmt.Sprintf("/// # Arguments\n"))
-		sb.WriteString(fmt.Sprintf("/// * `%s` - (%s)", param.Name, paramType))
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
+	returns := ""
 	if method.RetType.Type != "void" {
-		sb.WriteString("///\n")
-		sb.WriteString("/// # Returns\n")
-		sb.WriteString(fmt.Sprintf("/// %s", method.RetType.Type))
+		returns = method.RetType.Type
 		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", method.RetType.Description))
+			returns += ": " + method.RetType.Description
 		}
-		sb.WriteString("\n")
 	}
+
+	sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		Returns:     returns,
+		Indent:      "",
+	}))
 
 	// Generate function signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
@@ -571,7 +618,10 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 
 	// Class documentation
 	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("/// %s\n", class.Description))
+		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+			Description: class.Description,
+			Indent:      "",
+		}))
 	}
 
 	// Struct definition
@@ -678,16 +728,11 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 	var sb strings.Builder
 
 	// Generate documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("    /// %s\n", method.Description))
-	}
-
-	// Generate parameters documentation
-	for _, param := range method.ParamTypes {
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf("    /// @param %s: %s\n", param.Name, param.Description))
-		}
-	}
+	sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		Indent:      "    ",
+	}))
 
 	// Generate function signature
 	params, err := g.formatRustParams(method.ParamTypes, true)
@@ -808,21 +853,17 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 	methodParams := params[startIdx:]
 
 	// Generate documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("    /// %s\n", method.Description))
-	}
-
-	// Document parameters
-	for _, param := range methodParams {
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf("    /// @param %s: %s\n", param.Name, param.Description))
-		}
-	}
-
-	// Document return type
+	returns := ""
 	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		sb.WriteString(fmt.Sprintf("    /// @return %s\n", method.RetType.Description))
+		returns = method.RetType.Description
 	}
+
+	sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		Description: method.Description,
+		Params:      methodParams,
+		Returns:     returns,
+		Indent:      "    ",
+	}))
 
 	// Generate method signature
 	formattedParams, err := g.formatClassParams(methodParams, binding.ParamAliases)
@@ -943,16 +984,9 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 }
 
 func (g *RustGenerator) formatClassParams(params []manifest.ParamType, aliases []*manifest.ParamAlias) (string, error) {
-	if len(params) == 0 {
-		return "", nil
-	}
-
-	var parts []string
-	for i, param := range params {
+	return g.formatParameters(params, func(i int, param *manifest.ParamType) (string, error) {
 		name := param.Name
-
 		var typeName string
-		var err error
 
 		// Check if this parameter has an alias
 		if i < len(aliases) && aliases[i] != nil {
@@ -962,15 +996,14 @@ func (g *RustGenerator) formatClassParams(params []manifest.ParamType, aliases [
 				typeName = fmt.Sprintf("&%s", aliases[i].Name)
 			}
 		} else {
-			typeName, err = g.typeMapper.MapParamType(&param, TypeContextValue)
+			var err error
+			typeName, err = g.typeMapper.MapParamType(param, TypeContextValue)
 			if err != nil {
 				return "", err
 			}
 		}
-		parts = append(parts, fmt.Sprintf("%s: %s", name, typeName))
-	}
-
-	return strings.Join(parts, ", "), nil
+		return fmt.Sprintf("%s: %s", name, typeName), nil
+	})
 }
 
 func (g *RustGenerator) formatClassCallArgs(params []manifest.ParamType, binding *manifest.Binding, bindSelf bool) (string, error) {
@@ -981,20 +1014,29 @@ func (g *RustGenerator) formatClassCallArgs(params []manifest.ParamType, binding
 		parts = append(parts, "self.handle")
 	}
 
-	// Add other parameters
-	for i, param := range params {
+	// Add other parameters using generic helper
+	paramParts, err := g.formatParameters(params, func(i int, param *manifest.ParamType) (string, error) {
 		name := param.Name
 
 		// Check if parameter has alias
 		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
 			if binding.ParamAliases[i].Owner {
-				parts = append(parts, fmt.Sprintf("%s.release()", name))
-			} else {
-				parts = append(parts, fmt.Sprintf("%s.get()", name))
+				return fmt.Sprintf("%s.release()", name), nil
 			}
-		} else {
-			parts = append(parts, name)
+			return fmt.Sprintf("%s.get()", name), nil
 		}
+		return name, nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if paramParts != "" {
+		if len(parts) > 0 {
+			parts = append(parts, paramParts)
+			return strings.Join(parts, ", "), nil
+		}
+		return paramParts, nil
 	}
 
 	return strings.Join(parts, ", "), nil
@@ -1015,24 +1057,23 @@ func (g *RustGenerator) generateDropTrait(m *manifest.Manifest, class *manifest.
 }
 
 func (g *RustGenerator) generateComparisonTraits(class *manifest.Class) string {
-	var sb strings.Builder
+	className := class.Name
+	return fmt.Sprintf(`impl std::cmp::PartialEq for %s {
+    fn eq(&self, other: &Self) -> bool {
+        self.handle == other.handle
+    }
+}
+impl std::cmp::Eq for %s {}
+impl std::cmp::PartialOrd for %s {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        (self.handle).partial_cmp(&(other.handle))
+    }
+}
+impl std::cmp::Ord for %s {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.handle).cmp(&(other.handle))
+    }
+}
 
-	sb.WriteString(fmt.Sprintf("impl std::cmp::PartialEq for %s {\n", class.Name))
-	sb.WriteString(fmt.Sprintf("    fn eq(&self, other: &Self) -> bool {\n"))
-	sb.WriteString("        self.handle == other.handle\n")
-	sb.WriteString("    }\n")
-	sb.WriteString("}\n")
-	sb.WriteString(fmt.Sprintf("impl std::cmp::Eq for %s {}\n", class.Name))
-	sb.WriteString(fmt.Sprintf("impl std::cmp::PartialOrd for %s {\n", class.Name))
-	sb.WriteString("    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {\n")
-	sb.WriteString("        (self.handle).partial_cmp(&(other.handle))\n")
-	sb.WriteString("    }\n")
-	sb.WriteString("}\n")
-	sb.WriteString(fmt.Sprintf("impl std::cmp::Ord for %s {\n", class.Name))
-	sb.WriteString("    fn cmp(&self, other: &Self) -> std::cmp::Ordering {\n")
-	sb.WriteString("        (self.handle).cmp(&(other.handle))\n")
-	sb.WriteString("    }\n")
-	sb.WriteString("}\n\n")
-
-	return sb.String()
+`, className, className, className, className)
 }

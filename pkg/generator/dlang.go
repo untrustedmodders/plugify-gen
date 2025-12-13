@@ -228,23 +228,171 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	return sb.String(), nil
 }
 
+// DDocOptions configures DDoc-style documentation generation for D
+type DDocOptions struct {
+	Description string
+	Params      []manifest.ParamType
+	RetType     *manifest.TypeInfo
+	Indent      string // "" for top-level, "\t" for class members
+	AddThrows   bool   // Whether to add "Throws: Exception if handle is null"
+}
+
+// generateDDoc generates DDoc-style comments for D language
+func (g *DlangGenerator) generateDDoc(opts DDocOptions) string {
+	var sb strings.Builder
+
+	sb.WriteString(opts.Indent + "/++\n")
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s\t%s\n", opts.Indent, opts.Description))
+	}
+
+	// Parameters section
+	if len(opts.Params) > 0 {
+		if opts.Description != "" {
+			sb.WriteString(opts.Indent + "\n")
+		}
+		sb.WriteString(opts.Indent + "\tParams:\n")
+		for _, param := range opts.Params {
+			sb.WriteString(fmt.Sprintf("%s\t\t%s = %s\n", opts.Indent, param.Name, param.Description))
+		}
+	}
+
+	// Return type section
+	if opts.RetType != nil && opts.RetType.Type != "void" {
+		if len(opts.Params) > 0 || opts.Description != "" {
+			sb.WriteString(opts.Indent + "\n")
+		}
+		sb.WriteString(opts.Indent + "\tReturns:\n")
+		if opts.RetType.Description != "" {
+			sb.WriteString(fmt.Sprintf("%s\t\t%s\n", opts.Indent, opts.RetType.Description))
+		} else {
+			sb.WriteString(opts.Indent + "\t\tReturn value\n")
+		}
+	}
+
+	// Throws section
+	if opts.AddThrows {
+		sb.WriteString(opts.Indent + "\n")
+		sb.WriteString(opts.Indent + "\tThrows: Exception if handle is null\n")
+	}
+
+	sb.WriteString(opts.Indent + "+/\n")
+	return sb.String()
+}
+
+// generateUtilityMethods generates utility methods for RAII wrapper classes
+func (g *DlangGenerator) generateUtilityMethods(className, handleType, invalidValue string, hasDtor bool) string {
+	var sb strings.Builder
+
+	// Get method
+	sb.WriteString("\t/// Get the underlying handle\n")
+	sb.WriteString(fmt.Sprintf("\t@property %s get() const pure nothrow @nogc {\n", handleType))
+	sb.WriteString("\t\treturn _handle;\n")
+	sb.WriteString("\t}\n\n")
+
+	// Release method
+	sb.WriteString("\t/// Release ownership of the handle\n")
+	sb.WriteString(fmt.Sprintf("\t%s release() nothrow @nogc {\n", handleType))
+	sb.WriteString("\t\tauto handle = _handle;\n")
+	if hasDtor {
+		sb.WriteString("\t\tnullify();\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
+	}
+	sb.WriteString("\t\treturn handle;\n")
+	sb.WriteString("\t}\n\n")
+
+	// Reset method
+	sb.WriteString("\t/// Reset the handle\n")
+	if hasDtor {
+		sb.WriteString("\tvoid reset() nothrow {\n")
+		sb.WriteString("\t\tdestroy();\n")
+		sb.WriteString("\t\tnullify();\n")
+	} else {
+		sb.WriteString("\tvoid reset() nothrow @nogc {\n")
+		sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
+	}
+	sb.WriteString("\t}\n\n")
+
+	// Swap method
+	sb.WriteString("\t/// Swap two " + className + " instances\n")
+	sb.WriteString(fmt.Sprintf("\tvoid swap(ref %s other) nothrow @nogc {\n", className))
+	sb.WriteString("\t\timport std.algorithm.mutation : swap;\n")
+	sb.WriteString("\t\tswap(_handle, other._handle);\n")
+	if hasDtor {
+		sb.WriteString("\t\tswap(_ownership, other._ownership);\n")
+	}
+	sb.WriteString("\t}\n\n")
+
+	// Boolean conversion operator
+	sb.WriteString("\t/// Boolean conversion operator\n")
+	sb.WriteString("\tbool opCast(T : bool)() const pure nothrow @nogc {\n")
+	sb.WriteString(fmt.Sprintf("\t\treturn _handle !is %s;\n", invalidValue))
+	sb.WriteString("\t}\n\n")
+
+	// Comparison operators
+	sb.WriteString("\t/// Comparison operators\n")
+	sb.WriteString(fmt.Sprintf("\tint opCmp(ref const %s other) const pure nothrow @nogc {\n", className))
+	sb.WriteString("\t\tif (_handle < other._handle) return -1;\n")
+	sb.WriteString("\t\tif (_handle > other._handle) return 1;\n")
+	sb.WriteString("\t\treturn 0;\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString(fmt.Sprintf("\tbool opEquals(ref const %s other) const pure nothrow @nogc {\n", className))
+	sb.WriteString("\t\treturn _handle == other._handle;\n")
+	sb.WriteString("\t}\n\n")
+
+	return sb.String()
+}
+
+// generateMoveSemantics generates move constructor and move assignment operator
+func (g *DlangGenerator) generateMoveSemantics(className string) string {
+	var sb strings.Builder
+
+	// Move constructor
+	sb.WriteString("\t/// Move constructor (called when moving)\n")
+	sb.WriteString(fmt.Sprintf("\tthis(ref return scope %s other) {\n", className))
+	sb.WriteString("\t\t_handle = other._handle;\n")
+	sb.WriteString("\t\t_ownership = other._ownership;\n")
+	sb.WriteString("\t\tother.nullify();\n")
+	sb.WriteString("\t}\n\n")
+
+	// Move assignment
+	sb.WriteString("\t/// Move assignment\n")
+	sb.WriteString(fmt.Sprintf("\tref %s opAssign(%s other) return {\n", className, className))
+	sb.WriteString("\t\tswap(this, other);\n")
+	sb.WriteString("\t\treturn this;\n")
+	sb.WriteString("\t}\n\n")
+
+	return sb.String()
+}
+
+// generatePrivateHelpers generates private helper methods (destroy and nullify)
+func (g *DlangGenerator) generatePrivateHelpers(className, invalidValue, destructor string) string {
+	var sb strings.Builder
+
+	sb.WriteString("\tprivate void destroy() const nothrow {\n")
+	sb.WriteString(fmt.Sprintf("\t\tif (_handle !is %s && _ownership == Ownership.Owned) {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("\t\t\t%s(_handle);\n", destructor))
+	sb.WriteString("\t\t}\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\tprivate void nullify() nothrow @nogc {\n")
+	sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
+	sb.WriteString("\t\t_ownership = Ownership.Borrowed;\n")
+	sb.WriteString("\t}\n")
+
+	return sb.String()
+}
+
 func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
-	sb.WriteString("/++\n")
-	if proto.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t%s\n\n", proto.Description))
-	}
-
-	// Generate parameter documentation
-	if len(proto.ParamTypes) > 0 {
-		sb.WriteString("\tParams:\n")
-		for _, param := range proto.ParamTypes {
-			paramName := param.Name
-			sb.WriteString(fmt.Sprintf("\t\t%s = %s\n", paramName, param.Description))
-		}
-	}
-	sb.WriteString("+/\n")
+	sb.WriteString(g.generateDDoc(DDocOptions{
+		Description: proto.Description,
+		Params:      proto.ParamTypes,
+		Indent:      "",
+	}))
 
 	// Generate return type
 	retType, err := g.typeMapper.MapReturnType(&proto.RetType)
@@ -295,26 +443,12 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 	var sb strings.Builder
 
 	// Documentation
-	sb.WriteString("/++\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t%s\n\n", method.Description))
-	}
-
-	// Parameters documentation
-	if len(method.ParamTypes) > 0 {
-		sb.WriteString("\tParams:\n")
-		for _, param := range method.ParamTypes {
-			paramName := param.Name
-			sb.WriteString(fmt.Sprintf("\t\t%s = %s\n", paramName, param.Description))
-		}
-	}
-
-	// Return documentation
-	if method.RetType.Type != "void" {
-		sb.WriteString("\tReturns:\n")
-		sb.WriteString(fmt.Sprintf("\t\t%s\n", method.RetType.Description))
-	}
-	sb.WriteString("+/\n")
+	sb.WriteString(g.generateDDoc(DDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		RetType:     &method.RetType,
+		Indent:      "",
+	}))
 
 	// Function signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
@@ -632,79 +766,10 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 			sb.WriteString("\t\tdestroy();\n")
 			sb.WriteString("\t}\n\n")
 
-			// Move constructor
-			sb.WriteString("\t/// Move constructor (called when moving)\n")
-			sb.WriteString(fmt.Sprintf("\tthis(ref return scope %s other) {\n", class.Name))
-			sb.WriteString("\t\t_handle = other._handle;\n")
-			sb.WriteString("\t\t_ownership = other._ownership;\n")
-			sb.WriteString("\t\tother.nullify();\n")
-			sb.WriteString("\t}\n\n")
-
-			// Move assignment
-			sb.WriteString("\t/// Move assignment\n")
-			sb.WriteString(fmt.Sprintf("\tref %s opAssign(%s other) return {\n", class.Name, class.Name))
-			sb.WriteString("\t\tswap(this, other);\n")
-			sb.WriteString("\t\treturn this;\n")
-			sb.WriteString("\t}\n\n")
+			sb.WriteString(g.generateMoveSemantics(class.Name))
 		}
 
-		// Get method
-		sb.WriteString("\t/// Get the underlying handle\n")
-		sb.WriteString(fmt.Sprintf("\t@property %s get() const pure nothrow @nogc {\n", handleType))
-		sb.WriteString("\t\treturn _handle;\n")
-		sb.WriteString("\t}\n\n")
-
-		// Release method
-		sb.WriteString("\t/// Release ownership of the handle\n")
-		sb.WriteString(fmt.Sprintf("\t%s release() nothrow @nogc {\n", handleType))
-		sb.WriteString("\t\tauto handle = _handle;\n")
-		if hasDtor {
-			sb.WriteString("\t\tnullify();\n")
-		} else {
-			sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
-		}
-		sb.WriteString("\t\treturn handle;\n")
-		sb.WriteString("\t}\n\n")
-
-		// Reset method
-		sb.WriteString("\t/// Reset the handle\n")
-		if hasDtor {
-			sb.WriteString("\tvoid reset() nothrow {\n")
-			sb.WriteString("\t\tdestroy();\n")
-			sb.WriteString("\t\tnullify();\n")
-		} else {
-			sb.WriteString("\tvoid reset() nothrow @nogc {\n")
-			sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
-		}
-		sb.WriteString("\t}\n\n")
-
-		// Swap method
-		sb.WriteString("\t/// Swap two " + class.Name + " instances\n")
-		sb.WriteString(fmt.Sprintf("\tvoid swap(ref %s other) nothrow @nogc {\n", class.Name))
-		sb.WriteString("\t\timport std.algorithm.mutation : swap;\n")
-		sb.WriteString("\t\tswap(_handle, other._handle);\n")
-		if hasDtor {
-			sb.WriteString("\t\tswap(_ownership, other._ownership);\n")
-		}
-		sb.WriteString("\t}\n\n")
-
-		// Boolean conversion operator
-		sb.WriteString("\t/// Boolean conversion operator\n")
-		sb.WriteString("\tbool opCast(T : bool)() const pure nothrow @nogc {\n")
-		sb.WriteString(fmt.Sprintf("\t\treturn _handle !is %s;\n", invalidValue))
-		sb.WriteString("\t}\n\n")
-
-		// Comparison operators
-		sb.WriteString("\t/// Comparison operators\n")
-		sb.WriteString(fmt.Sprintf("\tint opCmp(ref const %s other) const pure nothrow @nogc {\n", class.Name))
-		sb.WriteString("\t\tif (_handle < other._handle) return -1;\n")
-		sb.WriteString("\t\tif (_handle > other._handle) return 1;\n")
-		sb.WriteString("\t\treturn 0;\n")
-		sb.WriteString("\t}\n\n")
-
-		sb.WriteString(fmt.Sprintf("\tbool opEquals(ref const %s other) const pure nothrow @nogc {\n", class.Name))
-		sb.WriteString("\t\treturn _handle == other._handle;\n")
-		sb.WriteString("\t}\n\n")
+		sb.WriteString(g.generateUtilityMethods(class.Name, handleType, invalidValue, hasDtor))
 	}
 
 	// Generate class bindings
@@ -719,16 +784,7 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 
 	// Private helper methods for RAII version
 	if hasDtor {
-		sb.WriteString("\tprivate void destroy() const nothrow {\n")
-		sb.WriteString(fmt.Sprintf("\t\tif (_handle !is %s && _ownership == Ownership.Owned) {\n", invalidValue))
-		sb.WriteString(fmt.Sprintf("\t\t\t%s(_handle);\n", *class.Destructor))
-		sb.WriteString("\t\t}\n")
-		sb.WriteString("\t}\n\n")
-
-		sb.WriteString("\tprivate void nullify() nothrow @nogc {\n")
-		sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
-		sb.WriteString("\t\t_ownership = Ownership.Borrowed;\n")
-		sb.WriteString("\t}\n")
+		sb.WriteString(g.generatePrivateHelpers(class.Name, invalidValue, *class.Destructor))
 	}
 
 	sb.WriteString("}\n")
@@ -746,23 +802,16 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 	var sb strings.Builder
 
 	// Generate documentation
-	sb.WriteString("\t/**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t * %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("\t * Creates a new %s instance\n", class.Name))
+	description := method.Description
+	if description == "" {
+		description = fmt.Sprintf("Creates a new %s instance", class.Name)
 	}
 
-	// Document parameters
-	if len(method.ParamTypes) > 0 {
-		sb.WriteString("\t * Params:\n")
-		for _, param := range method.ParamTypes {
-			paramName := param.Name
-			description := param.Description
-			sb.WriteString(fmt.Sprintf("\t *   %s = %s\n", paramName, description))
-		}
-	}
-	sb.WriteString("\t */\n")
+	sb.WriteString(g.generateDDoc(DDocOptions{
+		Description: description,
+		Params:      method.ParamTypes,
+		Indent:      "\t",
+	}))
 
 	// Constructor signature
 	sb.WriteString("\tthis(")
@@ -819,37 +868,13 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	methodParams := params[startIdx:]
 
 	// Generate documentation
-	sb.WriteString("\t/**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t * %s\n", method.Description))
-	}
-
-	// Document parameters (excluding self if bindSelf)
-	if len(methodParams) > 0 {
-		sb.WriteString("\t * Params:\n")
-		for _, param := range methodParams {
-			paramName := param.Name
-			description := param.Description
-			sb.WriteString(fmt.Sprintf("\t *   %s = %s\n", paramName, description))
-		}
-	}
-
-	// Return documentation
-	if method.RetType.Type != "void" {
-		sb.WriteString("\t * Returns:\n")
-		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf("\t *   %s\n", method.RetType.Description))
-		} else {
-			sb.WriteString("\t *   Return value\n")
-		}
-	}
-
-	// Determine if method is non static
-	if binding.BindSelf {
-		sb.WriteString("\t * Throws: Exception if handle is null\n")
-	}
-
-	sb.WriteString("\t */\n")
+	sb.WriteString(g.generateDDoc(DDocOptions{
+		Description: method.Description,
+		Params:      methodParams,
+		RetType:     &method.RetType,
+		Indent:      "\t",
+		AddThrows:   binding.BindSelf,
+	}))
 
 	// Method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

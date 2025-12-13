@@ -149,6 +149,63 @@ func (g *GolangGenerator) resolveConflict(name string) string {
 	}
 }
 
+// generateOwnershipTypes generates noCopy and ownership type definitions
+func (g *GolangGenerator) generateOwnershipTypes() string {
+	var sb strings.Builder
+	sb.WriteString("// noCopy prevents copying via go vet\n")
+	sb.WriteString("type noCopy struct{}\n\n")
+	sb.WriteString("func (*noCopy) Lock()   {}\n")
+	sb.WriteString("func (*noCopy) Unlock() {}\n\n")
+	sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
+	sb.WriteString("type ownership bool\n\n")
+	sb.WriteString("const (\n")
+	sb.WriteString("\tOwned    ownership = true\n")
+	sb.WriteString("\tBorrowed ownership = false\n")
+	sb.WriteString(")\n\n")
+	return sb.String()
+}
+
+// generateDocumentation generates documentation comments for functions/methods
+// If useBriefFormat is true, uses "// name \n//  @brief description" format, otherwise "// name - description"
+func (g *GolangGenerator) generateDocumentation(name string, description string, params []manifest.ParamType, retType *manifest.TypeInfo, useBriefFormat bool) string {
+	var sb strings.Builder
+
+	if description != "" {
+		if useBriefFormat {
+			sb.WriteString(fmt.Sprintf("// %s \n//  @brief %s\n//\n", name, description))
+		} else {
+			sb.WriteString(fmt.Sprintf("// %s - %s\n", name, description))
+		}
+	}
+
+	for _, param := range params {
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf("//  @param %s: %s\n", param.Name, param.Description))
+		}
+	}
+
+	if retType != nil && retType.Type != "void" && retType.Description != "" {
+		sb.WriteString(fmt.Sprintf("//\n//  @return %s\n", retType.Description))
+	}
+
+	return sb.String()
+}
+
+// processParameters is a generic helper that iterates over parameters and formats them
+func (g *GolangGenerator) processParameters(params []manifest.ParamType, processor func(int, *manifest.ParamType) (string, error)) ([]string, error) {
+	var result []string
+	for i, param := range params {
+		part, err := processor(i, &param)
+		if err != nil {
+			return nil, err
+		}
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result, nil
+}
+
 // generateDelegates generates delegate (function type) definitions
 func (g *GolangGenerator) generateDelegates(m *manifest.Manifest) (string, error) {
 	return g.CollectDelegates(m, g.generateDelegate)
@@ -192,21 +249,7 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method) (string, error
 	var sb strings.Builder
 
 	// Generate documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("// %s \n//  @brief %s\n//\n", method.Name, method.Description))
-	}
-
-	// Add parameter documentation
-	for _, param := range method.ParamTypes {
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf("//  @param %s: %s\n", param.Name, param.Description))
-		}
-	}
-
-	// Add return type documentation
-	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		sb.WriteString(fmt.Sprintf("//\n//  @return %s\n", method.RetType.Description))
-	}
+	sb.WriteString(g.generateDocumentation(method.Name, method.Description, method.ParamTypes, &method.RetType, true))
 
 	// Generate function signature
 	params, err := g.formatParams(method.ParamTypes, true)
@@ -370,16 +413,14 @@ func (g *GolangGenerator) generateParamsCast(method *manifest.Method, indent str
 		}
 	}
 
-	// Handle parameters
-	for _, param := range method.ParamTypes {
-		cast, err := g.generateParamCast(&param, indent)
-		if err != nil {
-			return nil, err
-		}
-		if cast != "" {
-			result = append(result, cast)
-		}
+	// Handle parameters using generic processor
+	paramCasts, err := g.processParameters(method.ParamTypes, func(_ int, param *manifest.ParamType) (string, error) {
+		return g.generateParamCast(param, indent)
+	})
+	if err != nil {
+		return nil, err
 	}
+	result = append(result, paramCasts...)
 
 	return result, nil
 }
@@ -423,18 +464,17 @@ func (g *GolangGenerator) generateParamsCastAssign(method *manifest.Method, inde
 		}
 	}
 
-	// Handle parameters
-	for _, param := range method.ParamTypes {
+	// Handle parameters using generic processor
+	paramAssigns, err := g.processParameters(method.ParamTypes, func(_ int, param *manifest.ParamType) (string, error) {
 		if param.Ref {
-			assign, err := g.generateParamAssign(&param, indent)
-			if err != nil {
-				return nil, err
-			}
-			if assign != "" {
-				result = append(result, assign)
-			}
+			return g.generateParamAssign(param, indent)
 		}
+		return "", nil
+	})
+	if err != nil {
+		return nil, err
 	}
+	result = append(result, paramAssigns...)
 
 	return result, nil
 }
@@ -497,13 +537,18 @@ func (g *GolangGenerator) generateParamsCastCleanup(method *manifest.Method, ind
 		}
 	}
 
-	// Handle parameters
-	for _, param := range method.ParamTypes {
-		cleanup := g.generateParamCleanup(&param)
+	// Handle parameters using generic processor
+	paramCleanups, err := g.processParameters(method.ParamTypes, func(_ int, param *manifest.ParamType) (string, error) {
+		cleanup := g.generateParamCleanup(param)
 		if cleanup != "" {
-			result = append(result, indent+cleanup)
+			return indent + cleanup, nil
 		}
+		return "", nil
+	})
+	if err != nil {
+		return nil, err
 	}
+	result = append(result, paramCleanups...)
 
 	return result, nil
 }
@@ -703,16 +748,7 @@ func (g *GolangGenerator) generateClasses(m *manifest.Manifest) (string, error) 
 	}
 
 	if hasDestructor {
-		sb.WriteString("// noCopy prevents copying via go vet\n")
-		sb.WriteString("type noCopy struct{}\n\n")
-		sb.WriteString("func (*noCopy) Lock()   {}\n")
-		sb.WriteString("func (*noCopy) Unlock() {}\n\n")
-		sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
-		sb.WriteString("type ownership bool\n\n")
-		sb.WriteString("const (\n")
-		sb.WriteString("\tOwned    ownership = true\n")
-		sb.WriteString("\tBorrowed ownership = false\n")
-		sb.WriteString(")\n\n")
+		sb.WriteString(g.generateOwnershipTypes())
 	}
 
 	// Generate each class
@@ -845,24 +881,14 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 	var sb strings.Builder
 
 	// Generate documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("// New%s%s - %s\n", class.Name, method.Name, method.Description))
-	}
-
-	// Generate parameters documentation
-	for _, param := range method.ParamTypes {
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf("//  @param %s: %s\n", param.Name, param.Description))
-		}
-	}
+	funcName := fmt.Sprintf("New%s%s", class.Name, method.Name)
+	sb.WriteString(g.generateDocumentation(funcName, method.Description, method.ParamTypes, nil, false))
 
 	// Generate function signature
 	params, err := g.formatParams(method.ParamTypes, true)
 	if err != nil {
 		return "", err
 	}
-
-	funcName := fmt.Sprintf("New%s%s", class.Name, method.Name)
 	sb.WriteString(fmt.Sprintf("func %s(%s) *%s {\n", funcName, params, class.Name))
 
 	// Generate call to underlying C function
@@ -1056,21 +1082,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	methodParams := params[startIdx:]
 
 	// Generate documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("// %s - %s\n", binding.Name, method.Description))
-	}
-
-	// Document parameters
-	for _, param := range methodParams {
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf("//  @param %s: %s\n", param.Name, param.Description))
-		}
-	}
-
-	// Document return type
-	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		sb.WriteString(fmt.Sprintf("//  @return %s\n", method.RetType.Description))
-	}
+	sb.WriteString(g.generateDocumentation(binding.Name, method.Description, methodParams, &method.RetType, false))
 
 	// Generate method signature
 	formattedParams, err := g.formatClassParams(methodParams, binding.ParamAliases, true)
@@ -1272,16 +1284,7 @@ func (g *GolangGenerator) generateEnumsGoFile(m *manifest.Manifest) (string, err
 	}
 
 	if hasDestructor {
-		sb.WriteString("// noCopy prevents copying via go vet\n")
-		sb.WriteString("type noCopy struct{}\n\n")
-		sb.WriteString("func (*noCopy) Lock()   {}\n")
-		sb.WriteString("func (*noCopy) Unlock() {}\n\n")
-		sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
-		sb.WriteString("type ownership bool\n\n")
-		sb.WriteString("const (\n")
-		sb.WriteString("\tOwned    ownership = true\n")
-		sb.WriteString("\tBorrowed ownership = false\n")
-		sb.WriteString(")\n\n")
+		sb.WriteString(g.generateOwnershipTypes())
 	}
 
 	return sb.String(), nil

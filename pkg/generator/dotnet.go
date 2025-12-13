@@ -63,6 +63,81 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	return result, nil
 }
 
+// XmlDocOptions configures XML documentation generation
+type XmlDocOptions struct {
+	Indent       string
+	Summary      string
+	Params       []manifest.ParamType
+	Returns      string
+	ParamAliases []*manifest.ParamAlias
+}
+
+// generateXmlDocumentation generates XML documentation comments
+func (g *DotnetGenerator) generateXmlDocumentation(opts XmlDocOptions) string {
+	var sb strings.Builder
+
+	// Summary
+	if opts.Summary != "" {
+		sb.WriteString(fmt.Sprintf("%s/// <summary>\n", opts.Indent))
+		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.Summary))
+		sb.WriteString(fmt.Sprintf("%s/// </summary>\n", opts.Indent))
+	}
+
+	// Parameters
+	for i, param := range opts.Params {
+		desc := param.Description
+		if desc == "" {
+			// Check for alias description
+			if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil {
+				desc = opts.ParamAliases[i].Name + " parameter"
+			} else {
+				desc = param.Name
+			}
+		}
+		sb.WriteString(fmt.Sprintf("%s/// <param name=\"%s\">%s</param>\n",
+			opts.Indent, param.Name, desc))
+	}
+
+	// Returns
+	if opts.Returns != "" {
+		sb.WriteString(fmt.Sprintf("%s/// <returns>%s</returns>\n",
+			opts.Indent, opts.Returns))
+	}
+
+	return sb.String()
+}
+
+// formatParameters is a generic helper that formats parameters using a custom formatter function
+func (g *DotnetGenerator) formatParameters(params []manifest.ParamType, formatter func(int, *manifest.ParamType) (string, error)) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	parts := []string{}
+	for i, param := range params {
+		part, err := formatter(i, &param)
+		if err != nil {
+			return "", err
+		}
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, ", "), nil
+}
+
+// processParameters is a generic helper that processes parameters and returns a list of code strings
+func (g *DotnetGenerator) processParameters(params []manifest.ParamType, processor func(*manifest.ParamType) string) []string {
+	var result []string
+	for _, param := range params {
+		code := processor(&param)
+		if code != "" {
+			result = append(result, code)
+		}
+	}
+	return result
+}
+
 func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
@@ -72,18 +147,20 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 
 	// XML documentation
 	if enum.Description != "" {
-		sb.WriteString("\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t/// %s\n", enum.Description))
-		sb.WriteString("\t/// </summary>\n")
+		sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+			Indent:  "\t",
+			Summary: enum.Description,
+		}))
 	}
 
 	sb.WriteString(fmt.Sprintf("\n\t[Flags]\tpublic enum %s : %s\n\t{\n", enum.Name, underlyingType))
 
 	for i, val := range enum.Values {
 		if val.Description != "" {
-			sb.WriteString("\t\t/// <summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\t/// %s\n", val.Description))
-			sb.WriteString("\t\t/// </summary>\n")
+			sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+				Indent:  "\t\t",
+				Summary: val.Description,
+			}))
 		}
 		sb.WriteString(fmt.Sprintf("\t\t%s = %d", val.Name, val.Value))
 		if i < len(enum.Values)-1 {
@@ -105,9 +182,10 @@ func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 
 	// XML documentation
 	if proto.Description != "" {
-		sb.WriteString("\t/// <summary>\n")
-		sb.WriteString(fmt.Sprintf("\t/// %s\n", proto.Description))
-		sb.WriteString("\t/// </summary>\n")
+		sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+			Indent:  "\t",
+			Summary: proto.Description,
+		}))
 	}
 
 	// Return type
@@ -128,27 +206,13 @@ func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 }
 
 func (g *DotnetGenerator) formatDelegateParameters(params []manifest.ParamType) (string, error) {
-	if len(params) == 0 {
-		return "", nil
-	}
-
-	result := ""
-	for i, param := range params {
-		if i > 0 {
-			result += ", "
-		}
-
-		typeName, err := g.typeMapper.MapDelegateParamType(&param)
+	return g.formatParameters(params, func(i int, param *manifest.ParamType) (string, error) {
+		typeName, err := g.typeMapper.MapDelegateParamType(param)
 		if err != nil {
 			return "", err
 		}
-
-		paramName := param.Name
-
-		result += typeName + " " + paramName
-	}
-
-	return result, nil
+		return typeName + " " + param.Name, nil
+	})
 }
 
 func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName string) (string, error) {
@@ -203,37 +267,30 @@ func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName str
 }
 
 func (g *DotnetGenerator) generateDocumentation(method *manifest.Method) string {
-	var sb strings.Builder
-
-	sb.WriteString("\t\t/// <summary>\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Name))
-	}
-	sb.WriteString("\t\t/// </summary>\n")
-
-	for _, param := range method.ParamTypes {
-		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
-			param.Name, param.Description))
+	summary := method.Description
+	if summary == "" {
+		summary = method.Name
 	}
 
+	returns := ""
 	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t\t/// <returns>%s</returns>\n", method.RetType.Description))
+		returns = method.RetType.Description
 	}
 
-	return sb.String()
+	return g.generateXmlDocumentation(XmlDocOptions{
+		Indent:  "\t\t",
+		Summary: summary,
+		Params:  method.ParamTypes,
+		Returns: returns,
+	})
 }
 
 func (g *DotnetGenerator) formatManagedTypes(method *manifest.Method) (string, error) {
-	types := []string{}
-
-	for _, param := range method.ParamTypes {
-		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
-		if err != nil {
-			return "", err
-		}
-		types = append(types, typeName)
+	typesStr, err := g.formatParameters(method.ParamTypes, func(_ int, param *manifest.ParamType) (string, error) {
+		return g.typeMapper.MapParamType(param, TypeContextValue)
+	})
+	if err != nil {
+		return "", err
 	}
 
 	// Add return type
@@ -241,20 +298,19 @@ func (g *DotnetGenerator) formatManagedTypes(method *manifest.Method) (string, e
 	if err != nil {
 		return "", err
 	}
-	types = append(types, retType)
 
-	return strings.Join(types, ", "), nil
+	if typesStr != "" {
+		return typesStr + ", " + retType, nil
+	}
+	return retType, nil
 }
 
 func (g *DotnetGenerator) formatUnmanagedTypes(method *manifest.Method) (string, error) {
-	types := []string{}
-
-	for _, param := range method.ParamTypes {
-		typeName, err := g.typeMapper.MapUnmanagedParamType(&param)
-		if err != nil {
-			return "", err
-		}
-		types = append(types, typeName)
+	typesStr, err := g.formatParameters(method.ParamTypes, func(_ int, param *manifest.ParamType) (string, error) {
+		return g.typeMapper.MapUnmanagedParamType(param)
+	})
+	if err != nil {
+		return "", err
 	}
 
 	// Add return type
@@ -262,37 +318,26 @@ func (g *DotnetGenerator) formatUnmanagedTypes(method *manifest.Method) (string,
 	if err != nil {
 		return "", err
 	}
-	types = append(types, retType)
 
-	return strings.Join(types, ", "), nil
+	if typesStr != "" {
+		return typesStr + ", " + retType, nil
+	}
+	return retType, nil
 }
 
 func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (string, error) {
-	if len(params) == 0 {
-		return "", nil
-	}
-
-	result := ""
-	for i, param := range params {
-		if i > 0 {
-			result += ", "
-		}
-
-		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+	return g.formatParameters(params, func(_ int, param *manifest.ParamType) (string, error) {
+		typeName, err := g.typeMapper.MapParamType(param, TypeContextValue)
 		if err != nil {
 			return "", err
 		}
 
-		paramName := param.Name
-
-		result += typeName + " " + paramName
-
+		result := typeName + " " + param.Name
 		if param.Default != nil {
 			result += fmt.Sprintf(" = %d", *param.Default)
 		}
-	}
-
-	return result, nil
+		return result, nil
+	})
 }
 
 func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, error) {
@@ -447,12 +492,10 @@ func (g *DotnetGenerator) generateFixedBlocks(method *manifest.Method, indent st
 }
 
 func (g *DotnetGenerator) generateParameterMarshaling(method *manifest.Method, indent string) string {
-	var sb strings.Builder
-
-	for _, param := range method.ParamTypes {
+	codes := g.processParameters(method.ParamTypes, func(param *manifest.ParamType) string {
 		constructor := g.typeMapper.getConstructor(param.Type)
 		if constructor == "" {
-			continue
+			return ""
 		}
 
 		paramName := param.Name
@@ -463,38 +506,35 @@ func (g *DotnetGenerator) generateParameterMarshaling(method *manifest.Method, i
 		}
 
 		if strings.Contains(constructor, "ConstructVector") {
-			sb.WriteString(fmt.Sprintf("%svar __%s = %s(%s, %s.Length);\n", indent, paramName, constructor, paramName, paramName))
+			return fmt.Sprintf("%svar __%s = %s(%s, %s.Length);\n", indent, paramName, constructor, paramName, paramName)
 		} else if constructor == "Marshalling.GetFunctionPointerForDelegate" {
 			// Function pointer - handled differently
-			continue
+			return ""
 		} else {
-			sb.WriteString(fmt.Sprintf("%svar __%s = %s(%s);\n", indent, paramName, constructor, paramName))
+			return fmt.Sprintf("%svar __%s = %s(%s);\n", indent, paramName, constructor, paramName)
 		}
-	}
+	})
 
-	return sb.String()
+	return strings.Join(codes, "")
 }
 
 func (g *DotnetGenerator) generateCallParameters(method *manifest.Method) string {
-	params := []string{}
-
-	for _, param := range method.ParamTypes {
+	params := g.processParameters(method.ParamTypes, func(param *manifest.ParamType) string {
 		paramName := param.Name
 
 		if g.typeMapper.isObjectReturn(param.Type) {
-			params = append(params, fmt.Sprintf("&__%s", paramName))
+			return fmt.Sprintf("&__%s", paramName)
 		} else if g.typeMapper.isPODType(param.Type) && param.Ref {
-			params = append(params, fmt.Sprintf("__%s", paramName))
+			return fmt.Sprintf("__%s", paramName)
 		} else if g.typeMapper.isPODType(param.Type) {
-			params = append(params, fmt.Sprintf("&%s", paramName))
+			return fmt.Sprintf("&%s", paramName)
 		} else if g.typeMapper.isFunction(param.Type) {
-			params = append(params, fmt.Sprintf("Marshalling.GetFunctionPointerForDelegate(%s)", paramName))
+			return fmt.Sprintf("Marshalling.GetFunctionPointerForDelegate(%s)", paramName)
 		} else if param.Ref {
-			params = append(params, fmt.Sprintf("__%s", paramName))
-		} else {
-			params = append(params, paramName)
+			return fmt.Sprintf("__%s", paramName)
 		}
-	}
+		return paramName
+	})
 
 	return strings.Join(params, ", ")
 }
@@ -525,14 +565,14 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 	}
 
 	// Unmarshal ref parameters
-	for _, param := range method.ParamTypes {
+	codes := g.processParameters(method.ParamTypes, func(param *manifest.ParamType) string {
 		if !param.Ref {
-			continue
+			return ""
 		}
 
 		converter := g.typeMapper.getDataConverter(param.Type)
 		if converter == "" {
-			continue
+			return ""
 		}
 
 		paramName := param.Name
@@ -544,12 +584,15 @@ func (g *DotnetGenerator) generateUnmarshaling(method *manifest.Method, indent s
 
 		if strings.Contains(converter, "VectorData") {
 			sizeFunc := g.typeMapper.getSizeFunction(param.Type)
-			sb.WriteString(fmt.Sprintf("%sArray.Resize(ref %s, %s(&__%s));\n", indent, paramName, sizeFunc, paramName))
-			sb.WriteString(fmt.Sprintf("%s%s(&__%s, %s);\n", indent, converter, paramName, paramName))
+			return fmt.Sprintf("%sArray.Resize(ref %s, %s(&__%s));\n%s%s(&__%s, %s);\n",
+				indent, paramName, sizeFunc, paramName,
+				indent, converter, paramName, paramName)
 		} else if converter != "" {
-			sb.WriteString(fmt.Sprintf("%s%s = %s(&__%s);\n", indent, paramName, converter, paramName))
+			return fmt.Sprintf("%s%s = %s(&__%s);\n", indent, paramName, converter, paramName)
 		}
-	}
+		return ""
+	})
+	sb.WriteString(strings.Join(codes, ""))
 
 	return sb.String()
 }
@@ -566,15 +609,14 @@ func (g *DotnetGenerator) generateCleanup(method *manifest.Method, indent string
 	}
 
 	// Cleanup parameters
-	for _, param := range method.ParamTypes {
+	codes := g.processParameters(method.ParamTypes, func(param *manifest.ParamType) string {
 		destructor := g.typeMapper.getDestructor(param.Type)
 		if destructor == "" {
-			continue
+			return ""
 		}
-
-		paramName := param.Name
-		sb.WriteString(fmt.Sprintf("%s%s(&__%s);\n", indent, destructor, paramName))
-	}
+		return fmt.Sprintf("%s%s(&__%s);\n", indent, destructor, param.Name)
+	})
+	sb.WriteString(strings.Join(codes, ""))
 
 	return sb.String()
 }
@@ -624,17 +666,18 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	// Class documentation
-	sb.WriteString("\t/// <summary>\n")
-	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t/// %s\n", class.Description))
-	} else {
+	summary := class.Description
+	if summary == "" {
 		if hasHandle {
-			sb.WriteString(fmt.Sprintf("\t/// %s wrapper\n", class.Name))
+			summary = class.Name + " wrapper"
 		} else {
-			sb.WriteString(fmt.Sprintf("\t/// Static utility class for %s\n", class.Name))
+			summary = "Static utility class for " + class.Name
 		}
 	}
-	sb.WriteString("\t/// </summary>\n")
+	sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+		Indent:  "\t",
+		Summary: summary,
+	}))
 
 	// Class declaration
 	if hasHandle {
@@ -803,19 +846,15 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	var sb strings.Builder
 
 	// Generate documentation
-	sb.WriteString("\t\t/// <summary>\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("\t\t/// Creates a new %s instance\n", class.Name))
+	summary := method.Description
+	if summary == "" {
+		summary = "Creates a new " + class.Name + " instance"
 	}
-	sb.WriteString("\t\t/// </summary>\n")
-
-	// Document parameters
-	for _, param := range method.ParamTypes {
-		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
-			param.Name, param.Description))
-	}
+	sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+		Indent:  "\t\t",
+		Summary: summary,
+		Params:  method.ParamTypes,
+	}))
 
 	// Generate constructor signature
 	params, err := g.formatMethodParameters(method.ParamTypes)
@@ -865,43 +904,30 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 	methodParams := params[startIdx:]
 
 	// Generate documentation
-	sb.WriteString("\t\t/// <summary>\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("\t\t/// %s\n", binding.Name))
-	}
-	sb.WriteString("\t\t/// </summary>\n")
-
-	// Document parameters (excluding self if bindSelf)
-	for i, param := range methodParams {
-		// Check if this parameter has an alias
-		aliasName := ""
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
-			aliasName = binding.ParamAliases[i].Name
-		}
-
-		desc := param.Description
-		if desc == "" && aliasName != "" {
-			desc = aliasName + " parameter"
-		}
-
-		sb.WriteString(fmt.Sprintf("\t\t/// <param name=\"%s\">%s</param>\n",
-			param.Name, desc))
+	summary := method.Description
+	if summary == "" {
+		summary = binding.Name
 	}
 
-	// Document return type
+	returns := ""
 	if method.RetType.Type != "void" {
-		returnDesc := method.RetType.Description
-		if returnDesc == "" {
+		returns = method.RetType.Description
+		if returns == "" {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-				returnDesc = binding.RetAlias.Name + " instance"
+				returns = binding.RetAlias.Name + " instance"
 			} else {
-				returnDesc = "Return value"
+				returns = "Return value"
 			}
 		}
-		sb.WriteString(fmt.Sprintf("\t\t/// <returns>%s</returns>\n", returnDesc))
 	}
+
+	sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+		Indent:       "\t\t",
+		Summary:      summary,
+		Params:       methodParams,
+		Returns:      returns,
+		ParamAliases: binding.ParamAliases,
+	}))
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

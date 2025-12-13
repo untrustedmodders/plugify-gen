@@ -75,6 +75,179 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	return result, nil
 }
 
+// CppDocOptions configures C++ Doxygen documentation generation
+type CppDocOptions struct {
+	Description  string
+	Params       []manifest.ParamType
+	Returns      string
+	ParamAliases []*manifest.ParamAlias
+	Indent       string
+}
+
+// generateCppDocumentation generates C++ Doxygen-style documentation comments (/** */)
+func (g *CppGenerator) generateCppDocumentation(opts CppDocOptions) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("%s/**\n", opts.Indent))
+
+	// Brief description
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s * @brief %s\n", opts.Indent, opts.Description))
+	}
+
+	// Parameters
+	for i, param := range opts.Params {
+		paramType := param.Type
+		if param.Ref {
+			paramType += "&"
+		}
+
+		// Check for alias
+		var aliasName string
+		if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil {
+			aliasName = opts.ParamAliases[i].Name
+		}
+
+		if aliasName != "" {
+			sb.WriteString(fmt.Sprintf("%s * @param %s (%s)", opts.Indent, param.Name, aliasName))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s * @param %s (%s)", opts.Indent, param.Name, paramType))
+		}
+
+		if param.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", param.Description))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Return type
+	if opts.Returns != "" {
+		sb.WriteString(fmt.Sprintf("%s * @return %s\n", opts.Indent, opts.Returns))
+	}
+
+	sb.WriteString(fmt.Sprintf("%s */\n", opts.Indent))
+	return sb.String()
+}
+
+// buildCallArguments builds the call arguments string for method invocations
+func (g *CppGenerator) buildCallArguments(params []manifest.ParamType, aliases []*manifest.ParamAlias, bindSelf bool) string {
+	var parts []string
+
+	if bindSelf {
+		parts = append(parts, "_handle")
+	}
+
+	for i, param := range params {
+		var arg string
+
+		// Check for alias
+		if i < len(aliases) && aliases[i] != nil {
+			if aliases[i].Owner {
+				arg = param.Name + ".release()"
+			} else {
+				arg = param.Name + ".get()"
+			}
+		} else {
+			arg = param.Name
+		}
+		parts = append(parts, arg)
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+// generateUtilityMethods generates get, release, reset, and swap methods
+func (g *CppGenerator) generateUtilityMethods(className, invalidValue, handleType string, hasDtor bool) string {
+	var sb strings.Builder
+
+	// get method
+	sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto get() const noexcept { return _handle; }\n\n"))
+
+	// release method
+	sb.WriteString("    [[nodiscard]] auto release() noexcept {\n")
+	sb.WriteString("      auto handle = _handle;\n")
+	if hasDtor {
+		sb.WriteString("      nullify();\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+	}
+	sb.WriteString("      return handle;\n")
+	sb.WriteString("    }\n\n")
+
+	// reset method
+	sb.WriteString("    void reset() noexcept {\n")
+	if hasDtor {
+		sb.WriteString("      destroy();\n")
+		sb.WriteString("      nullify();\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
+	}
+	sb.WriteString("    }\n\n")
+
+	// swap method
+	sb.WriteString(fmt.Sprintf("    void swap(%s& other) noexcept {\n", className))
+	sb.WriteString("      using std::swap;\n")
+	sb.WriteString("      swap(_handle, other._handle);\n")
+	if hasDtor {
+		sb.WriteString("      swap(_ownership, other._ownership);\n")
+	}
+	sb.WriteString("    }\n\n")
+
+	sb.WriteString(fmt.Sprintf("    friend void swap(%s& lhs, %s& rhs) noexcept { lhs.swap(rhs); }\n\n", className, className))
+
+	return sb.String()
+}
+
+// generateComparisonOperators generates operator bool, operator<=>, and operator==
+func (g *CppGenerator) generateComparisonOperators(className, invalidValue string) string {
+	return fmt.Sprintf(`    explicit operator bool() const noexcept { return _handle != %s; }
+    [[nodiscard]] auto operator<=>(const %s& other) const noexcept { return _handle <=> other._handle; }
+    [[nodiscard]] bool operator==(const %s& other) const noexcept { return _handle == other._handle; }
+
+`, invalidValue, className, className)
+}
+
+// generateCopyMoveSemantics generates copy/move constructors and assignment operators
+func (g *CppGenerator) generateCopyMoveSemantics(className string, hasDtor bool) string {
+	if hasDtor {
+		return fmt.Sprintf(`    ~%s() {
+      destroy();
+    }
+
+    %s(const %s&) = delete;
+    %s& operator=(const %s&) = delete;
+
+    %s(%s&& other) noexcept
+      : _handle(other._handle)
+      , _ownership(other._ownership) {
+      other.nullify();
+    }
+
+    %s& operator=(%s&& other) noexcept {
+      if (this != &other) {
+        destroy();
+        _handle = other._handle;
+        _ownership = other._ownership;
+        other.nullify();
+      }
+      return *this;
+    }
+
+`, className, className, className, className, className,
+			className, className, className, className)
+	}
+
+	// Without destructor (defaulted)
+	return fmt.Sprintf(`    %s(const %s&) = default;
+    %s& operator=(const %s&) = default;
+    %s(%s&&) noexcept = default;
+    %s& operator=(%s&&) noexcept = default;
+    ~%s() = default;
+
+`, className, className, className, className, className,
+		className, className, className, className)
+}
+
 func (g *CppGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	// Use the base generator's CollectEnums helper
 	return g.CollectEnums(m, g.generateEnum)
@@ -165,29 +338,20 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	sb.WriteString(fmt.Sprintf("namespace %s {\n", pluginName))
 
 	// Generate documentation comment
-	sb.WriteString("  /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("   * @brief %s\n", method.Description))
-	}
-	for _, param := range method.ParamTypes {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-		sb.WriteString(fmt.Sprintf("   * @param %s (%s)", param.Name, paramType))
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
+	returns := ""
 	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("   * @return %s", method.RetType.Type))
+		returns = method.RetType.Type
 		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", method.RetType.Description))
+			returns += ": " + method.RetType.Description
 		}
-		sb.WriteString("\n")
 	}
-	sb.WriteString("   */\n")
+
+	sb.WriteString(g.generateCppDocumentation(CppDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		Returns:     returns,
+		Indent:      "  ",
+	}))
 
 	sb.WriteString(fmt.Sprintf("  inline %s %s(%s) {\n", retType, method.Name, formattedParams))
 	if method.RetType.Type == "void" {
@@ -274,36 +438,7 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		}
 
 		// Destructor and copy/move semantics
-		if hasDtor {
-			sb.WriteString(fmt.Sprintf("    ~%s() {\n", class.Name))
-			sb.WriteString("      destroy();\n")
-			sb.WriteString("    }\n\n")
-
-			sb.WriteString(fmt.Sprintf("    %s(const %s&) = delete;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = delete;\n\n", class.Name, class.Name))
-
-			sb.WriteString(fmt.Sprintf("    %s(%s&& other) noexcept\n", class.Name, class.Name))
-			sb.WriteString("      : _handle(other._handle)\n")
-			sb.WriteString("      , _ownership(other._ownership) {\n")
-			sb.WriteString("      other.nullify();\n")
-			sb.WriteString("    }\n\n")
-
-			sb.WriteString(fmt.Sprintf("    %s& operator=(%s&& other) noexcept {\n", class.Name, class.Name))
-			sb.WriteString("      if (this != &other) {\n")
-			sb.WriteString("        destroy();\n")
-			sb.WriteString("        _handle = other._handle;\n")
-			sb.WriteString("        _ownership = other._ownership;\n")
-			sb.WriteString("        other.nullify();\n")
-			sb.WriteString("      }\n")
-			sb.WriteString("      return *this;\n")
-			sb.WriteString("    }\n\n")
-		} else {
-			sb.WriteString(fmt.Sprintf("    %s(const %s&) = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s& operator=(const %s&) = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s(%s&&) noexcept = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    %s& operator=(%s&&) noexcept = default;\n", class.Name, class.Name))
-			sb.WriteString(fmt.Sprintf("    ~%s() = default;\n\n", class.Name))
-		}
+		sb.WriteString(g.generateCopyMoveSemantics(class.Name, hasDtor))
 
 		// Constructor from handle
 		if hasDtor {
@@ -323,41 +458,10 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		}
 
 		// Utility methods
-		sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto get() const noexcept { return _handle; }\n\n"))
+		sb.WriteString(g.generateUtilityMethods(class.Name, invalidValue, handleType, hasDtor))
 
-		sb.WriteString("    [[nodiscard]] auto release() noexcept {\n")
-		sb.WriteString("      auto handle = _handle;\n")
-		if hasDtor {
-			sb.WriteString("      nullify();\n")
-		} else {
-			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-		}
-		sb.WriteString("      return handle;\n")
-		sb.WriteString("    }\n\n")
-
-		sb.WriteString("    void reset() noexcept {\n")
-		if hasDtor {
-			sb.WriteString("      destroy();\n")
-			sb.WriteString("      nullify();\n")
-		} else {
-			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-		}
-		sb.WriteString("    }\n\n")
-
-		sb.WriteString(fmt.Sprintf("    void swap(%s& other) noexcept {\n", class.Name))
-		sb.WriteString("      using std::swap;\n")
-		sb.WriteString("      swap(_handle, other._handle);\n")
-		if hasDtor {
-			sb.WriteString("      swap(_ownership, other._ownership);\n")
-		}
-		sb.WriteString("    }\n\n")
-
-		sb.WriteString(fmt.Sprintf("    friend void swap(%s& lhs, %s& rhs) noexcept { lhs.swap(rhs); }\n\n", class.Name, class.Name))
-
-		// Operators
-		sb.WriteString(fmt.Sprintf("    explicit operator bool() const noexcept { return _handle != %s; }\n", invalidValue))
-		sb.WriteString(fmt.Sprintf("    [[nodiscard]] auto operator<=>(const %s& other) const noexcept { return _handle <=> other._handle; }\n", class.Name))
-		sb.WriteString(fmt.Sprintf("    [[nodiscard]] bool operator==(const %s& other) const noexcept { return _handle == other._handle; }\n\n", class.Name))
+		// Comparison operators
+		sb.WriteString(g.generateComparisonOperators(class.Name, invalidValue))
 	}
 
 	// Generate class bindings
@@ -412,24 +516,11 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	var sb strings.Builder
 
 	// Generate documentation
-	sb.WriteString("    /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("     * @brief %s\n", method.Description))
-	}
-
-	// Document parameters (skip first param if it's the return handle in C API)
-	for _, param := range method.ParamTypes {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-		sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, paramType))
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
-	sb.WriteString("     */\n")
+	sb.WriteString(g.generateCppDocumentation(CppDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		Indent:      "    ",
+	}))
 
 	// Generate constructor signature
 	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper)
@@ -468,49 +559,25 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	methodParams := params[startIdx:]
 
 	// Generate documentation
-	sb.WriteString("    /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("     * @brief %s\n", method.Description))
-	}
-
-	// Document parameters (excluding self if bindSelf)
-	for i, param := range methodParams {
-		paramType := param.Type
-		if param.Ref {
-			paramType += "&"
-		}
-
-		// Check if this parameter has an alias
-		var aliasName string
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
-			aliasName = binding.ParamAliases[i].Name
-		}
-
-		if aliasName != "" {
-			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, aliasName))
-		} else {
-			sb.WriteString(fmt.Sprintf("     * @param %s (%s)", param.Name, paramType))
-		}
-
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
-
-	// Document return type
+	returns := ""
 	if method.RetType.Type != "void" {
 		returnType := method.RetType.Type
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 			returnType = binding.RetAlias.Name
 		}
-		sb.WriteString(fmt.Sprintf("     * @return %s", returnType))
+		returns = returnType
 		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", method.RetType.Description))
+			returns += ": " + method.RetType.Description
 		}
-		sb.WriteString("\n")
 	}
-	sb.WriteString("     */\n")
+
+	sb.WriteString(g.generateCppDocumentation(CppDocOptions{
+		Description:  method.Description,
+		Params:       methodParams,
+		Returns:      returns,
+		ParamAliases: binding.ParamAliases,
+		Indent:       "    ",
+	}))
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
@@ -555,29 +622,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	}
 
 	// Build call arguments
-	callArgs := ""
-	if binding.BindSelf {
-		callArgs = "_handle"
-	}
-
-	for i, param := range methodParams {
-		if callArgs != "" {
-			callArgs += ", "
-		}
-
-		paramName := param.Name
-
-		// Check if parameter has alias and needs .release() or .get()
-		if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
-			if binding.ParamAliases[i].Owner {
-				callArgs += paramName + ".release()"
-			} else {
-				callArgs += paramName + ".get()"
-			}
-		} else {
-			callArgs += paramName
-		}
-	}
+	callArgs := g.buildCallArguments(methodParams, binding.ParamAliases, binding.BindSelf)
 
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil

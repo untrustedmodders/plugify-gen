@@ -402,45 +402,37 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 }
 
 func (g *V8Generator) generateUtilityMethods(class *manifest.Class) (string, error) {
-	var sb strings.Builder
-
 	// Get the handle type mapped to TypeScript
 	_, handleType, err := g.typeMapper.MapHandleType(class)
 	if err != nil {
 		return "", err
 	}
 
-	// valid() method
-	sb.WriteString("    /**\n")
-	sb.WriteString("     * Check if the handle is valid.\n")
-	sb.WriteString("     * @returns True if the handle is valid, false otherwise\n")
-	sb.WriteString("     */\n")
-	sb.WriteString("    valid(): boolean;\n\n")
+	methods := []struct {
+		name        string
+		returnType  string
+		description string
+		returnDesc  string
+	}{
+		{"valid", "boolean", "Check if the handle is valid.", "True if the handle is valid, false otherwise"},
+		{"get", handleType, "Get the raw handle value without transferring ownership.", "The underlying handle value"},
+		{"release", handleType, "Release ownership of the handle and return it.", "The released handle value"},
+		{"reset", "void", "Reset the handle by closing it.", ""},
+	}
 
-	// get() method
-	sb.WriteString("    /**\n")
-	sb.WriteString("     * Get the raw handle value without transferring ownership.\n")
-	sb.WriteString(fmt.Sprintf("     * @returns The underlying handle value\n"))
-	sb.WriteString("     */\n")
-	sb.WriteString(fmt.Sprintf("    get(): %s;\n\n", handleType))
-
-	// release() method
-	sb.WriteString("    /**\n")
-	sb.WriteString("     * Release ownership of the handle and return it.\n")
-	sb.WriteString(fmt.Sprintf("     * @returns The released handle value\n"))
-	sb.WriteString("     */\n")
-	sb.WriteString(fmt.Sprintf("    release(): %s;\n\n", handleType))
-
-	// reset() method
-	sb.WriteString("    /**\n")
-	sb.WriteString("     * Reset the handle by closing it.\n")
-	sb.WriteString("     */\n")
-	sb.WriteString("    reset(): void;\n\n")
-
-	hasDtor := class.Destructor != nil
+	var sb strings.Builder
+	for _, method := range methods {
+		sb.WriteString("    /**\n")
+		sb.WriteString(fmt.Sprintf("     * %s\n", method.description))
+		if method.returnDesc != "" {
+			sb.WriteString(fmt.Sprintf("     * @returns %s\n", method.returnDesc))
+		}
+		sb.WriteString("     */\n")
+		sb.WriteString(fmt.Sprintf("    %s(): %s;\n\n", method.name, method.returnType))
+	}
 
 	// close() method - only if destructor exists
-	if hasDtor {
+	if class.Destructor != nil {
 		sb.WriteString("    /**\n")
 		sb.WriteString("     * Close and destroy the handle if owned.\n")
 		sb.WriteString("     */\n")
@@ -460,18 +452,11 @@ func (g *V8Generator) generateConstructor(m *manifest.Manifest, class *manifest.
 	var sb strings.Builder
 
 	// JSDoc comment
-	sb.WriteString("    /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("     * %s\n", method.Description))
-	}
-	for _, param := range method.ParamTypes {
-		sb.WriteString(fmt.Sprintf("     * @param %s", param.Name))
-		if param.Description != "" {
-			sb.WriteString(fmt.Sprintf(" - %s", param.Description))
-		}
-		sb.WriteString("\n")
-	}
-	sb.WriteString("     */\n")
+	sb.WriteString(g.generateJSDoc(JSDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		Indent:      "    ",
+	}))
 
 	// Constructor signature
 	params, err := g.formatTSParameters(method.ParamTypes)
@@ -524,36 +509,12 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 	}
 
 	// JSDoc comment
-	sb.WriteString("    /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("     * %s\n", method.Description))
-	}
-
-	if len(methodParams) > 0 {
-		for i, param := range methodParams {
-			sb.WriteString(fmt.Sprintf("     * @param %s", param.Name))
-
-			// Check if this parameter has an alias
-			if i < len(binding.ParamAliases) && binding.ParamAliases[i] != nil {
-				if param.Description != "" {
-					sb.WriteString(fmt.Sprintf(" - %s", param.Description))
-				}
-			} else {
-				if param.Description != "" {
-					sb.WriteString(fmt.Sprintf(" - %s", param.Description))
-				}
-			}
-			sb.WriteString("\n")
-		}
-	}
-
-	if method.RetType.Type != "void" {
-		if method.RetType.Description != "" {
-			sb.WriteString(fmt.Sprintf("     * @returns %s\n", method.RetType.Description))
-		}
-	}
-
-	sb.WriteString("     */\n")
+	sb.WriteString(g.generateJSDoc(JSDocOptions{
+		Description: method.Description,
+		Params:      methodParams,
+		RetType:     &method.RetType,
+		Indent:      "    ",
+	}))
 
 	// Method signature
 	if !binding.BindSelf {
@@ -650,25 +611,57 @@ func (g *V8Generator) formatTSParameters(params []manifest.ParamType) (string, e
 	return result, nil
 }
 
-func (g *V8Generator) generateMethod(method *manifest.Method) (string, error) {
+// JSDocOptions configures JSDoc comment generation for TypeScript
+type JSDocOptions struct {
+	Description  string
+	Params       []manifest.ParamType
+	ParamAliases []*manifest.ParamAlias
+	RetType      *manifest.TypeInfo
+	Indent       string // "  " for top-level, "    " for class methods
+}
+
+// generateJSDoc generates JSDoc-style comments for methods
+func (g *V8Generator) generateJSDoc(opts JSDocOptions) string {
 	var sb strings.Builder
 
-	// JSDoc comment
-	sb.WriteString("  /**\n")
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("   * %s\n", method.Description))
+	sb.WriteString(opts.Indent + "/**\n")
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s * %s\n", opts.Indent, opts.Description))
 	}
-	for _, param := range method.ParamTypes {
-		sb.WriteString(fmt.Sprintf("   * @param %s", param.Name))
+
+	// Parameters section
+	for i, param := range opts.Params {
+		sb.WriteString(fmt.Sprintf("%s * @param %s", opts.Indent, param.Name))
+
+		// Always append description if available (alias check is redundant)
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(" - %s", param.Description))
 		}
 		sb.WriteString("\n")
+
+		// Note: Type information is in the signature, not JSDoc for TypeScript
+		_ = i // Keep for potential future use with ParamAliases
 	}
-	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		sb.WriteString(fmt.Sprintf("   * @returns %s\n", method.RetType.Description))
+
+	// Return type section
+	if opts.RetType != nil && opts.RetType.Type != "void" && opts.RetType.Description != "" {
+		sb.WriteString(fmt.Sprintf("%s * @returns %s\n", opts.Indent, opts.RetType.Description))
 	}
-	sb.WriteString("   */\n")
+
+	sb.WriteString(opts.Indent + " */\n")
+	return sb.String()
+}
+
+func (g *V8Generator) generateMethod(method *manifest.Method) (string, error) {
+	var sb strings.Builder
+
+	// JSDoc comment
+	sb.WriteString(g.generateJSDoc(JSDocOptions{
+		Description: method.Description,
+		Params:      method.ParamTypes,
+		RetType:     &method.RetType,
+		Indent:      "  ",
+	}))
 
 	// Generate return type (with tuple for ref parameters)
 	retType, err := g.generateReturnType(&method.RetType, method.ParamTypes)

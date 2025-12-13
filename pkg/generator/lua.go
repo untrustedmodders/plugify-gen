@@ -123,11 +123,7 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	hasDtor := class.Destructor != nil
 
 	// Class comment
-	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("--- %s\n", class.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("--- Class: %s\n", class.Name))
-	}
+	sb.WriteString(g.formatDescriptionComment(class.Description, fmt.Sprintf("Class: %s", class.Name)))
 
 	// Class table declaration
 	sb.WriteString(fmt.Sprintf("%s = {}\n\n", class.Name))
@@ -176,29 +172,28 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 func (g *LuaGenerator) generateUtilityMethods(class *manifest.Class) string {
 	var sb strings.Builder
 
-	// valid() method
-	sb.WriteString("--- Check if the handle is valid.\n")
-	sb.WriteString("-- @return boolean True if the handle is valid, false otherwise\n")
-	sb.WriteString(fmt.Sprintf("function %s:valid() end\n\n", class.Name))
+	methods := []struct {
+		name        string
+		description string
+		returnType  string
+		returnDesc  string
+	}{
+		{"valid", "Check if the handle is valid.", "boolean", "True if the handle is valid, false otherwise"},
+		{"get", "Get the raw handle value without transferring ownership.", class.HandleType, "The underlying handle value"},
+		{"release", "Release ownership of the handle and return it.", class.HandleType, "The released handle value"},
+		{"reset", "Reset the handle by closing it.", "", ""},
+	}
 
-	// get() method
-	sb.WriteString("--- Get the raw handle value without transferring ownership.\n")
-	sb.WriteString(fmt.Sprintf("-- @return %s The underlying handle value\n", class.HandleType))
-	sb.WriteString(fmt.Sprintf("function %s:get() end\n\n", class.Name))
-
-	// release() method
-	sb.WriteString("--- Release ownership of the handle and return it.\n")
-	sb.WriteString(fmt.Sprintf("-- @return %s The released handle value\n", class.HandleType))
-	sb.WriteString(fmt.Sprintf("function %s:release() end\n\n", class.Name))
-
-	// reset() method
-	sb.WriteString("--- Reset the handle by closing it.\n")
-	sb.WriteString(fmt.Sprintf("function %s:reset() end\n\n", class.Name))
-
-	hasDtor := class.Destructor != nil
+	for _, method := range methods {
+		sb.WriteString(fmt.Sprintf("--- %s\n", method.description))
+		if method.returnType != "" {
+			sb.WriteString(fmt.Sprintf("-- @return %s %s\n", method.returnType, method.returnDesc))
+		}
+		sb.WriteString(fmt.Sprintf("function %s:%s() end\n\n", class.Name, method.name))
+	}
 
 	// close() method - only if destructor exists
-	if hasDtor {
+	if class.Destructor != nil {
 		sb.WriteString("--- Close and destroy the handle if owned.\n")
 		sb.WriteString(fmt.Sprintf("function %s:close() end\n\n", class.Name))
 	}
@@ -216,21 +211,13 @@ func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	var sb strings.Builder
 
 	// Constructor documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("--- %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("--- Constructor for %s\n", class.Name))
-	}
-
-	// Parameters
-	for _, param := range method.ParamTypes {
-		paramName := param.Name
-		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-			paramName, param.Type, param.Description))
-	}
-
-	// Return type (the class instance)
-	sb.WriteString(fmt.Sprintf("-- @return %s\n", class.Name))
+	classRetType := manifest.TypeInfo{Type: class.Name, Description: ""}
+	sb.WriteString(g.generateLuaDocumentation(LuaDocOptions{
+		Description:  method.Description,
+		FallbackName: fmt.Sprintf("Constructor for %s", class.Name),
+		Params:       method.ParamTypes,
+		RetType:      &classRetType,
+	}))
 
 	// Constructor signature (using .new convention)
 	params := g.formatParameters(method.ParamTypes)
@@ -257,36 +244,14 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	methodParams := params[startIdx:]
 
 	// Method documentation
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("--- %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("--- %s\n", binding.Name))
-	}
-
-	// Parameters (excluding self if bindSelf)
-	for _, param := range methodParams {
-		paramName := param.Name
-		// Check if this parameter has an alias
-		paramType := param.Type
-		for i, alias := range binding.ParamAliases {
-			if i < len(methodParams) && methodParams[i].Name == param.Name && alias.Name != "" {
-				paramType = alias.Name
-				break
-			}
-		}
-		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-			paramName, paramType, param.Description))
-	}
-
-	// Return type
-	if method.RetType.Type != "void" {
-		retType := method.RetType.Type
-		// Handle return alias
-		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-			retType = binding.RetAlias.Name
-		}
-		sb.WriteString(fmt.Sprintf("-- @return %s %s\n", retType, method.RetType.Description))
-	}
+	sb.WriteString(g.generateLuaDocumentation(LuaDocOptions{
+		Description:  method.Description,
+		FallbackName: binding.Name,
+		Params:       methodParams,
+		ParamAliases: binding.ParamAliases,
+		RetType:      &method.RetType,
+		RetAlias:     binding.RetAlias,
+	}))
 
 	// Method signature
 	formattedParams := g.formatParameters(methodParams)
@@ -334,57 +299,93 @@ func (g *LuaGenerator) formatParameters(params []manifest.ParamType) string {
 	return result
 }
 
-func (g *LuaGenerator) generateDocumentation(method *manifest.Method) string {
+// LuaDocOptions configures LDoc-style documentation generation
+type LuaDocOptions struct {
+	Description      string
+	FallbackName     string
+	Params           []manifest.ParamType
+	ParamAliases     []*manifest.ParamAlias
+	RetType          *manifest.TypeInfo
+	RetAlias         *manifest.RetAlias
+	IncludeCallbacks bool
+}
+
+// formatDescriptionComment generates description comment with fallback
+func (g *LuaGenerator) formatDescriptionComment(description, fallbackName string) string {
+	if description != "" {
+		return fmt.Sprintf("--- %s\n", description)
+	}
+	return fmt.Sprintf("--- %s\n", fallbackName)
+}
+
+// generateLuaDocumentation generates LDoc-style documentation for methods
+func (g *LuaGenerator) generateLuaDocumentation(opts LuaDocOptions) string {
 	var sb strings.Builder
 
 	// Main description
-	if method.Description != "" {
-		sb.WriteString(fmt.Sprintf("--- %s\n", method.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("--- %s\n", method.Name))
-	}
+	sb.WriteString(g.formatDescriptionComment(opts.Description, opts.FallbackName))
 
 	// Parameters
-	for _, param := range method.ParamTypes {
+	for i, param := range opts.Params {
 		paramName := param.Name
 		paramType := param.Type
-		paramDesc := param.Description
+
+		// Apply parameter alias if provided
+		if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil && opts.ParamAliases[i].Name != "" {
+			paramType = opts.ParamAliases[i].Name
+		}
 
 		sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-			paramName, paramType, paramDesc))
+			paramName, paramType, param.Description))
 	}
 
 	// Return type
-	if method.RetType.Type != "void" {
-		retDesc := method.RetType.Description
-		sb.WriteString(fmt.Sprintf("-- @return %s %s\n", method.RetType.Type, retDesc))
+	if opts.RetType != nil && opts.RetType.Type != "void" {
+		retType := opts.RetType.Type
+		retDesc := opts.RetType.Description
+
+		// Apply return alias if provided
+		if opts.RetAlias != nil && opts.RetAlias.Name != "" {
+			retType = opts.RetAlias.Name
+		}
+
+		sb.WriteString(fmt.Sprintf("-- @return %s %s\n", retType, retDesc))
 	}
 
 	// Callback prototypes
-	for _, param := range method.ParamTypes {
-		if param.Prototype != nil {
-			proto := param.Prototype
-			protoName := proto.Name
-			protoDesc := proto.Description
+	if opts.IncludeCallbacks {
+		for _, param := range opts.Params {
+			if param.Prototype != nil {
+				proto := param.Prototype
+				sb.WriteString(fmt.Sprintf("-- @callback %s %s - %s\n",
+					proto.Name, param.Name, proto.Description))
 
-			sb.WriteString(fmt.Sprintf("-- @callback %s %s - %s\n",
-				protoName, param.Name, protoDesc))
+				// Callback parameters
+				for _, protoParam := range proto.ParamTypes {
+					sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
+						protoParam.Name, protoParam.Type, protoParam.Description))
+				}
 
-			// Callback parameters
-			for _, protoParam := range proto.ParamTypes {
-				sb.WriteString(fmt.Sprintf("-- @param %s %s %s\n",
-					protoParam.Name, protoParam.Type, protoParam.Description))
-			}
-
-			// Callback return
-			if proto.RetType.Type != "void" {
-				sb.WriteString(fmt.Sprintf("-- @return %s %s\n",
-					proto.RetType.Type, proto.RetType.Description))
+				// Callback return
+				if proto.RetType.Type != "void" {
+					sb.WriteString(fmt.Sprintf("-- @return %s %s\n",
+						proto.RetType.Type, proto.RetType.Description))
+				}
 			}
 		}
 	}
 
 	return sb.String()
+}
+
+func (g *LuaGenerator) generateDocumentation(method *manifest.Method) string {
+	return g.generateLuaDocumentation(LuaDocOptions{
+		Description:      method.Description,
+		FallbackName:     method.Name,
+		Params:           method.ParamTypes,
+		RetType:          &method.RetType,
+		IncludeCallbacks: true,
+	})
 }
 
 // LuaTypeMapper is a placeholder - Lua doesn't need explicit type mapping in stubs
