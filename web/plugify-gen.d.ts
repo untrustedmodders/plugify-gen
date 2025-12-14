@@ -25,7 +25,7 @@ export interface ConvertResult {
 /**
  * Supported target languages
  */
-export type SupportedLanguage = 'cpp' | 'v8' | 'python' | 'lua' | 'dotnet' | 'golang'
+export type SupportedLanguage = 'cpp' | 'cxx' | 'v8' | 'python' | 'lua' | 'dotnet' | 'golang' | 'dlang' | 'rust'
 
 /**
  * Global functions exposed by the Plugify Generator WASM module
@@ -41,7 +41,7 @@ declare global {
      * Convert a manifest file to language bindings
      *
      * @param manifestContent - The content of the .pplugin manifest file
-     * @param language - Target language (cpp, v8, python, lua, dotnet, golang)
+     * @param language - Target language (cpp, cxx, v8, python, lua, dotnet, golang, dlang, rust)
      * @returns Conversion result with generated files or error message
      *
      * @example
@@ -66,7 +66,7 @@ declare global {
      * @example
      * ```typescript
      * const languages = getSupportedLanguages()
-     * // ['cpp', 'v8', 'python', 'lua', 'dotnet', 'golang']
+     * // ['cpp', 'cxx', 'v8', 'python', 'lua', 'dotnet', 'golang', 'rust'. 'dlang']
      * ```
      */
     getSupportedLanguages(): SupportedLanguage[]

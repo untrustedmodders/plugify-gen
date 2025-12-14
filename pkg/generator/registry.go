@@ -35,6 +35,7 @@ func SupportedLanguages() string {
 func init() {
 	// Register all generators
 	Register(NewCppGenerator())
+	Register(NewCxxGenerator())
 	Register(NewV8Generator())
 	Register(NewPythonGenerator())
 	Register(NewLuaGenerator())

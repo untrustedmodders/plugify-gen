@@ -8,6 +8,7 @@ let wasmReady = false;
 const languageMap = {
     'c': 'c',
     'cpp': 'cpp',
+    'cxx': 'cxx',
     'v8': 'typescript',
     'golang': 'go',
     'dotnet': 'csharp',
@@ -230,6 +231,7 @@ function getHighlightLanguage(filename, defaultLang) {
         '.d': 'd',
         '.hpp': 'cpp',
         '.cpp': 'cpp',
+        '.ixx': 'cpp',
         '.go': 'go',
         '.cs': 'csharp',
         '.py': 'python',

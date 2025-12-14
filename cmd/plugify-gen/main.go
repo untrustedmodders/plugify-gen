@@ -20,7 +20,7 @@ func main() {
 	var (
 		manifestPath    = flag.String("manifest", "", "Path to .pplugin manifest file (required)")
 		outputDir       = flag.String("output", "", "Output directory (required)")
-		language        = flag.String("lang", "", "Target language: cpp, v8, golang, dotnet, python, lua (required)")
+		language        = flag.String("lang", "", "Target language: cpp, cxx, v8, golang, dotnet, python, lua, rust, dlang (required)")
 		overwrite       = flag.Bool("overwrite", false, "Overwrite existing files")
 		verbose         = flag.Bool("verbose", false, "Enable verbose output")
 		generateClasses = flag.Bool("classes", true, "Generate class wrappers (default: true)")

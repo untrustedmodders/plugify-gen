@@ -22,15 +22,16 @@ chmod +x build-wasm.sh
 ./build-wasm.sh
 ```
 
-This will create two files in the `dist` directory:
+This will create three files in the `dist` directory:
 - `plugify-gen.wasm` - The WebAssembly binary
 - `wasm_exec.js` - Go's WebAssembly runtime (needed to run the WASM module)
+- `version.js` - Version information for cache busting
 
 ## Integration
 
 ### 1. Copy Files to Your Project
 
-Copy both `plugify-gen.wasm` and `wasm_exec.js` to your web project's public directory:
+Copy `plugify-gen.wasm`, `wasm_exec.js`, and `version.js` to your web project's public directory:
 
 **Nuxt 3:**
 ```
@@ -38,6 +39,7 @@ your-nuxt-app/
   public/
     plugify-gen.wasm
     wasm_exec.js
+    version.js
 ```
 
 **Next.js:**
@@ -46,6 +48,7 @@ your-nextjs-app/
   public/
     plugify-gen.wasm
     wasm_exec.js
+    version.js
 ```
 
 **Vite/Vue:**
@@ -54,6 +57,7 @@ your-vite-app/
   public/
     plugify-gen.wasm
     wasm_exec.js
+    version.js
 ```
 
 ### 2. Load the WebAssembly Module
@@ -69,6 +73,15 @@ export const usePlugifyGen = () => {
 
   const loadWasm = async () => {
     try {
+      // Load version info for cache busting
+      const versionScript = document.createElement('script')
+      versionScript.src = '/version.js'
+      await new Promise((resolve, reject) => {
+        versionScript.onload = resolve
+        versionScript.onerror = reject
+        document.head.appendChild(versionScript)
+      })
+
       // Load the Go WASM runtime
       const script = document.createElement('script')
       script.src = '/wasm_exec.js'
@@ -79,9 +92,10 @@ export const usePlugifyGen = () => {
         document.head.appendChild(script)
       })
 
-      // Initialize Go and load WASM
+      // Initialize Go and load WASM with cache busting
       const go = new (window as any).Go()
-      const response = await fetch('/plugify-gen.wasm')
+      const version = (window as any).PLUGIFY_GEN_VERSION || 'dev'
+      const response = await fetch(`/plugify-gen.wasm?v=${version}`)
       const buffer = await response.arrayBuffer()
       const result = await WebAssembly.instantiate(buffer, go.importObject)
 
@@ -151,6 +165,7 @@ const handleConvert = async (file: File, language: string) => {
 <!DOCTYPE html>
 <html>
 <head>
+    <script src="version.js"></script>
     <script src="wasm_exec.js"></script>
 </head>
 <body>
@@ -170,14 +185,16 @@ const handleConvert = async (file: File, language: string) => {
 
         async function loadWasm() {
             const go = new Go();
+            // Use version for cache busting
+            const version = window.PLUGIFY_GEN_VERSION || 'dev';
             const result = await WebAssembly.instantiateStreaming(
-                fetch('plugify-gen.wasm'),
+                fetch(`plugify-gen.wasm?v=${version}`),
                 go.importObject
             );
             go.run(result.instance);
             await new Promise(resolve => setTimeout(resolve, 100));
             wasmReady = true;
-            console.log('WASM ready');
+            console.log('WASM ready (v' + version + ')');
         }
 
         document.getElementById('convert').addEventListener('click', async () => {
@@ -290,6 +307,21 @@ declare global {
 ```
 
 ## Deployment Considerations
+
+### Cache Busting
+
+The build process automatically generates a `version.js` file that contains the current version. This file is used to append a version query parameter to the WASM URL (e.g., `plugify-gen.wasm?v=1.0.0`), ensuring clients always download the latest version.
+
+**How it works:**
+1. Build script writes version to `dist/version.js`
+2. HTML includes `<script src="version.js"></script>` before loading WASM
+3. JavaScript appends `?v=${version}` when fetching the WASM file
+4. When version changes, browsers bypass cache and fetch new WASM
+
+**Important:** Always deploy all three files together:
+- `plugify-gen.wasm`
+- `wasm_exec.js`
+- `version.js`
 
 ### MIME Types
 
