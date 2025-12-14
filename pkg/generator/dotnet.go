@@ -340,111 +340,185 @@ func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (s
 	})
 }
 
+// methodBodyContext holds the context for generating a method body
+type methodBodyContext struct {
+	needsMarshaling  bool
+	hasReturn        bool
+	isObjectReturn   bool
+	isFunctionReturn bool
+	hasFixedBlocks   bool
+	declareRetVal    bool
+	hasTry           bool
+	indent           string
+	innerIndent      string
+	insertIndexStart int
+	insertIndexEnd   int
+	methodName       string
+}
+
 func (g *DotnetGenerator) generateMethodBody(method *manifest.Method) (string, error) {
 	var sb strings.Builder
-	indent := "\t\t\t"
 
-	needsMarshaling := g.needsMarshaling(method)
-	hasReturn := method.RetType.Type != "void"
-	isObjectReturn := g.typeMapper.isObjectReturn(method.RetType.Type)
-	isFunctionReturn := g.typeMapper.isFunction(method.RetType.Type)
+	// Set up context
+	ctx := g.initializeMethodContext(method)
 
-	// Check if we'll have fixed blocks
-	hasFixedBlocks := false
-	for _, param := range method.ParamTypes {
-		if param.Ref && !g.typeMapper.isObjectReturn(param.Type) {
-			hasFixedBlocks = true
-			break
-		}
+	// Declare variables
+	if err := g.declareMethodVariables(method, &sb, ctx); err != nil {
+		return "", err
 	}
 
-	// Declare return variable if needed (before fixed blocks to avoid scope issues)
-	declareRetVal := hasReturn && (isObjectReturn || needsMarshaling || hasFixedBlocks)
-	if declareRetVal {
-		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
-		sb.WriteString(fmt.Sprintf("%s%s __retVal;\n", indent, retTypeName))
-	}
-
-	// Declare native return variable for object returns
-	if isObjectReturn {
-		nativeRetType := g.typeMapper.getNativeReturnType(method.RetType.Type)
-		sb.WriteString(fmt.Sprintf("%s%s __retVal_native;\n", indent, nativeRetType))
-	}
-
-	// Generate fixed blocks for ref primitive/POD parameters
-	fixedBlocks := g.generateFixedBlocks(method, indent)
+	// Generate fixed blocks
+	fixedBlocks := g.generateFixedBlocks(method, ctx.indent)
 	for _, fixedBlock := range fixedBlocks {
 		sb.WriteString(fixedBlock)
 	}
 
-	// Parameter marshaling (constructor calls)
-	marshalCode := g.generateParameterMarshaling(method, indent)
-	if marshalCode != "" {
-		sb.WriteString(marshalCode)
+	// Generate marshaling and try block
+	if err := g.setupMarshalingAndTry(method, &sb, ctx); err != nil {
+		return "", err
 	}
 
-	hasTry := (needsMarshaling && hasReturn)
-	innerIndent := indent
-	insertIndexStart := 0
-	insertIndexEnd := 0
-	if hasTry || marshalCode != "" {
-		insertIndexStart = sb.Len()
-		sb.WriteString(fmt.Sprintf("%stry {\n", indent))
-		insertIndexEnd = sb.Len()
-		innerIndent = indent + "\t"
+	// Generate function call
+	if err := g.generateMethodCall(method, &sb, ctx); err != nil {
+		return "", err
 	}
 
-	methodName := method.Name
-
-	// Function call
-	callParams := g.generateCallParameters(method)
-	if isObjectReturn {
-		sb.WriteString(fmt.Sprintf("%s__retVal_native = __%s(%s);\n", innerIndent, methodName, callParams))
-	} else if hasTry || declareRetVal {
-		sb.WriteString(fmt.Sprintf("%s__retVal = __%s(%s);\n", innerIndent, methodName, callParams))
-	} else if hasReturn {
-		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
-		sb.WriteString(fmt.Sprintf("%s%s __retVal = __%s(%s);\n", innerIndent, retTypeName, methodName, callParams))
-	} else {
-		sb.WriteString(fmt.Sprintf("%s__%s(%s);\n", innerIndent, methodName, callParams))
+	// Generate unmarshaling
+	if err := g.generateUnmarshalingSection(method, &sb, ctx); err != nil {
+		return "", err
 	}
 
-	// Unmarshal return value and ref parameters
-	unmarshalCode := g.generateUnmarshaling(method, innerIndent)
-	if unmarshalCode != "" {
-		sb.WriteString(fmt.Sprintf("%s// Unmarshal - Convert native data to managed data.\n", innerIndent))
-		sb.WriteString(unmarshalCode)
-	}
-
-	// Cleanup
-	cleanupCode := g.generateCleanup(method, innerIndent)
-	if cleanupCode != "" {
-		sb.WriteString(fmt.Sprintf("%s}\n%sfinally {\n", indent, indent))
-		sb.WriteString(fmt.Sprintf("%s// Perform cleanup.\n", innerIndent))
-		sb.WriteString(cleanupCode)
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
-	} else if hasTry {
-		// Remove try block if no cleanup needed
-		RemoveFromBuilder(&sb, insertIndexStart, insertIndexEnd)
-		RemoveLeadingTabs(&sb, 1, insertIndexStart, sb.Len())
+	// Generate cleanup and close try block
+	if err := g.generateCleanupSection(method, &sb, ctx, fixedBlocks); err != nil {
+		return "", err
 	}
 
 	// Close fixed blocks
 	for i := len(fixedBlocks) - 1; i >= 0; i-- {
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		sb.WriteString(fmt.Sprintf("%s}\n", ctx.indent))
 	}
 
-	// Return statement
-	if hasReturn {
-		if isFunctionReturn {
-			retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
-			sb.WriteString(fmt.Sprintf("%sreturn Marshalling.GetDelegateForFunctionPointer<%s>(__retVal);\n", indent, retTypeName))
-		} else {
-			sb.WriteString(fmt.Sprintf("%sreturn __retVal;\n", indent))
+	// Generate return statement
+	g.generateReturnStatement(method, &sb, ctx)
+
+	return sb.String(), nil
+}
+
+// initializeMethodContext sets up the context for method body generation
+func (g *DotnetGenerator) initializeMethodContext(method *manifest.Method) *methodBodyContext {
+	ctx := &methodBodyContext{
+		indent:           "\t\t\t",
+		needsMarshaling:  g.needsMarshaling(method),
+		hasReturn:        method.RetType.Type != "void",
+		isObjectReturn:   g.typeMapper.isObjectReturn(method.RetType.Type),
+		isFunctionReturn: g.typeMapper.isFunction(method.RetType.Type),
+		methodName:       method.Name,
+	}
+
+	// Check if we'll have fixed blocks
+	for _, param := range method.ParamTypes {
+		if param.Ref && !g.typeMapper.isObjectReturn(param.Type) {
+			ctx.hasFixedBlocks = true
+			break
 		}
 	}
 
-	return sb.String(), nil
+	ctx.declareRetVal = ctx.hasReturn && (ctx.isObjectReturn || ctx.needsMarshaling || ctx.hasFixedBlocks)
+	ctx.hasTry = ctx.needsMarshaling && ctx.hasReturn
+	ctx.innerIndent = ctx.indent
+
+	return ctx
+}
+
+// declareMethodVariables declares the necessary variables for the method
+func (g *DotnetGenerator) declareMethodVariables(method *manifest.Method, sb *strings.Builder, ctx *methodBodyContext) error {
+	// Declare return variable if needed (before fixed blocks to avoid scope issues)
+	if ctx.declareRetVal {
+		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+		sb.WriteString(fmt.Sprintf("%s%s __retVal;\n", ctx.indent, retTypeName))
+	}
+
+	// Declare native return variable for object returns
+	if ctx.isObjectReturn {
+		nativeRetType := g.typeMapper.getNativeReturnType(method.RetType.Type)
+		sb.WriteString(fmt.Sprintf("%s%s __retVal_native;\n", ctx.indent, nativeRetType))
+	}
+
+	return nil
+}
+
+// setupMarshalingAndTry generates parameter marshaling and sets up try block if needed
+func (g *DotnetGenerator) setupMarshalingAndTry(method *manifest.Method, sb *strings.Builder, ctx *methodBodyContext) error {
+	// Parameter marshaling (constructor calls)
+	marshalCode := g.generateParameterMarshaling(method, ctx.indent)
+	if marshalCode != "" {
+		sb.WriteString(marshalCode)
+	}
+
+	if ctx.hasTry || marshalCode != "" {
+		ctx.insertIndexStart = sb.Len()
+		sb.WriteString(fmt.Sprintf("%stry {\n", ctx.indent))
+		ctx.insertIndexEnd = sb.Len()
+		ctx.innerIndent = ctx.indent + "\t"
+	}
+
+	return nil
+}
+
+// generateMethodCall generates the actual function call
+func (g *DotnetGenerator) generateMethodCall(method *manifest.Method, sb *strings.Builder, ctx *methodBodyContext) error {
+	callParams := g.generateCallParameters(method)
+
+	if ctx.isObjectReturn {
+		sb.WriteString(fmt.Sprintf("%s__retVal_native = __%s(%s);\n", ctx.innerIndent, ctx.methodName, callParams))
+	} else if ctx.hasTry || ctx.declareRetVal {
+		sb.WriteString(fmt.Sprintf("%s__retVal = __%s(%s);\n", ctx.innerIndent, ctx.methodName, callParams))
+	} else if ctx.hasReturn {
+		retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+		sb.WriteString(fmt.Sprintf("%s%s __retVal = __%s(%s);\n", ctx.innerIndent, retTypeName, ctx.methodName, callParams))
+	} else {
+		sb.WriteString(fmt.Sprintf("%s__%s(%s);\n", ctx.innerIndent, ctx.methodName, callParams))
+	}
+
+	return nil
+}
+
+// generateUnmarshalingSection generates unmarshaling code for return values and ref parameters
+func (g *DotnetGenerator) generateUnmarshalingSection(method *manifest.Method, sb *strings.Builder, ctx *methodBodyContext) error {
+	unmarshalCode := g.generateUnmarshaling(method, ctx.innerIndent)
+	if unmarshalCode != "" {
+		sb.WriteString(fmt.Sprintf("%s// Unmarshal - Convert native data to managed data.\n", ctx.innerIndent))
+		sb.WriteString(unmarshalCode)
+	}
+	return nil
+}
+
+// generateCleanupSection generates cleanup code and closes try block if needed
+func (g *DotnetGenerator) generateCleanupSection(method *manifest.Method, sb *strings.Builder, ctx *methodBodyContext, fixedBlocks []string) error {
+	cleanupCode := g.generateCleanup(method, ctx.innerIndent)
+	if cleanupCode != "" {
+		sb.WriteString(fmt.Sprintf("%s}\n%sfinally {\n", ctx.indent, ctx.indent))
+		sb.WriteString(fmt.Sprintf("%s// Perform cleanup.\n", ctx.innerIndent))
+		sb.WriteString(cleanupCode)
+		sb.WriteString(fmt.Sprintf("%s}\n", ctx.indent))
+	} else if ctx.hasTry {
+		// Remove try block if no cleanup needed
+		RemoveFromBuilder(sb, ctx.insertIndexStart, ctx.insertIndexEnd)
+		RemoveLeadingTabs(sb, 1, ctx.insertIndexStart, sb.Len())
+	}
+	return nil
+}
+
+// generateReturnStatement generates the return statement
+func (g *DotnetGenerator) generateReturnStatement(method *manifest.Method, sb *strings.Builder, ctx *methodBodyContext) {
+	if ctx.hasReturn {
+		if ctx.isFunctionReturn {
+			retTypeName, _ := g.typeMapper.MapReturnType(&method.RetType)
+			sb.WriteString(fmt.Sprintf("%sreturn Marshalling.GetDelegateForFunctionPointer<%s>(__retVal);\n", ctx.indent, retTypeName))
+		} else {
+			sb.WriteString(fmt.Sprintf("%sreturn __retVal;\n", ctx.indent))
+		}
+	}
 }
 
 func (g *DotnetGenerator) needsMarshaling(method *manifest.Method) bool {

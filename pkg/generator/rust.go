@@ -718,6 +718,31 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 	return sb.String(), nil
 }
 
+// generateSafeConstructorBody generates the body of a constructor that validates the handle
+func (g *RustGenerator) generateSafeConstructorBody(m *manifest.Manifest, class *manifest.Class, method *manifest.Method, paramNames string) (string, error) {
+	var sb strings.Builder
+
+	invalidValue, _, err := g.typeMapper.MapHandleType(class)
+	if err != nil {
+		return "", err
+	}
+
+	hasDtor := class.Destructor != nil
+
+	sb.WriteString(fmt.Sprintf("        let h = crate::%s::%s(%s);\n", m.Name, method.FuncName, paramNames))
+	sb.WriteString(fmt.Sprintf("        if h == %s {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("            return Err(%sError::EmptyHandle);\n", class.Name))
+	sb.WriteString("        }\n")
+	sb.WriteString("        Ok(Self {\n")
+	sb.WriteString("            handle: h,\n")
+	if hasDtor {
+		sb.WriteString("            ownership: Ownership::Owned,\n")
+	}
+	sb.WriteString("        })\n")
+
+	return sb.String(), nil
+}
+
 func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifest.Class, methodName string) (string, error) {
 	// Find the method in the manifest
 	method := FindMethod(m, methodName)
@@ -740,13 +765,12 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 		return "", err
 	}
 
-	funcName := fmt.Sprintf("new")
+	funcName := "new"
 	if method.Name != class.Name {
 		// If constructor method name is different from class name, use it as suffix
 		funcName = fmt.Sprintf("new_%s", method.Name)
 	}
 
-	hasDtor := class.Destructor != nil
 	sb.WriteString("    #[allow(dead_code, non_snake_case)]\n")
 	sb.WriteString(fmt.Sprintf("    pub fn %s(%s) -> Result<Self, %sError> {\n", funcName, params, class.Name))
 
@@ -756,21 +780,13 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 		return "", err
 	}
 
-	invalidValue, _, err := g.typeMapper.MapHandleType(class)
+	// Generate safe constructor body
+	body, err := g.generateSafeConstructorBody(m, class, method, paramNames)
 	if err != nil {
 		return "", err
 	}
+	sb.WriteString(body)
 
-	sb.WriteString(fmt.Sprintf("        let h = crate::%s::%s(%s);\n", m.Name, method.FuncName, paramNames))
-	sb.WriteString(fmt.Sprintf("        if h == %s {\n", invalidValue))
-	sb.WriteString(fmt.Sprintf("            return Err(%sError::EmptyHandle);\n", class.Name))
-	sb.WriteString("        }\n")
-	sb.WriteString("        Ok(Self {\n")
-	sb.WriteString("            handle: h,\n")
-	if hasDtor {
-		sb.WriteString("            ownership: Ownership::Owned,\n")
-	}
-	sb.WriteString("        })\n")
 	sb.WriteString("    }\n\n")
 
 	return sb.String(), nil
@@ -781,56 +797,81 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 
 	hasDtor := class.Destructor != nil
 
-	// get method
-	sb.WriteString("    /// Returns the underlying handle\n")
-	sb.WriteString("    #[allow(dead_code)]\n")
-	sb.WriteString(fmt.Sprintf("    pub fn get(&self) -> %s {\n", handleType))
-	sb.WriteString("        self.handle\n")
-	sb.WriteString("    }\n\n")
-
-	// release method
-	sb.WriteString("    /// Release ownership and return the handle. Wrapper becomes empty & borrowed.\n")
-	sb.WriteString("    #[allow(dead_code)]\n")
-	sb.WriteString(fmt.Sprintf("    pub fn release(&mut self) -> %s {\n", handleType))
-	sb.WriteString("        let h = self.handle;\n")
-	sb.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
-	if hasDtor {
-		sb.WriteString("        self.ownership = Ownership::Borrowed;\n")
+	// Define utility methods metadata
+	type utilityMethod struct {
+		doc       string
+		signature string
+		body      func() string
 	}
-	sb.WriteString("        h\n")
-	sb.WriteString("    }\n\n")
 
-	// reset method
-	sb.WriteString("    /// Destroys and resets the handle\n")
-	sb.WriteString("    #[allow(dead_code)]\n")
-	sb.WriteString("    pub fn reset(&mut self) {\n")
-	if hasDtor {
-		sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
-		sb.WriteString(fmt.Sprintf("            crate::%s::%s(self.handle);\n", m.Name, *class.Destructor))
-		sb.WriteString("        }\n")
+	methods := []utilityMethod{
+		{
+			doc:       "Returns the underlying handle",
+			signature: fmt.Sprintf("pub fn get(&self) -> %s", handleType),
+			body: func() string {
+				return "        self.handle\n"
+			},
+		},
+		{
+			doc:       "Release ownership and return the handle. Wrapper becomes empty & borrowed.",
+			signature: fmt.Sprintf("pub fn release(&mut self) -> %s", handleType),
+			body: func() string {
+				var b strings.Builder
+				b.WriteString("        let h = self.handle;\n")
+				b.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
+				if hasDtor {
+					b.WriteString("        self.ownership = Ownership::Borrowed;\n")
+				}
+				b.WriteString("        h\n")
+				return b.String()
+			},
+		},
+		{
+			doc:       "Destroys and resets the handle",
+			signature: "pub fn reset(&mut self)",
+			body: func() string {
+				var b strings.Builder
+				if hasDtor {
+					b.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
+					b.WriteString(fmt.Sprintf("            crate::%s::%s(self.handle);\n", m.Name, *class.Destructor))
+					b.WriteString("        }\n")
+				}
+				b.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
+				if hasDtor {
+					b.WriteString("        self.ownership = Ownership::Borrowed;\n")
+				}
+				return b.String()
+			},
+		},
+		{
+			doc:       fmt.Sprintf("Swaps two %s instances", class.Name),
+			signature: fmt.Sprintf("pub fn swap(&mut self, other: &mut %s)", class.Name),
+			body: func() string {
+				var b strings.Builder
+				b.WriteString("        std::mem::swap(&mut self.handle, &mut other.handle);\n")
+				if hasDtor {
+					b.WriteString("        std::mem::swap(&mut self.ownership, &mut other.ownership);\n")
+				}
+				return b.String()
+			},
+		},
+		{
+			doc:       "Returns true if handle is valid (not empty)",
+			signature: "pub fn is_valid(&self) -> bool",
+			body: func() string {
+				return fmt.Sprintf("        self.handle != %s\n", invalidValue)
+			},
+		},
 	}
-	sb.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
-	if hasDtor {
-		sb.WriteString("        self.ownership = Ownership::Borrowed;\n")
-	}
-	sb.WriteString("    }\n\n")
 
-	// swap method
-	sb.WriteString(fmt.Sprintf("    /// Swaps two %s instances\n", class.Name))
-	sb.WriteString("    #[allow(dead_code)]\n")
-	sb.WriteString(fmt.Sprintf("    pub fn swap(&mut self, other: &mut %s) {\n", class.Name))
-	sb.WriteString("        std::mem::swap(&mut self.handle, &mut other.handle);\n")
-	if hasDtor {
-		sb.WriteString("        std::mem::swap(&mut self.ownership, &mut other.ownership);\n")
+	// Generate methods
+	for _, method := range methods {
+		sb.WriteString(fmt.Sprintf("    /// %s\n", method.doc))
+		sb.WriteString("    #[allow(dead_code)]\n")
+		sb.WriteString(fmt.Sprintf("    %s {\n", method.signature))
+		sb.WriteString(method.body())
+		sb.WriteString("    }\n\n")
 	}
-	sb.WriteString("    }\n\n")
-
-	// is_valid method
-	sb.WriteString("    /// Returns true if handle is valid (not empty)\n")
-	sb.WriteString("    #[allow(dead_code)]\n")
-	sb.WriteString("    pub fn is_valid(&self) -> bool {\n")
-	sb.WriteString(fmt.Sprintf("        self.handle != %s\n", invalidValue))
-	sb.WriteString("    }\n\n")
 
 	return sb.String(), nil
 }

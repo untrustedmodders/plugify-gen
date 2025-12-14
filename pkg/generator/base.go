@@ -49,6 +49,23 @@ type GeneratorResult struct {
 	Files map[string]string
 }
 
+// DocOptions holds common documentation generation options
+// This provides a unified interface for documentation across different language generators
+type DocOptions struct {
+	Indent       string                 // Indentation string (e.g., "\t", "  ")
+	Summary      string                 // Summary/brief description
+	Description  string                 // Detailed description
+	Params       []manifest.ParamType   // Method parameters
+	ParamAliases []*manifest.ParamAlias // Parameter aliases for type substitution
+	Returns      string                 // Return value description
+	RetType      *manifest.TypeInfo     // Return type information
+	RetAlias     *manifest.RetAlias     // Return value alias
+}
+
+// DocFormatter is a callback function that formats documentation in language-specific style
+// Each generator can provide its own formatter to generate language-appropriate doc comments
+type DocFormatter func(opts DocOptions) string
+
 // BaseGenerator provides common functionality for all generators
 type BaseGenerator struct {
 	name          string

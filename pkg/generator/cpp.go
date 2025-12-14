@@ -248,6 +248,21 @@ func (g *CppGenerator) generateCopyMoveSemantics(className string, hasDtor bool)
 		className, className, className, className)
 }
 
+// generatePrivateHelpers generates private helper methods (destroy and nullify)
+func (g *CppGenerator) generatePrivateHelpers(invalidValue, destructor string) string {
+	return fmt.Sprintf(`    void destroy() const noexcept {
+      if (_handle != %s && _ownership == Ownership::Owned) {
+        %s(_handle);
+      }
+    }
+
+    void nullify() noexcept {
+      _handle = %s;
+      _ownership = Ownership::Borrowed;
+    }
+`, invalidValue, destructor, invalidValue)
+}
+
 func (g *CppGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	// Use the base generator's CollectEnums helper
 	return g.CollectEnums(m, g.generateEnum)
@@ -480,18 +495,8 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		sb.WriteString("  private:\n")
 
 		if hasDtor {
-			// Destroy helper
-			sb.WriteString("    void destroy() const noexcept {\n")
-			sb.WriteString(fmt.Sprintf("      if (_handle != %s && _ownership == Ownership::Owned) {\n", invalidValue))
-			sb.WriteString(fmt.Sprintf("        %s(_handle);\n", *class.Destructor))
-			sb.WriteString("      }\n")
-			sb.WriteString("    }\n\n")
-
-			// Nullify helper
-			sb.WriteString("    void nullify() noexcept {\n")
-			sb.WriteString(fmt.Sprintf("      _handle = %s;\n", invalidValue))
-			sb.WriteString("      _ownership = Ownership::Borrowed;\n")
-			sb.WriteString("    }\n\n")
+			sb.WriteString(g.generatePrivateHelpers(invalidValue, *class.Destructor))
+			sb.WriteString("\n")
 		}
 
 		// Member variables

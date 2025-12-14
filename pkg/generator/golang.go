@@ -284,121 +284,190 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method) (string, error
 }
 
 // generateMethodBody generates the method body with marshaling
+// goMethodBodyContext holds the context for generating a Go method body
+type goMethodBodyContext struct {
+	indent           string
+	innerIndent      string
+	isObjRet         bool
+	isPodRet         bool
+	hasRet           bool
+	hasCast          bool
+	hasTry           bool
+	insertIndexStart int
+	insertIndexEnd   int
+	paramsCast       []string
+}
+
 func (g *GolangGenerator) generateMethodBody(method *manifest.Method) (string, error) {
 	var sb strings.Builder
-	indent := "\t"
-	innerIndent := indent
 
-	isObjRet := method.RetType.Type != "void" && g.typeMapper.IsObjType(method.RetType.Type)
-	isPodRet := method.RetType.Type != "void" && g.typeMapper.IsPodType(method.RetType.Type)
-	hasRet := method.RetType.Type != "void" && !isObjRet
-
-	// Generate parameter casting
-	paramsCast, err := g.generateParamsCast(method, indent)
+	// Set up context
+	ctx, err := g.initializeGoMethodContext(method)
 	if err != nil {
 		return "", err
 	}
 
-	hasCast := len(paramsCast) > 0 && method.RetType.Type != "void"
+	// Declare return variables
+	g.declareGoMethodVariables(method, &sb, ctx)
 
-	// Declare return value if needed
-	if isObjRet || hasCast {
-		returnType, _ := g.typeMapper.MapReturnType(&method.RetType)
-		sb.WriteString(fmt.Sprintf("%svar __retVal %s\n", indent, returnType))
-	}
-
-	// Add parameter casting code
-	hasTry := false
-	insertIndexStart := 0
-	insertIndexEnd := 0
-	if len(paramsCast) > 0 {
-		for _, cast := range paramsCast {
-			sb.WriteString(cast)
-		}
-		insertIndexStart = sb.Len()
-		sb.WriteString(fmt.Sprintf("%splugify.Block {\n", indent))
-		sb.WriteString(fmt.Sprintf("%s\tTry: func() {\n", indent))
-		insertIndexEnd = sb.Len()
-		innerIndent = "\t\t\t"
-		hasTry = hasCast
-	}
+	// Add parameter casting and try block
+	g.setupGoCastingAndTry(&sb, ctx)
 
 	// Generate function call
-	functionCall, err := g.generateFunctionCall(method)
-	if err != nil {
+	if err := g.generateGoMethodCall(method, &sb, ctx); err != nil {
 		return "", err
 	}
 
-	if isObjRet {
+	// Generate unmarshaling
+	if err := g.generateGoUnmarshalingSection(method, &sb, ctx); err != nil {
+		return "", err
+	}
+
+	// Generate cleanup
+	if err := g.generateGoCleanupSection(method, &sb, ctx); err != nil {
+		return "", err
+	}
+
+	// Generate return statement
+	g.generateGoReturnStatement(method, &sb, ctx)
+
+	return sb.String(), nil
+}
+
+// initializeGoMethodContext sets up the context for Go method body generation
+func (g *GolangGenerator) initializeGoMethodContext(method *manifest.Method) (*goMethodBodyContext, error) {
+	ctx := &goMethodBodyContext{
+		indent:      "\t",
+		innerIndent: "\t",
+		isObjRet:    method.RetType.Type != "void" && g.typeMapper.IsObjType(method.RetType.Type),
+		isPodRet:    method.RetType.Type != "void" && g.typeMapper.IsPodType(method.RetType.Type),
+	}
+
+	ctx.hasRet = method.RetType.Type != "void" && !ctx.isObjRet
+
+	// Generate parameter casting
+	var err error
+	ctx.paramsCast, err = g.generateParamsCast(method, ctx.indent)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.hasCast = len(ctx.paramsCast) > 0 && method.RetType.Type != "void"
+
+	return ctx, nil
+}
+
+// declareGoMethodVariables declares the necessary variables for the Go method
+func (g *GolangGenerator) declareGoMethodVariables(method *manifest.Method, sb *strings.Builder, ctx *goMethodBodyContext) {
+	// Declare return value if needed
+	if ctx.isObjRet || ctx.hasCast {
+		returnType, _ := g.typeMapper.MapReturnType(&method.RetType)
+		sb.WriteString(fmt.Sprintf("%svar __retVal %s\n", ctx.indent, returnType))
+	}
+}
+
+// setupGoCastingAndTry adds parameter casting code and sets up try block if needed
+func (g *GolangGenerator) setupGoCastingAndTry(sb *strings.Builder, ctx *goMethodBodyContext) {
+	if len(ctx.paramsCast) > 0 {
+		for _, cast := range ctx.paramsCast {
+			sb.WriteString(cast)
+		}
+		ctx.insertIndexStart = sb.Len()
+		sb.WriteString(fmt.Sprintf("%splugify.Block {\n", ctx.indent))
+		sb.WriteString(fmt.Sprintf("%s\tTry: func() {\n", ctx.indent))
+		ctx.insertIndexEnd = sb.Len()
+		ctx.innerIndent = "\t\t\t"
+		ctx.hasTry = ctx.hasCast
+	}
+}
+
+// generateGoMethodCall generates the actual function call with proper type handling
+func (g *GolangGenerator) generateGoMethodCall(method *manifest.Method, sb *strings.Builder, ctx *goMethodBodyContext) error {
+	functionCall, err := g.generateFunctionCall(method)
+	if err != nil {
+		return err
+	}
+
+	if ctx.isObjRet {
 		retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
-		sb.WriteString(fmt.Sprintf("%s__native := %s\n", innerIndent, functionCall))
-		sb.WriteString(fmt.Sprintf("%s__retVal_native = *(*%s)(unsafe.Pointer(&__native))\n", innerIndent, retTypeCast))
-	} else if hasTry {
-		if isPodRet {
+		sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
+		sb.WriteString(fmt.Sprintf("%s__retVal_native = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
+	} else if ctx.hasTry {
+		if ctx.isPodRet {
 			retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
-			sb.WriteString(fmt.Sprintf("%s__native := %s\n", innerIndent, functionCall))
-			sb.WriteString(fmt.Sprintf("%s__retVal = *(*%s)(unsafe.Pointer(&__native))\n", innerIndent, retTypeCast))
+			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
+			sb.WriteString(fmt.Sprintf("%s__retVal = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 		} else {
 			retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
 			if retTypeCast != "" {
-				sb.WriteString(fmt.Sprintf("%s__retVal = %s(%s)\n", innerIndent, retTypeCast, functionCall))
+				sb.WriteString(fmt.Sprintf("%s__retVal = %s(%s)\n", ctx.innerIndent, retTypeCast, functionCall))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s__retVal = %s\n", innerIndent, functionCall))
+				sb.WriteString(fmt.Sprintf("%s__retVal = %s\n", ctx.innerIndent, functionCall))
 			}
 		}
-	} else if hasRet {
-		if isPodRet {
+	} else if ctx.hasRet {
+		if ctx.isPodRet {
 			retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
-			sb.WriteString(fmt.Sprintf("%s__native := %s\n", innerIndent, functionCall))
-			sb.WriteString(fmt.Sprintf("%s__retVal := *(*%s)(unsafe.Pointer(&__native))\n", innerIndent, retTypeCast))
+			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
+			sb.WriteString(fmt.Sprintf("%s__retVal := *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 		} else if method.RetType.Type == "function" {
 			returnType, _ := g.typeMapper.MapReturnType(&method.RetType)
 			sb.WriteString(fmt.Sprintf("%s__retVal := plugify.GetDelegateForFunctionPointer(%s, reflect.TypeOf(%s(nil))).(%s)\n",
-				innerIndent, functionCall, returnType, returnType))
+				ctx.innerIndent, functionCall, returnType, returnType))
 		} else {
 			returnType, _ := g.typeMapper.MapReturnType(&method.RetType)
-			sb.WriteString(fmt.Sprintf("%s__retVal := %s(%s)\n", innerIndent, returnType, functionCall))
+			sb.WriteString(fmt.Sprintf("%s__retVal := %s(%s)\n", ctx.innerIndent, returnType, functionCall))
 		}
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s\n", innerIndent, functionCall))
+		sb.WriteString(fmt.Sprintf("%s%s\n", ctx.innerIndent, functionCall))
 	}
 
-	// Generate assignment casting (unmarshal)
-	assignCast, err := g.generateParamsCastAssign(method, innerIndent)
+	return nil
+}
+
+// generateGoUnmarshalingSection generates unmarshaling code for ref parameters
+func (g *GolangGenerator) generateGoUnmarshalingSection(method *manifest.Method, sb *strings.Builder, ctx *goMethodBodyContext) error {
+	assignCast, err := g.generateParamsCastAssign(method, ctx.innerIndent)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if len(assignCast) > 0 {
-		sb.WriteString(fmt.Sprintf("%s// Unmarshal - Convert native data to managed data.\n", innerIndent))
+		sb.WriteString(fmt.Sprintf("%s// Unmarshal - Convert native data to managed data.\n", ctx.innerIndent))
 		for _, assign := range assignCast {
 			sb.WriteString(assign)
 		}
 	}
 
-	// Generate cleanup code
-	cleanupCast, err := g.generateParamsCastCleanup(method, innerIndent)
+	return nil
+}
+
+// generateGoCleanupSection generates cleanup code and closes try block if needed
+func (g *GolangGenerator) generateGoCleanupSection(method *manifest.Method, sb *strings.Builder, ctx *goMethodBodyContext) error {
+	cleanupCast, err := g.generateParamsCastCleanup(method, ctx.innerIndent)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if len(cleanupCast) > 0 {
-		sb.WriteString(fmt.Sprintf("%s\t},\n%s\tFinally: func() {\n%s// Perform cleanup.\n", indent, indent, innerIndent))
+		sb.WriteString(fmt.Sprintf("%s\t},\n%s\tFinally: func() {\n%s// Perform cleanup.\n", ctx.indent, ctx.indent, ctx.innerIndent))
 		for _, cleanup := range cleanupCast {
 			sb.WriteString(cleanup)
 		}
-		sb.WriteString(fmt.Sprintf("%s\t},\n%s}.Do()\n", indent, indent))
-	} else if len(paramsCast) > 0 {
-		RemoveFromBuilder(&sb, insertIndexStart, insertIndexEnd)
-		RemoveLeadingTabs(&sb, 2, insertIndexStart, sb.Len())
+		sb.WriteString(fmt.Sprintf("%s\t},\n%s}.Do()\n", ctx.indent, ctx.indent))
+	} else if len(ctx.paramsCast) > 0 {
+		RemoveFromBuilder(sb, ctx.insertIndexStart, ctx.insertIndexEnd)
+		RemoveLeadingTabs(sb, 2, ctx.insertIndexStart, sb.Len())
 	}
 
-	// Return value
+	return nil
+}
+
+// generateGoReturnStatement generates the return statement
+func (g *GolangGenerator) generateGoReturnStatement(method *manifest.Method, sb *strings.Builder, ctx *goMethodBodyContext) {
 	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("%sreturn __retVal\n", indent))
+		sb.WriteString(fmt.Sprintf("%sreturn __retVal\n", ctx.indent))
 	}
-
-	return sb.String(), nil
 }
 
 // generateParamsCast generates parameter casting code
