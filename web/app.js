@@ -37,9 +37,13 @@ async function loadWasm() {
         wasmStatus.textContent = 'Loading WebAssembly module...';
         wasmStatus.className = 'wasm-status loading';
 
+        // Get version for cache busting
+        const version = window.PLUGIFY_GEN_VERSION || 'dev';
+        const wasmUrl = `plugify-gen.wasm?v=${version}`;
+
         const go = new Go();
         const result = await WebAssembly.instantiateStreaming(
-            fetch('plugify-gen.wasm'),
+            fetch(wasmUrl),
             go.importObject
         );
 
@@ -58,9 +62,9 @@ async function loadWasm() {
         }
 
         wasmReady = true;
-        wasmStatus.textContent = 'WebAssembly module ready';
+        wasmStatus.textContent = `WebAssembly module ready (v${version})`;
         wasmStatus.className = 'wasm-status ready';
-        console.log('WASM loaded successfully');
+        console.log(`WASM loaded successfully (v${version})`);
 
         updateConvertButton();
     } catch (err) {
