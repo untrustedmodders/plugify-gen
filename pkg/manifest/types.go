@@ -90,6 +90,7 @@ type Class struct {
 	Name         string    `json:"name"`
 	Group        string    `json:"group,omitempty"`
 	Description  string    `json:"description,omitempty"`
+	Deprecated   string    `json:"deprecated,omitempty"`
 	HandleType   string    `json:"handleType,omitempty"`
 	InvalidValue string    `json:"invalidValue,omitempty"`
 	NullPolicy   string    `json:"nullPolicy,omitempty"`

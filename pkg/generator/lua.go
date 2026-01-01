@@ -125,6 +125,11 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	// Class comment
 	sb.WriteString(g.formatDescriptionComment(class.Description, fmt.Sprintf("Class: %s", class.Name)))
 
+	// Add deprecation annotation if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", class.Deprecated))
+	}
+
 	// Class table declaration
 	sb.WriteString(fmt.Sprintf("%s = {}\n\n", class.Name))
 

@@ -377,9 +377,15 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	hasDtor := class.Destructor != nil
 
 	// Class JSDoc comment
+	sb.WriteString("  /**\n")
 	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("  /** %s */\n", class.Description))
+		sb.WriteString(fmt.Sprintf("   * %s\n", class.Description))
 	}
+	// Add deprecation comment if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("   * @deprecated %s\n", class.Deprecated))
+	}
+	sb.WriteString("   */\n")
 
 	// Class declaration
 	sb.WriteString(fmt.Sprintf("  export class %s {\n", class.Name))

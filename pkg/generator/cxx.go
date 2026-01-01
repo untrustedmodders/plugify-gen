@@ -312,6 +312,11 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	}
 	sb.WriteString("   */\n")
 
+	// Add deprecation attribute if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("  [[deprecated(\"%s\")]]\n", class.Deprecated))
+	}
+
 	// Class declaration
 	sb.WriteString(fmt.Sprintf("  class %s final {\n", class.Name))
 

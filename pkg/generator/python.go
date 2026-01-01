@@ -165,6 +165,11 @@ func (g *PythonGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
+	// Add deprecation decorator if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@deprecated(reason=\"%s\")\n", class.Deprecated))
+	}
+
 	// Class declaration with docstring
 	sb.WriteString(fmt.Sprintf("class %s:\n", class.Name))
 	if class.Description != "" {

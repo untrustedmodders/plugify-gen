@@ -902,6 +902,9 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	// Class documentation
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", class.Deprecated))
+	}
 	if class.Description != "" {
 		sb.WriteString(fmt.Sprintf("// %s - %s\n", class.Name, class.Description))
 	}

@@ -739,6 +739,11 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 	}
 	sb.WriteString(" */\n")
 
+	// Add deprecation attribute if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("deprecated(\"%s\")\n", class.Deprecated))
+	}
+
 	// Struct declaration
 	sb.WriteString(fmt.Sprintf("struct %s {\n", class.Name))
 

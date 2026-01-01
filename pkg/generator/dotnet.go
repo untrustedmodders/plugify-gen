@@ -786,6 +786,11 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		Summary: summary,
 	}))
 
+	// Add deprecation attribute if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("\t[Obsolete(\"%s\", true)]\n", class.Deprecated))
+	}
+
 	// Class declaration
 	if hasHandle {
 		if hasDtor {

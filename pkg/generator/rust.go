@@ -673,6 +673,11 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 		}))
 	}
 
+	// Add deprecation attribute if present
+	if class.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("#[deprecated(note = \"%s\")]\n", class.Deprecated))
+	}
+
 	// Struct definition
 	if hasHandle {
 		if hasDtor {
