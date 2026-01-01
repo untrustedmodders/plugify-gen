@@ -77,6 +77,7 @@ type XmlDocOptions struct {
 	Params       []manifest.ParamType
 	Returns      string
 	ParamAliases []*manifest.ParamAlias
+	Deprecated   string
 }
 
 // generateXmlDocumentation generates XML documentation comments
@@ -109,6 +110,11 @@ func (g *DotnetGenerator) generateXmlDocumentation(opts XmlDocOptions) string {
 	if opts.Returns != "" {
 		sb.WriteString(fmt.Sprintf("%s/// <returns>%s</returns>\n",
 			opts.Indent, opts.Returns))
+	}
+
+	// Add deprecation attribute if present
+	if Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", Deprecated))
 	}
 
 	return sb.String()
@@ -957,6 +963,11 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 		Params:  method.ParamTypes,
 	}))
 
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", method.Deprecated))
+	}
+
 	// Generate constructor signature
 	params, err := g.formatMethodParameters(method.ParamTypes)
 	if err != nil {
@@ -1029,6 +1040,15 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		Returns:      returns,
 		ParamAliases: binding.ParamAliases,
 	}))
+
+	// Add deprecation attribute if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", deprecationReason))
+	}
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

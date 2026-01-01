@@ -277,6 +277,11 @@ func (g *GolangGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 func (g *GolangGenerator) generateMethod(method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
+	// Add deprecation comment if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", method.Deprecated))
+	}
+
 	// Generate documentation
 	sb.WriteString(g.generateDocumentation(method.Name, method.Description, method.ParamTypes, &method.RetType, true))
 
@@ -978,6 +983,11 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 
 	var sb strings.Builder
 
+	// Add deprecation comment if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", method.Deprecated))
+	}
+
 	// Generate documentation
 	funcName := fmt.Sprintf("New%s%s", class.Name, method.Name)
 	sb.WriteString(g.generateDocumentation(funcName, method.Description, method.ParamTypes, nil, false))
@@ -1178,6 +1188,15 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		startIdx = 1
 	}
 	methodParams := params[startIdx:]
+
+	// Add deprecation comment if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", deprecationReason))
+	}
 
 	// Generate documentation
 	sb.WriteString(g.generateDocumentation(binding.Name, method.Description, methodParams, &method.RetType, false))

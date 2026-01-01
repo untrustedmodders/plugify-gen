@@ -492,6 +492,11 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 		Indent:      "",
 	}))
 
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("deprecated(\"%s\")\n", method.Deprecated))
+	}
+
 	// Function signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
 	if err != nil {
@@ -855,6 +860,11 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 		Indent:      "\t",
 	}))
 
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("\tdeprecated(\"%s\")\n", method.Deprecated))
+	}
+
 	// Constructor signature
 	sb.WriteString("\tthis(")
 
@@ -917,6 +927,15 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		Indent:      "\t",
 		AddThrows:   binding.BindSelf,
 	}))
+
+	// Add deprecation attribute if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("\tdeprecated(\"%s\")\n", deprecationReason))
+	}
 
 	// Method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

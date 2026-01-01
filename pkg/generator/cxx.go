@@ -245,7 +245,12 @@ func (g *CxxGenerator) generateMethod(pluginName string, method *manifest.Method
 		Indent:      "  ",
 	}))
 
-	sb.WriteString(fmt.Sprintf("  %s %s(%s) {\n", retType, method.Name, formattedParams))
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("  [[deprecated(\"%s\")]]\n", method.Deprecated))
+	}
+
+	sb.WriteString(fmt.Sprintf("\n  %s %s(%s) {\n", retType, method.Name, formattedParams))
 	if method.RetType.Type == "void" {
 		sb.WriteString(fmt.Sprintf("    return __%s_%s(%s);\n", pluginName, method.Name, paramNames))
 	} else {
@@ -510,6 +515,11 @@ func (g *CxxGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 		Indent:      "    ",
 	}))
 
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("    [[deprecated(\"%s\")]]\n", method.Deprecated))
+	}
+
 	// Generate constructor signature
 	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper)
 	if err != nil {
@@ -555,6 +565,15 @@ func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		RetAlias:     binding.RetAlias,
 		Indent:       "    ",
 	}))
+
+	// Add deprecation attribute if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("    [[deprecated(\"%s\")]]\n", deprecationReason))
+	}
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

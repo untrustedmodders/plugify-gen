@@ -28,6 +28,7 @@ type Method struct {
 	Name        string      `json:"name"`
 	Group       string      `json:"group,omitempty"`
 	Description string      `json:"description,omitempty"`
+	Deprecated  string      `json:"deprecated,omitempty"`
 	FuncName    string      `json:"funcName"`
 	ParamTypes  []ParamType `json:"paramTypes"`
 	RetType     RetType     `json:"retType"`
@@ -102,6 +103,7 @@ type Binding struct {
 	Name         string        `json:"name"`
 	Method       string        `json:"method"`
 	BindSelf     bool          `json:"bindSelf,omitempty"`
+	Deprecated   string        `json:"deprecated,omitempty"`
 	ParamAliases []*ParamAlias `json:"paramAliases,omitempty"`
 	RetAlias     *RetAlias     `json:"retAlias,omitempty"`
 }

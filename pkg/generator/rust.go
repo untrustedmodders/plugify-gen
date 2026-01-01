@@ -266,6 +266,11 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 		Indent:      "",
 	}))
 
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("#[deprecated(note = \"%s\")]\n", method.Deprecated))
+	}
+
 	// Generate function signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
 	if err != nil {
@@ -815,6 +820,11 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 		funcName = fmt.Sprintf("new_%s", method.Name)
 	}
 
+	// Add deprecation attribute if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("    #[deprecated(note = \"%s\")]\n", method.Deprecated))
+	}
+
 	sb.WriteString("    #[allow(dead_code, non_snake_case)]\n")
 	sb.WriteString(fmt.Sprintf("    pub fn %s(%s) -> Result<Self, %sError> {\n", funcName, params, class.Name))
 
@@ -949,6 +959,15 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 		Returns:     returns,
 		Indent:      "    ",
 	}))
+
+	// Add deprecation attribute if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("    #[deprecated(note = \"%s\")]\n", deprecationReason))
+	}
 
 	// Generate method signature
 	formattedParams, err := g.formatClassParams(methodParams, binding.ParamAliases)

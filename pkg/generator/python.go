@@ -301,6 +301,11 @@ func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manif
 
 	var sb strings.Builder
 
+	// Add deprecation decorator if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("    @deprecated(reason=\"%s\")\n", method.Deprecated))
+	}
+
 	// Generate __init__ signature
 	params, err := g.formatParameters(method.ParamTypes)
 	if err != nil {
@@ -367,6 +372,15 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		retType = binding.RetAlias.Name
 	}
 
+	// Add deprecation decorator if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("    @deprecated(reason=\"%s\")\n", deprecationReason))
+	}
+
 	// Determine if method is static
 	if !binding.BindSelf {
 		sb.WriteString("    @staticmethod\n")
@@ -428,6 +442,11 @@ func (g *PythonGenerator) applyParamAliases(formattedParams string, params []man
 
 func (g *PythonGenerator) generateMethod(method *manifest.Method) (string, error) {
 	var sb strings.Builder
+
+	// Add deprecation decorator if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@deprecated(reason=\"%s\")\n", method.Deprecated))
+	}
 
 	// Generate function signature
 	params, err := g.formatParameters(method.ParamTypes)

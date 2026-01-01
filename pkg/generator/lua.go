@@ -219,6 +219,11 @@ func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 		RetType:      &classRetType,
 	}))
 
+	// Add deprecation annotation if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", method.Deprecated))
+	}
+
 	// Constructor signature (using .new convention)
 	params := g.formatParameters(method.ParamTypes)
 	sb.WriteString(fmt.Sprintf("function %s.new(%s) end\n", class.Name, params))
@@ -253,6 +258,15 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		RetAlias:     binding.RetAlias,
 	}))
 
+	// Add deprecation annotation if present (check both binding and underlying method)
+	deprecationReason := binding.Deprecated
+	if deprecationReason == "" {
+		deprecationReason = method.Deprecated
+	}
+	if deprecationReason != "" {
+		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", deprecationReason))
+	}
+
 	// Method signature
 	formattedParams := g.formatParameters(methodParams)
 
@@ -273,6 +287,11 @@ func (g *LuaGenerator) generateMethod(method *manifest.Method) (string, error) {
 
 	// Generate LDoc-style documentation
 	sb.WriteString(g.generateDocumentation(method))
+
+	// Add deprecation annotation if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", method.Deprecated))
+	}
 
 	// Generate function signature
 	params := g.formatParameters(method.ParamTypes)

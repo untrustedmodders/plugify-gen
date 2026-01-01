@@ -673,6 +673,11 @@ func (g *V8Generator) generateJSDoc(opts JSDocOptions) string {
 	if opts.RetType != nil && opts.RetType.Type != "void" && opts.RetType.Description != "" {
 		sb.WriteString(fmt.Sprintf("%s * @returns %s\n", opts.Indent, opts.RetType.Description))
 	}
+	// Add deprecation comment if present
+	if method.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("   * @deprecated %s\n", method.Deprecated))
+	}
+	sb.WriteString("   */\n")
 
 	sb.WriteString(opts.Indent + " */\n")
 	return sb.String()
