@@ -58,7 +58,7 @@ type DocOptions struct {
 	Params       []manifest.ParamType   // Method parameters
 	ParamAliases []*manifest.ParamAlias // Parameter aliases for type substitution
 	Returns      string                 // Return value description
-	RetType      *manifest.TypeInfo     // Return type information
+	RetType      *manifest.RetType      // Return type information
 	RetAlias     *manifest.RetAlias     // Return value alias
 }
 
@@ -70,24 +70,26 @@ type DocFormatter func(opts DocOptions) string
 type BaseGenerator struct {
 	name          string
 	typeMapper    TypeMapper
-	invalidNames  map[string]bool
-	enumCache     map[string]bool
-	delegateCache map[string]bool
+	invalidNames  map[string]struct{}
+	enumCache     map[string]struct{}
+	delegateCache map[string]struct{}
+	aliasCache    map[string]struct{}
 }
 
 // NewBaseGenerator creates a new base generator
 func NewBaseGenerator(name string, typeMapper TypeMapper, invalidNames []string) *BaseGenerator {
-	invalidMap := make(map[string]bool)
+	invalidMap := make(map[string]struct{})
 	for _, name := range invalidNames {
-		invalidMap[name] = true
+		invalidMap[name] = struct{}{}
 	}
 
 	return &BaseGenerator{
 		name:          name,
 		typeMapper:    typeMapper,
 		invalidNames:  invalidMap,
-		enumCache:     make(map[string]bool),
-		delegateCache: make(map[string]bool),
+		enumCache:     make(map[string]struct{}),
+		delegateCache: make(map[string]struct{}),
+		aliasCache:    make(map[string]struct{}),
 	}
 }
 
@@ -98,23 +100,24 @@ func (g *BaseGenerator) Name() string {
 
 // Sanitizer handles reserved keywords by appending underscore
 func (g *BaseGenerator) Sanitizer(name string) string {
-	if g.invalidNames[name] {
+	_, ok := g.invalidNames[name]
+	if ok {
 		return name + "_"
 	}
 	return name
 }
 
 // GetGroups gets the list of all groups from manifest
-func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
+func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]struct{} {
 	// Collect all unique groups from both methods and classes
-	groups := make(map[string]bool)
+	groups := make(map[string]struct{})
 	hasUngroupedMethods := false
 	hasUngroupedClasses := false
 
 	for _, method := range m.Methods {
 		groupName := strings.ToLower(method.Group)
 		if groupName != "" {
-			groups[groupName] = true
+			groups[groupName] = struct{}{}
 		} else {
 			hasUngroupedMethods = true
 		}
@@ -123,7 +126,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 	for _, class := range m.Classes {
 		groupName := strings.ToLower(class.Group)
 		if groupName != "" {
-			groups[groupName] = true
+			groups[groupName] = struct{}{}
 		} else {
 			hasUngroupedClasses = true
 		}
@@ -131,7 +134,7 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 
 	// Add default group for methods/classes without a group
 	if hasUngroupedMethods || hasUngroupedClasses {
-		groups[DefaultGroupName] = true
+		groups[DefaultGroupName] = struct{}{}
 	}
 
 	return groups
@@ -139,28 +142,42 @@ func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]bool {
 
 // IsEnumCached checks if an enum has already been generated
 func (g *BaseGenerator) IsEnumCached(name string) bool {
-	return g.enumCache[name]
+	_, ok := g.enumCache[name]
+	return ok
 }
 
 // CacheEnum marks an enum as generated
 func (g *BaseGenerator) CacheEnum(name string) {
-	g.enumCache[name] = true
+	g.enumCache[name] = struct{}{}
 }
 
 // IsDelegateCached checks if a delegate has already been generated
 func (g *BaseGenerator) IsDelegateCached(name string) bool {
-	return g.delegateCache[name]
+	_, ok := g.delegateCache[name]
+	return ok
 }
 
 // CacheDelegate marks a delegate as generated
 func (g *BaseGenerator) CacheDelegate(name string) {
-	g.delegateCache[name] = true
+	g.delegateCache[name] = struct{}{}
+}
+
+// IsAliasCached checks if an alias has already been generated
+func (g *BaseGenerator) IsAliasCached(name string) bool {
+	_, ok := g.aliasCache[name]
+	return ok
+}
+
+// AliasDelegate marks an alias as generated
+func (g *BaseGenerator) CacheAlias(name string) {
+	g.aliasCache[name] = struct{}{}
 }
 
 // ResetCaches clears enum and delegate caches (call before generation)
 func (g *BaseGenerator) ResetCaches() {
-	g.enumCache = make(map[string]bool)
-	g.delegateCache = make(map[string]bool)
+	g.enumCache = make(map[string]struct{})
+	g.delegateCache = make(map[string]struct{})
+	g.aliasCache = make(map[string]struct{})
 }
 
 // TypeMapper is the interface for type mapping strategies
@@ -169,10 +186,10 @@ type TypeMapper interface {
 	MapType(baseType string, context TypeContext, isArray bool) (string, error)
 
 	// MapParamType converts a parameter type (handles ref, default values)
-	MapParamType(param *manifest.ParamType, context TypeContext) (string, error)
+	MapParamType(param *manifest.ParamType) (string, error)
 
 	// MapReturnType converts a return type
-	MapReturnType(retType *manifest.TypeInfo) (string, error)
+	MapReturnType(retType *manifest.RetType) (string, error)
 
 	// MapHandleType converts a invalid type
 	MapHandleType(class *manifest.Class) (string, string, error)
@@ -185,12 +202,13 @@ const (
 	TypeContextValue  TypeContext = iota // Value parameter
 	TypeContextRef                       // Reference parameter
 	TypeContextReturn                    // Return type
-	TypeContextCast                      // Cast expression
 )
 
 // EnumGenerator is a callback function that generates code for an enum type
 // It takes an enum and returns the generated code as a string
-type EnumGenerator func(*manifest.EnumType, string) (string, error)
+type EnumGenerator func(*manifest.Enum, string) (string, error)
+
+type AliasGenerator func(*manifest.Alias, string) (string, error)
 
 type DelegateGenerator func(*manifest.Prototype) (string, error)
 
@@ -217,7 +235,7 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 
 		switch format {
 		case ParamFormatTypes:
-			typeName, err := mapper.MapParamType(&param, TypeContextValue)
+			typeName, err := mapper.MapParamType(&param)
 			if err != nil {
 				return "", err
 			}
@@ -228,7 +246,7 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 			result += paramName
 
 		case ParamFormatTypesAndNames:
-			typeName, err := mapper.MapParamType(&param, TypeContextValue)
+			typeName, err := mapper.MapParamType(&param)
 			if err != nil {
 				return "", err
 			}
@@ -351,7 +369,7 @@ func (g *BaseGenerator) HasConstructorWithSingleHandleParam(m *manifest.Manifest
 }
 
 // FindDependentGroups finds other groups that this group depends on (methods used by classes)
-func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupName string) map[string]bool {
+func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupName string) map[string]struct{} {
 	groupName := currentGroupName
 	// Pre-index methods for O(1) lookup.
 	methodToGroup := make(map[string]string, len(m.Methods))
@@ -363,7 +381,7 @@ func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupNa
 		//methodToGroup[method.FuncName] = methodGroup
 	}
 
-	referencedGroups := make(map[string]bool)
+	referencedGroups := make(map[string]struct{})
 
 	for _, class := range m.Classes {
 		classGroup := class.Group
@@ -373,19 +391,19 @@ func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupNa
 
 		for _, ctorName := range class.Constructors {
 			if refGroup, ok := methodToGroup[ctorName]; ok && refGroup != classGroup {
-				referencedGroups[refGroup] = true
+				referencedGroups[refGroup] = struct{}{}
 			}
 		}
 
 		if class.Destructor != nil {
 			if refGroup, ok := methodToGroup[*class.Destructor]; ok && refGroup != classGroup {
-				referencedGroups[refGroup] = true
+				referencedGroups[refGroup] = struct{}{}
 			}
 		}
 
 		for _, binding := range class.Bindings {
 			if refGroup, ok := methodToGroup[binding.Method]; ok && refGroup != classGroup {
-				referencedGroups[refGroup] = true
+				referencedGroups[refGroup] = struct{}{}
 			}
 		}
 	}
@@ -393,63 +411,61 @@ func (g *BaseGenerator) FindDependentGroups(m *manifest.Manifest, currentGroupNa
 	return referencedGroups
 }
 
-// ProcessPrototypeEnums recursively processes a prototype to find and generate all enum types.
-// This helper eliminates duplicated enum processing logic across all generators.
-//
-// Parameters:
-//   - proto: The prototype to process
-//   - sb: String builder to write generated enum code to
-//   - enumGen: Callback function that generates code for an enum type
-//
-// The function:
-//  1. Checks the return type for enums
-//  2. Recursively processes nested prototypes in the return type
-//  3. Checks all parameters for enums
-//  4. Recursively processes nested prototypes in parameters
-//
-// Enums are automatically cached to prevent duplicates.
-func (g *BaseGenerator) ProcessPrototypeEnums(proto *manifest.Prototype, sb *strings.Builder, enumGen EnumGenerator) error {
-	// Check return type for enum
-	if proto.RetType.Enum != nil && !g.IsEnumCached(proto.RetType.Enum.Name) {
-		enumType, err := g.typeMapper.MapType(proto.RetType.Type, TypeContextReturn, false)
-		if err != nil {
-			return err
+type enumHandler func(enum *manifest.Enum, typeName string) error
+type aliasHandler func(alias *manifest.Alias, typeName string) error
+type protoHandler func(proto *manifest.Prototype) error
+
+// walkPrototype traverses proto graph and calls handlers when enums/prototypes are found.
+// visitedProtos prevents infinite recursion and duplicate work.
+func (g *BaseGenerator) walkPrototype(proto *manifest.Prototype, onEnum enumHandler, onAlias aliasHandler, onProto protoHandler, visitedProtos map[string]struct{}) error {
+	if visitedProtos == nil {
+		visitedProtos = make(map[string]struct{})
+	}
+	if proto.Name != "" {
+		_, ok := visitedProtos[proto.Name]
+		if ok {
+			return nil
 		}
-		enumCode, err := enumGen(proto.RetType.Enum, enumType)
-		if err != nil {
-			return err
-		}
-		sb.WriteString(enumCode)
-		sb.WriteString("\n")
-		g.CacheEnum(proto.RetType.Enum.Name)
+		visitedProtos[proto.Name] = struct{}{}
 	}
 
-	// Recursively process return type prototype
+	// Return type
+	if proto.RetType.Enum != nil {
+		if err := onEnum(proto.RetType.Enum, proto.RetType.Type); err != nil {
+			return err
+		}
+	}
+	if proto.RetType.Alias != nil {
+		if err := onAlias(proto.RetType.Alias, proto.RetType.Type); err != nil {
+			return err
+		}
+	}
 	if proto.RetType.Prototype != nil {
-		err := g.ProcessPrototypeEnums(proto.RetType.Prototype, sb, enumGen)
-		if err != nil {
+		if err := onProto(proto.RetType.Prototype); err != nil {
+			return err
+		}
+		if err := g.walkPrototype(proto.RetType.Prototype, onEnum, onAlias, onProto, visitedProtos); err != nil {
 			return err
 		}
 	}
 
-	// Check parameters for enums and nested prototypes
+	// Parameters
 	for _, param := range proto.ParamTypes {
-		if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-			enumType, err := g.typeMapper.MapType(param.Type, TypeContextReturn, false)
-			if err != nil {
+		if param.Enum != nil {
+			if err := onEnum(param.Enum, param.Type); err != nil {
 				return err
 			}
-			enumCode, err := enumGen(param.Enum, enumType)
-			if err != nil {
+		}
+		if param.Alias != nil {
+			if err := onAlias(param.Alias, param.Type); err != nil {
 				return err
 			}
-			sb.WriteString(enumCode)
-			sb.WriteString("\n")
-			g.CacheEnum(param.Enum.Name)
 		}
 		if param.Prototype != nil {
-			err := g.ProcessPrototypeEnums(param.Prototype, sb, enumGen)
-			if err != nil {
+			if err := onProto(param.Prototype); err != nil {
+				return err
+			}
+			if err := g.walkPrototype(param.Prototype, onEnum, onAlias, onProto, visitedProtos); err != nil {
 				return err
 			}
 		}
@@ -458,105 +474,189 @@ func (g *BaseGenerator) ProcessPrototypeEnums(proto *manifest.Prototype, sb *str
 	return nil
 }
 
-// CollectEnums collects and generates all enum types from methods in a manifest.
-// This helper eliminates duplicated enum collection logic across all generators.
-//
-// Parameters:
-//   - m: The manifest containing methods to process
-//   - enumGen: Callback function that generates code for an enum type
-//
-// Returns:
-//   - Generated code for all enums as a string
-//
-// The function processes:
-//  1. Method return types for enums
-//  2. Method return type prototypes (recursively)
-//  3. Method parameters for enums
-//  4. Method parameter prototypes (recursively)
-//
-// Enums are automatically cached to prevent duplicates.
+// ensureEnumGenerated centralizes mapType -> enumGen -> write -> cache
+func (g *BaseGenerator) ensureEnumGenerated(enum *manifest.Enum, typeName string, context TypeContext, sb *strings.Builder, enumGen EnumGenerator) error {
+	if g.IsEnumCached(enum.Name) {
+		return nil
+	}
+	mapped, err := g.typeMapper.MapType(typeName, context, false)
+	if err != nil {
+		return err
+	}
+	enumCode, err := enumGen(enum, mapped)
+	if err != nil {
+		return err
+	}
+	sb.WriteString(enumCode)
+	sb.WriteString("\n")
+	g.CacheEnum(enum.Name)
+	return nil
+}
+
+// ensureEnumGenerated centralizes mapType -> enumGen -> write -> cache
+func (g *BaseGenerator) ensureAliasGenerated(alias *manifest.Alias, typeName string, context TypeContext, sb *strings.Builder, aliasGen AliasGenerator) error {
+	if g.IsAliasCached(alias.Name) {
+		return nil
+	}
+	mapped, err := g.typeMapper.MapType(typeName, context, false)
+	if err != nil {
+		return err
+	}
+	aliasCode, err := aliasGen(alias, mapped)
+	if err != nil {
+		return err
+	}
+	sb.WriteString(aliasCode)
+	sb.WriteString("\n")
+	g.CacheEnum(alias.Name)
+	return nil
+}
+
+// ensureDelegateGenerated centralizes delegate generation -> write -> cache
+func (g *BaseGenerator) ensureDelegateGenerated(proto *manifest.Prototype, sb *strings.Builder, delegateGen DelegateGenerator) error {
+	if g.IsDelegateCached(proto.Name) {
+		return nil
+	}
+	code, err := delegateGen(proto)
+	if err != nil {
+		return err
+	}
+	sb.WriteString(code)
+	sb.WriteString("\n")
+	g.CacheDelegate(proto.Name)
+	return nil
+}
+
+// CollectEnums uses the generic walker and the helper above
 func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator) (string, error) {
 	var sb strings.Builder
 
+	ctx := TypeContextReturn
+
+	onEnum := func(enum *manifest.Enum, typeName string) error {
+		return g.ensureEnumGenerated(enum, typeName, ctx, &sb, enumGen)
+	}
+	onAlias := func(alias *manifest.Alias, typeName string) error {
+		return nil
+	}
+	onProto := func(proto *manifest.Prototype) error {
+		return nil
+	}
+
 	for _, method := range m.Methods {
-		// Check return type for enum
-		if method.RetType.Enum != nil && !g.IsEnumCached(method.RetType.Enum.Name) {
-			enumType, err := g.typeMapper.MapType(method.RetType.Type, TypeContextReturn, false)
-			if err != nil {
+		// method return
+		if method.RetType.Enum != nil {
+			if err := g.ensureEnumGenerated(method.RetType.Enum, method.RetType.Type, ctx, &sb, enumGen); err != nil {
 				return "", err
 			}
-			enumCode, err := enumGen(method.RetType.Enum, enumType)
-			if err != nil {
-				return "", err
-			}
-			sb.WriteString(enumCode)
-			sb.WriteString("\n")
-			g.CacheEnum(method.RetType.Enum.Name)
 		}
-
-		// Process return type prototype
+		// walk return prototype
 		if method.RetType.Prototype != nil {
-			err := g.ProcessPrototypeEnums(method.RetType.Prototype, &sb, enumGen)
-			if err != nil {
+			if err := g.walkPrototype(method.RetType.Prototype, onEnum, onAlias, onProto, nil); err != nil {
 				return "", err
 			}
 		}
 
-		// Check each parameter for enum
+		// parameters
 		for _, param := range method.ParamTypes {
-			if param.Enum != nil && !g.IsEnumCached(param.Enum.Name) {
-				enumType, err := g.typeMapper.MapType(param.Type, TypeContextReturn, false)
-				if err != nil {
+			if param.Enum != nil {
+				if err := g.ensureEnumGenerated(param.Enum, param.Type, ctx, &sb, enumGen); err != nil {
 					return "", err
 				}
-				enumCode, err := enumGen(param.Enum, enumType)
-				if err != nil {
-					return "", err
-				}
-				sb.WriteString(enumCode)
-				sb.WriteString("\n")
-				g.CacheEnum(param.Enum.Name)
 			}
-
-			// Process nested prototypes
 			if param.Prototype != nil {
-				err := g.ProcessPrototypeEnums(param.Prototype, &sb, enumGen)
-				if err != nil {
+				if err := g.walkPrototype(param.Prototype, onEnum, onAlias, onProto, nil); err != nil {
 					return "", err
 				}
 			}
 		}
 	}
-
 	return sb.String(), nil
 }
 
-func (g *BaseGenerator) CollectDelegates(m *manifest.Manifest, delegateGenerator DelegateGenerator) (string, error) {
+// CollectAliases mirrors CollectEnums but uses delegates
+func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGenerator) (string, error) {
 	var sb strings.Builder
 
+	ctx := TypeContextReturn
+
+	onEnum := func(enum *manifest.Enum, typeName string) error {
+		return nil
+	}
+	onAlias := func(alias *manifest.Alias, typeName string) error {
+		return g.ensureAliasGenerated(alias, typeName, ctx, &sb, aliasGen)
+	}
+	onProto := func(proto *manifest.Prototype) error {
+		return nil
+	}
+
 	for _, method := range m.Methods {
-		// Check return type
-		if method.RetType.Prototype != nil && !g.IsDelegateCached(method.RetType.Prototype.Name) {
-			delegateCode, err := delegateGenerator(method.RetType.Prototype)
-			if err != nil {
+		// method return
+		if method.RetType.Alias != nil {
+			if err := g.ensureAliasGenerated(method.RetType.Alias, method.RetType.Type, ctx, &sb, aliasGen); err != nil {
 				return "", err
 			}
-			sb.WriteString(delegateCode)
-			g.CacheDelegate(method.RetType.Prototype.Name)
+		}
+		// walk return prototype
+		if method.RetType.Prototype != nil {
+			if err := g.walkPrototype(method.RetType.Prototype, onEnum, onAlias, onProto, nil); err != nil {
+				return "", err
+			}
 		}
 
-		// Check parameters
+		// parameters
 		for _, param := range method.ParamTypes {
-			if param.Prototype != nil && !g.IsDelegateCached(param.Prototype.Name) {
-				delegateCode, err := delegateGenerator(param.Prototype)
-				if err != nil {
+			if param.Alias != nil {
+				if err := g.ensureAliasGenerated(param.Alias, param.Type, ctx, &sb, aliasGen); err != nil {
 					return "", err
 				}
-				sb.WriteString(delegateCode)
-				g.CacheDelegate(param.Prototype.Name)
+			}
+			if param.Prototype != nil {
+				if err := g.walkPrototype(param.Prototype, onEnum, onAlias, onProto, nil); err != nil {
+					return "", err
+				}
 			}
 		}
 	}
+	return sb.String(), nil
+}
 
+// CollectDelegates mirrors CollectEnums but uses delegates
+func (g *BaseGenerator) CollectDelegates(m *manifest.Manifest, delegateGen DelegateGenerator) (string, error) {
+	var sb strings.Builder
+
+	onEnum := func(enum *manifest.Enum, typeName string) error {
+		return nil
+	}
+	onAlias := func(alias *manifest.Alias, typeName string) error {
+		return nil
+	}
+	onProto := func(proto *manifest.Prototype) error {
+		return g.ensureDelegateGenerated(proto, &sb, delegateGen)
+	}
+
+	for _, method := range m.Methods {
+		// return prototype
+		if method.RetType.Prototype != nil {
+			if err := g.ensureDelegateGenerated(method.RetType.Prototype, &sb, delegateGen); err != nil {
+				return "", err
+			}
+			if err := g.walkPrototype(method.RetType.Prototype, onEnum, onAlias, onProto, nil); err != nil {
+				return "", err
+			}
+		}
+
+		// params
+		for _, param := range method.ParamTypes {
+			if param.Prototype != nil {
+				if err := g.ensureDelegateGenerated(param.Prototype, &sb, delegateGen); err != nil {
+					return "", err
+				}
+				if err := g.walkPrototype(param.Prototype, onEnum, onAlias, onProto, nil); err != nil {
+					return "", err
+				}
+			}
+		}
+	}
 	return sb.String(), nil
 }

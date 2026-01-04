@@ -38,6 +38,13 @@ func (g *CxxGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	}
 	files[fmt.Sprintf("%s/enums.ixx", folder)] = enumsCode
 
+	// Generate separate aliases file
+	aliasesCode, err := g.generateAliasesFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases file: %w", err)
+	}
+	files[fmt.Sprintf("%s/%s/aliases.hpp", folder, m.Name)] = aliasesCode
+
 	// Generate separate delegates module
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
@@ -73,7 +80,7 @@ func (g *CxxGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *CxxGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *CxxGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
@@ -95,6 +102,23 @@ func (g *CxxGenerator) generateEnum(enum *manifest.EnumType, underlyingType stri
 	}
 
 	sb.WriteString("  };\n")
+	return sb.String(), nil
+}
+
+func (g *CxxGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	// Use the base generator's CollectAliases helper
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *CxxGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	if alias.Description != "" {
+		sb.WriteString(fmt.Sprintf("  // %s\n", alias.Description))
+	}
+
+	sb.WriteString(fmt.Sprintf("  using %s = %s;\n", alias.Name, underlyingType))
+
 	return sb.String(), nil
 }
 
@@ -689,6 +713,36 @@ func (g *CxxGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	return sb.String(), nil
 }
 
+// generateEnumsFile generates a file containing all aliases
+func (g *CxxGenerator) generateAliasesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Module declaration
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export module %s.aliases;\n\n", m.Name))
+
+	// Global module fragment for standard library includes
+	sb.WriteString("import <cstdint>;\n\n")
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("export namespace %s {\n\n", m.Name))
+
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return "", err
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
+	}
+
+	// Close namespace
+	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
+
+	return sb.String(), nil
+}
+
 // generateDelegatesFile generates a file containing all delegate typedefs
 func (g *CxxGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
@@ -698,7 +752,8 @@ func (g *CxxGenerator) generateDelegatesFile(m *manifest.Manifest) (string, erro
 	sb.WriteString(fmt.Sprintf("export module %s.delegates;\n\n", m.Name))
 
 	// Import enums module
-	sb.WriteString(fmt.Sprintf("export import %s.enums;\n\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export import %s.enums;\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export import %s.aliases;\n\n", m.Name))
 
 	sb.WriteString("import <cstdint>;\n")
 	sb.WriteString("import <plg>;\n\n")
@@ -731,6 +786,7 @@ func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 
 	// Import delegates module
 	sb.WriteString(fmt.Sprintf("export import %s.enums;\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export import %s.aliases;\n", m.Name))
 	sb.WriteString(fmt.Sprintf("export import %s.delegates;\n\n", m.Name))
 
 	sb.WriteString("import <cstdint>;\n")
@@ -792,7 +848,7 @@ func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 }
 
 // generateMainHeader generates the main module interface file that re-exports all submodules
-func (g *CxxGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]bool) (string, error) {
+func (g *CxxGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]struct{}) (string, error) {
 	var sb strings.Builder
 
 	// Module declaration
@@ -802,6 +858,7 @@ func (g *CxxGenerator) generateMainHeader(m *manifest.Manifest, groups map[strin
 
 	// Re-export enums and delegates
 	sb.WriteString(fmt.Sprintf("export import %s.enums;\n", m.Name))
+	sb.WriteString(fmt.Sprintf("export import %s.aliases;\n", m.Name))
 	sb.WriteString(fmt.Sprintf("export import %s.delegates;\n", m.Name))
 
 	// Re-export all group modules

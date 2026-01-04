@@ -424,7 +424,7 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.Enum.Name
 
 	case param.Alias != nil:
-		typeName = *param.Alias
+		typeName = param.Alias.Name
 
 	case param.Prototype != nil:
 		return param.Prototype.Name, nil
@@ -448,7 +448,7 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.Enum.Name
 
 	case retType.Alias != nil:
-		typeName = *retType.Alias
+		typeName = retType.Alias.Name
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil

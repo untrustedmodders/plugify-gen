@@ -125,7 +125,7 @@ func sanitizeTypeInfo(typeInfo *RetType, sanitizeName SanitizeNameFunc) {
 }
 
 // sanitizeEnum sanitizes enum names and values
-func sanitizeEnum(enum *EnumType, sanitizeName SanitizeNameFunc) {
+func sanitizeEnum(enum *Enum, sanitizeName SanitizeNameFunc) {
 	if enum.Name != "" && sanitizeName != nil {
 		enum.Name = sanitizeName(enum.Name)
 	}

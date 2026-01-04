@@ -40,7 +40,14 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) 
 	}
 	files[fmt.Sprintf("source/imported/%s/enums.d", moduleName)] = enumsCode
 
-	// Secondly, generate delegates file
+	// Secondly separate aliases file
+	aliasesCode, err := g.generateAliasesFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases file: %w", err)
+	}
+	files[fmt.Sprintf("source/imported/%s/aliases.d", moduleName)] = aliasesCode
+
+	// Thirdly, generate delegates file
 	delegateCode, err := g.generateDelegatesFile(m)
 	if err != nil {
 		return nil, fmt.Errorf("generating delegates file: %w", err)
@@ -93,12 +100,33 @@ func (g *DlangGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
+func (g *DlangGenerator) generateAliasesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	moduleName := strings.ToLower(m.Name)
+	sb.WriteString(fmt.Sprintf("module imported.%s.aliases;\n\n", moduleName))
+
+	// Use the base generator's CollectAliases helper
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return "", fmt.Errorf("generating alias file: %w", err)
+	}
+	sb.WriteString(aliasesCode)
+
+	return sb.String(), nil
+}
+
+func (g *DlangGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	return g.CollectAliases(m, g.generateAlias)
+}
+
 func (g *DlangGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
 	moduleName := strings.ToLower(m.Name)
 	sb.WriteString(fmt.Sprintf("module imported.%s.delegates;\n\n", moduleName))
-	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.aliases;\n\n", moduleName))
 
 	delegatesCode, err := g.generateDelegates(m)
 	if err != nil {
@@ -113,7 +141,7 @@ func (g *DlangGenerator) generateDelegates(m *manifest.Manifest) (string, error)
 	return g.CollectDelegates(m, g.generateDelegate)
 }
 
-func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName string, groups map[string]bool) string {
+func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName string, groups map[string]struct{}) string {
 	var sb strings.Builder
 
 	// Module declaration
@@ -121,6 +149,7 @@ func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName st
 
 	// Always import enums first
 	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.aliases;\n", moduleName))
 	sb.WriteString(fmt.Sprintf("public import imported.%s.delegates;\n", moduleName))
 
 	// Import all group modules
@@ -131,7 +160,7 @@ func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName st
 	return sb.String()
 }
 
-func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *DlangGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
@@ -166,6 +195,18 @@ func (g *DlangGenerator) generateEnum(enum *manifest.EnumType, underlyingType st
 	return sb.String(), nil
 }
 
+func (g *DlangGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	if alias.Description != "" {
+		sb.WriteString(fmt.Sprintf("/// %s\n", alias.Description))
+	}
+
+	sb.WriteString(fmt.Sprintf("alias %s = %s;\n", alias.Name, underlyingType))
+
+	return sb.String(), nil
+}
+
 func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
@@ -176,6 +217,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	sb.WriteString("import plugify.internals;\n")
 	sb.WriteString("public import plugify;\n")
 	sb.WriteString(fmt.Sprintf("public import imported.%s.enums;\n", moduleName))
+	sb.WriteString(fmt.Sprintf("public import imported.%s.aliases;\n", moduleName))
 	sb.WriteString(fmt.Sprintf("public import imported.%s.delegates;\n", moduleName))
 
 	// Find which other groups this group depends on (for method calls from classes)
@@ -1047,7 +1089,7 @@ func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType) (string, error
 		typeName = param.Enum.Name
 
 	case param.Alias != nil:
-		typeName = *param.Alias
+		typeName = param.Alias.Name
 
 	case param.Prototype != nil:
 		return param.Prototype.Name, nil
@@ -1067,7 +1109,7 @@ func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, erro
 		typeName = retType.Enum.Name
 
 	case retType.Alias != nil:
-		typeName = *retType.Alias
+		typeName = retType.Alias.Name
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil

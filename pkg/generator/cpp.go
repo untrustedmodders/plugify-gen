@@ -38,6 +38,13 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	}
 	files[fmt.Sprintf("%s/%s/enums.hpp", folder, m.Name)] = enumsCode
 
+	// Generate separate aliases file
+	aliasesCode, err := g.generateAliasesFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases file: %w", err)
+	}
+	files[fmt.Sprintf("%s/%s/aliases.hpp", folder, m.Name)] = aliasesCode
+
 	// Generate separate delegates file
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
@@ -268,7 +275,7 @@ func (g *CppGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *CppGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *CppGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
@@ -290,6 +297,23 @@ func (g *CppGenerator) generateEnum(enum *manifest.EnumType, underlyingType stri
 	}
 
 	sb.WriteString("  };\n")
+	return sb.String(), nil
+}
+
+func (g *CppGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	// Use the base generator's CollectAliases helper
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *CppGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	if alias.Description != "" {
+		sb.WriteString(fmt.Sprintf("  // %s\n", alias.Description))
+	}
+
+	sb.WriteString(fmt.Sprintf("  using %s = %s;\n", alias.Name, underlyingType))
+
 	return sb.String(), nil
 }
 
@@ -717,6 +741,34 @@ func (g *CppGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	return sb.String(), nil
 }
 
+// generateAliasesFile generates a file containing all aliases
+func (g *CppGenerator) generateAliasesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Header guard and includes
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString("#include <cstdint>\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n\n", m.Name))
+
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return "", err
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
+	}
+
+	// Close namespace
+	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))
+
+	return sb.String(), nil
+}
+
 // generateDelegatesFile generates a file containing all delegate typedefs
 func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
@@ -724,6 +776,7 @@ func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, erro
 	// Header guard and includes
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString("#include \"enums.hpp\"\n")
+	sb.WriteString("#include \"aliases.hpp\"\n")
 	sb.WriteString("#include <plg/plugin.hpp>\n")
 	sb.WriteString("#include <plg/any.hpp>\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
@@ -753,6 +806,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 	// Header guard and includes
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString("#include \"enums.hpp\"\n")
+	sb.WriteString("#include \"aliases.hpp\"\n")
 	sb.WriteString("#include \"delegates.hpp\"\n")
 	sb.WriteString("#include <plugin_export.h>\n\n")
 
@@ -807,7 +861,7 @@ func (g *CppGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 }
 
 // generateMainHeader generates the main header file that includes all group files
-func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]bool) (string, error) {
+func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[string]struct{}) (string, error) {
 	var sb strings.Builder
 
 	// Header guard

@@ -74,7 +74,7 @@ func (g *LuaGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *LuaGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *LuaGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	// Enum comment

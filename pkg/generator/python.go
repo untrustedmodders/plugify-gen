@@ -47,6 +47,15 @@ func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 		sb.WriteString(enumsCode)
 		sb.WriteString("\n")
 	}
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return nil, err
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
+	}
 
 	// Generate methods
 	for _, method := range m.Methods {
@@ -97,7 +106,7 @@ func (g *PythonGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *PythonGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *PythonGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("class %s(IntEnum):\n", enum.Name))
@@ -112,6 +121,23 @@ func (g *PythonGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 		}
 		sb.WriteString(fmt.Sprintf("    %s = %d\n", val.Name, val.Value))
 	}
+
+	return sb.String(), nil
+}
+
+func (g *PythonGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	// Use the base generator's CollectAliases helper
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *PythonGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	if alias.Description != "" {
+		sb.WriteString(fmt.Sprintf("    \"\"\"\n    %s\n    \"\"\"\n", alias.Description))
+	}
+
+	sb.WriteString(fmt.Sprintf("    %s = %s\n", alias.Name, underlyingType))
 
 	return sb.String(), nil
 }
@@ -623,7 +649,7 @@ func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.Enum.Name
 
 	case param.Alias != nil:
-		typeName = *param.Alias
+		typeName = param.Alias.Name
 
 	case param.Prototype != nil:
 		return m.generateCallableType(param.Prototype)
@@ -642,7 +668,7 @@ func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.Enum.Name
 
 	case retType.Alias != nil:
-		typeName = *retType.Alias
+		typeName = retType.Alias.Name
 
 	case retType.Prototype != nil:
 		return m.generateCallableType(retType.Prototype)
@@ -656,7 +682,7 @@ func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 
 func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (string, error) {
 	// Generate parameter types
-	paramTypes := []string{}
+	var paramTypes []string
 	for _, param := range proto.ParamTypes {
 		pType, err := m.MapParamType(&param)
 		if err != nil {

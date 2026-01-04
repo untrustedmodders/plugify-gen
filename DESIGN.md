@@ -91,9 +91,10 @@ Common logic (name sanitization, caching, utilities) lives in `BaseGenerator`:
 type BaseGenerator struct {
     name            string
     typeMapper      TypeMapper
-    invalidNames    map[string]bool
-    enumCache       map[string]bool    // Deduplication
-    delegateCache   map[string]bool    // Deduplication
+    invalidNames    map[string]struct{}
+    enumCache       map[string]struct{}
+    delegateCache   map[string]struct{}
+    aliasCache      map[string]struct{}
 }
 ```
 
@@ -256,7 +257,7 @@ func (m *MyLangTypeMapper) MapType(baseType string, context TypeContext, isArray
     return mapped, nil
 }
 
-func (m *MyLangTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
+func (m *MyLangTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
     return m.MapType(param.BaseType(), context, param.IsArray())
 }
 

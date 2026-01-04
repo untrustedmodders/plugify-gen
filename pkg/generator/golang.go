@@ -11,7 +11,7 @@ import (
 type GolangGenerator struct {
 	*BaseGenerator
 	typeMapper *GolangTypeMapper
-	usedNames  map[string]bool
+	usedNames  map[string]struct{}
 	usedLocals map[string]int
 }
 
@@ -21,7 +21,7 @@ func NewGolangGenerator() *GolangGenerator {
 	return &GolangGenerator{
 		BaseGenerator: NewBaseGenerator("golang", mapper, GoReservedWords),
 		typeMapper:    mapper,
-		usedNames:     make(map[string]bool),
+		usedNames:     make(map[string]struct{}),
 		usedLocals:    make(map[string]int),
 	}
 }
@@ -30,7 +30,7 @@ func NewGolangGenerator() *GolangGenerator {
 func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*GeneratorResult, error) {
 	g.ResetCaches()
 	m.Sanitize(g.Sanitizer)
-	g.usedNames = make(map[string]bool)
+	g.usedNames = make(map[string]struct{})
 	g.usedLocals = make(map[string]int)
 	opts = EnsureOptions(opts)
 
@@ -45,6 +45,13 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 		return nil, fmt.Errorf("generating enums file: %w", err)
 	}
 	files[fmt.Sprintf("%s/enums.go", m.Name)] = enumsGoCode
+
+	// Generate separate aliases file
+	aliasesGoCode, err := g.generateAliasesGoFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases file: %w", err)
+	}
+	files[fmt.Sprintf("%s/aliases.go", m.Name)] = aliasesGoCode
 
 	// Generate separate delegates file
 	delegatesGoCode, err := g.generateDelegatesGoFile(m)
@@ -93,7 +100,7 @@ func (g *GolangGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *GolangGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *GolangGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	// Add enum description
@@ -115,11 +122,12 @@ func (g *GolangGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 		candidate := enum.Name + "_" + baseName
 
 		// Resolve conflicts
-		if g.usedNames[candidate] || isLocalDup {
+		_, ok := g.usedNames[candidate]
+		if ok || isLocalDup {
 			candidate = g.resolveConflict(candidate)
 		}
 
-		g.usedNames[candidate] = true
+		g.usedNames[candidate] = struct{}{}
 
 		// Add value description
 		if value.Description != "" {
@@ -133,16 +141,36 @@ func (g *GolangGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 	return sb.String(), nil
 }
 
+// generateAliases generates aliases definitions
+func (g *GolangGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *GolangGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	// Add alias description
+	if alias.Description != "" {
+		sb.WriteString(fmt.Sprintf("// %s - %s\n", alias.Name, alias.Description))
+	}
+
+	sb.WriteString(fmt.Sprintf("type %s = %s\n", alias.Name, underlyingType))
+
+	return sb.String(), nil
+}
+
 // resolveConflict generates a unique name by appending a suffix
 func (g *GolangGenerator) resolveConflict(name string) string {
-	if !g.usedNames[name] {
+	_, ok := g.usedNames[name]
+	if !ok {
 		return name
 	}
 
 	suffix := 2
 	for {
 		trial := fmt.Sprintf("%s_%d", name, suffix)
-		if !g.usedNames[trial] {
+		_, ok := g.usedNames[trial]
+		if !ok {
 			return trial
 		}
 		suffix++
@@ -1354,6 +1382,29 @@ func (g *GolangGenerator) generateEnumsGoFile(m *manifest.Manifest) (string, err
 
 	if hasDestructor {
 		sb.WriteString(g.generateOwnershipTypes())
+	}
+
+	return sb.String(), nil
+}
+
+// generateAliasesGoFile generates a file containing all aliases
+func (g *GolangGenerator) generateAliasesGoFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	// Add comment header
+	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
+
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return "", err
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
 	}
 
 	return sb.String(), nil

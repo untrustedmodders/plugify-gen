@@ -40,6 +40,13 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	}
 	files[fmt.Sprintf("imported/%s/enums.cs", m.Name)] = enumsCode
 
+	// Generate separate aliases file
+	aliasesCode, err := g.generateAliasesFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases file: %w", err)
+	}
+	files[fmt.Sprintf("imported/%s/aliases.cs", m.Name)] = aliasesCode
+
 	// Generate separate delegates file
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
@@ -142,7 +149,7 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *DotnetGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	// XML documentation
@@ -170,6 +177,26 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.EnumType, underlyingType s
 	}
 
 	sb.WriteString("\t}\n")
+	return sb.String(), nil
+}
+
+func (g *DotnetGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *DotnetGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	// XML documentation
+	if alias.Description != "" {
+		sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+			Indent:  "\t",
+			Summary: alias.Description,
+		}))
+	}
+
+	sb.WriteString(fmt.Sprintf("\tusing %s = %s;\n", alias.Name, underlyingType))
+
 	return sb.String(), nil
 }
 
@@ -1189,6 +1216,34 @@ func (g *DotnetGenerator) generateEnumsFile(m *manifest.Manifest) (string, error
 	sb.WriteString("\t/// Ownership type for RAII wrappers\n")
 	sb.WriteString("\t/// </summary>\n")
 	sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
+
+	sb.WriteString("#pragma warning restore CS0649\n")
+	sb.WriteString("}\n")
+
+	return sb.String(), nil
+}
+
+// generateAliasesFile generates a file containing all aliases
+func (g *DotnetGenerator) generateAliasesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Using statements
+	sb.WriteString("using System;\n\n")
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+
+	// Namespace
+	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
+	sb.WriteString("#pragma warning disable CS0649\n\n")
+
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return "", err
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
+	}
 
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")

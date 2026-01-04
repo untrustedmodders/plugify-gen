@@ -40,8 +40,8 @@ type ParamType struct {
 	Ref         bool       `json:"ref,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Default     *int64     `json:"default,omitempty"`
-	Alias       *string    `json:"alias,omitempty"`
-	Enum        *EnumType  `json:"enum,omitempty"`
+	Alias       *Alias     `json:"alias,omitempty"`
+	Enum        *Enum      `json:"enum,omitempty"`
 	Prototype   *Prototype `json:"prototype,omitempty"`
 }
 
@@ -50,13 +50,19 @@ type RetType struct {
 	Type        string     `json:"type"`
 	Description string     `json:"description,omitempty"`
 	Ref         bool       `json:"ref,omitempty"`
-	Alias       *string    `json:"alias,omitempty"`
-	Enum        *EnumType  `json:"enum,omitempty"`
+	Alias       *Alias     `json:"alias,omitempty"`
+	Enum        *Enum      `json:"enum,omitempty"`
 	Prototype   *Prototype `json:"prototype,omitempty"`
 }
 
-// EnumType represents an enum definition
-type EnumType struct {
+// Alias represents an alias definition
+type Alias struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+// Enum represents an enum definition
+type Enum struct {
 	Name        string      `json:"name"`
 	Type        string      `json:"type"`
 	Description string      `json:"description,omitempty"`

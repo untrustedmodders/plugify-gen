@@ -69,15 +69,16 @@ func (m *CppCommonTypeMapper) MapType(baseType string, context TypeContext, isAr
 
 // isObjectLikeType returns true for types that should be passed by const& in parameters
 func (m *CppCommonTypeMapper) isObjectLikeType(baseType string) bool {
-	objectLikeTypes := map[string]bool{
-		"string": true,
-		"any":    true,
-		"vec2":   true,
-		"vec3":   true,
-		"vec4":   true,
-		"mat4x4": true,
+	objectLikeTypes := map[string]struct{}{
+		"string": {},
+		"any":    {},
+		"vec2":   {},
+		"vec3":   {},
+		"vec4":   {},
+		"mat4x4": {},
 	}
-	return objectLikeTypes[baseType]
+	_, ok := objectLikeTypes[baseType]
+	return ok
 }
 
 func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
@@ -93,7 +94,7 @@ func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, e
 		typeName = param.Enum.Name
 
 	case param.Alias != nil:
-		typeName = *param.Alias
+		typeName = param.Alias.Name
 
 	case param.Prototype != nil:
 		return param.Prototype.Name, nil
@@ -113,7 +114,7 @@ func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, 
 		typeName = retType.Enum.Name
 
 	case retType.Alias != nil:
-		typeName = *retType.Alias
+		typeName = retType.Alias.Name
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil

@@ -50,6 +50,16 @@ func (g *V8Generator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*G
 		sb.WriteString("\n")
 	}
 
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases: %w", err)
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
+	}
+
 	// Generate delegates
 	delegatesCode, err := g.generateDelegates(m)
 	if err != nil {
@@ -276,7 +286,7 @@ func (g *V8Generator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *V8Generator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *V8Generator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
@@ -297,6 +307,22 @@ func (g *V8Generator) generateEnum(enum *manifest.EnumType, underlyingType strin
 	}
 
 	sb.WriteString("  }\n")
+	return sb.String(), nil
+}
+
+func (g *V8Generator) generateAliases(m *manifest.Manifest) (string, error) {
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *V8Generator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	if alias.Description != "" {
+		sb.WriteString(fmt.Sprintf("  /** %s */\n", alias.Description))
+	}
+
+	sb.WriteString(fmt.Sprintf("    %s = %s;\n", alias.Name, underlyingType))
+
 	return sb.String(), nil
 }
 
@@ -732,7 +758,7 @@ func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 		typeName = param.Enum.Name
 
 	case param.Alias != nil:
-		typeName = *param.Alias
+		typeName = param.Alias.Name
 
 	case param.Prototype != nil:
 		return param.Prototype.Name, nil
@@ -752,7 +778,7 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) 
 		typeName = retType.Enum.Name
 
 	case retType.Alias != nil:
-		typeName = *retType.Alias
+		typeName = retType.Alias.Name
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil

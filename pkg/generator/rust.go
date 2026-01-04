@@ -38,6 +38,13 @@ func (g *RustGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (
 	}
 	files[fmt.Sprintf("%s/enums.rs", folder)] = enumsCode
 
+	// Generate separate aliases file
+	aliasesCode, err := g.generateAliasesFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating aliases file: %w", err)
+	}
+	files[fmt.Sprintf("%s/aliases.rs", folder)] = aliasesCode
+
 	// Generate separate delegates file
 	delegatesCode, err := g.generateDelegatesFile(m)
 	if err != nil {
@@ -137,7 +144,7 @@ func (g *RustGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 	return g.CollectEnums(m, g.generateEnum)
 }
 
-func (g *RustGenerator) generateEnum(enum *manifest.EnumType, underlyingType string) (string, error) {
+func (g *RustGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
 	if enum.Description != "" {
@@ -165,6 +172,25 @@ func (g *RustGenerator) generateEnum(enum *manifest.EnumType, underlyingType str
 
 	sb.WriteString("}\n")
 	sb.WriteString(fmt.Sprintf("vector_enum_traits!(%s, %s);\n", enum.Name, underlyingType))
+	return sb.String(), nil
+}
+
+func (g *RustGenerator) generateAliases(m *manifest.Manifest) (string, error) {
+	return g.CollectAliases(m, g.generateAlias)
+}
+
+func (g *RustGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
+	var sb strings.Builder
+
+	if alias.Description != "" {
+		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+			Description: alias.Description,
+			Indent:      "",
+		}))
+	}
+
+	sb.WriteString(fmt.Sprintf("    type %s = %s;\n", alias.Name, underlyingType))
+
 	return sb.String(), nil
 }
 
@@ -331,6 +357,27 @@ func (g *RustGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) 
 	return sb.String(), nil
 }
 
+// generateAliasesFile generates a file containing all aliases
+func (g *RustGenerator) generateAliasesFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use plugify::{vector_enum_traits};\n\n")
+
+	// Generate aliases
+	aliasesCode, err := g.generateAliases(m)
+	if err != nil {
+		return "", err
+	}
+	if aliasesCode != "" {
+		sb.WriteString(aliasesCode)
+		sb.WriteString("\n")
+	}
+
+	return sb.String(), nil
+}
+
 // generateDelegatesFile generates a file containing all delegate type definitions
 func (g *RustGenerator) generateDelegatesFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
@@ -399,7 +446,7 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 }
 
 // generateModFile generates the mod.rs file that re-exports all modules
-func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]bool) (string, error) {
+func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]struct{}) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n", m.Name))
@@ -494,15 +541,16 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 
 // isObjectLikeType returns true for types that should be passed by reference in parameters
 func (m *RustTypeMapper) isObjectLikeType(baseType string) bool {
-	objectLikeTypes := map[string]bool{
-		"string": true,
-		"any":    true,
-		"vec2":   true,
-		"vec3":   true,
-		"vec4":   true,
-		"mat4x4": true,
+	objectLikeTypes := map[string]struct{}{
+		"string": {},
+		"any":    {},
+		"vec2":   {},
+		"vec3":   {},
+		"vec4":   {},
+		"mat4x4": {},
 	}
-	return objectLikeTypes[baseType]
+	_, ok := objectLikeTypes[baseType]
+	return ok
 }
 
 func (m *RustTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
@@ -518,7 +566,7 @@ func (m *RustTypeMapper) MapParamType(param *manifest.ParamType) (string, error)
 		typeName = param.Enum.Name
 
 	case param.Alias != nil:
-		typeName = *param.Alias
+		typeName = param.Alias.Name
 
 	case param.Prototype != nil:
 		return param.Prototype.Name, nil
@@ -537,7 +585,7 @@ func (m *RustTypeMapper) MapReturnType(retType *manifest.RetType) (string, error
 		typeName = retType.Enum.Name
 
 	case retType.Alias != nil:
-		typeName = *retType.Alias
+		typeName = retType.Alias.Name
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
