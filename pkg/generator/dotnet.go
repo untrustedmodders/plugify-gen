@@ -815,13 +815,13 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			hasHandleOnlyConstructor := g.HasConstructorWithSingleHandleParam(m, class)
 			ownershipDefault := ""
 			if !hasHandleOnlyConstructor {
-				ownershipDefault = " = Ownership.Borrowed"
+				ownershipDefault = fmt.Sprintf(" = %s.Borrowed", OwnershipEnumName)
 			}
 
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
 			sb.WriteString("\t\t/// </summary>\n")
-			sb.WriteString(fmt.Sprintf("\t\tpublic %s(%s handle, Ownership ownership%s) : base((nint)handle, ownsHandle: ownership == Ownership.Owned)\n", class.Name, handleType, ownershipDefault))
+			sb.WriteString(fmt.Sprintf("\t\tpublic %s(%s handle, %s ownership%s) : base((nint)handle, ownsHandle: ownership == %s.Owned)\n", class.Name, handleType, OwnershipEnumName, ownershipDefault, OwnershipEnumName))
 			sb.WriteString("\t\t{\n\t\t}\n\n")
 
 			// ReleaseHandle override
@@ -842,7 +842,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 		} else {
 			ownershipTag := ""
 			if hasCtor {
-				ownershipTag = ", Ownership ownership = Ownership.Borrowed"
+				ownershipTag = fmt.Sprintf(", %s ownership = %s.Borrowed", OwnershipEnumName, OwnershipEnumName)
 			}
 			sb.WriteString("\t\t/// <summary>\n")
 			sb.WriteString(fmt.Sprintf("\t\t/// Internal constructor for creating %s from existing handle\n", class.Name))
@@ -974,8 +974,8 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	hasDtor := class.Destructor != nil
 
 	if hasDtor {
-		sb.WriteString(fmt.Sprintf(" : this(%s.%s(%s), Ownership.Owned)\n",
-			m.Name, methodName, strings.Join(paramNames, ", ")))
+		sb.WriteString(fmt.Sprintf(" : this(%s.%s(%s), %s.Owned)\n",
+			m.Name, methodName, strings.Join(paramNames, ", "), OwnershipEnumName))
 		sb.WriteString("\t\t{\n\t\t}\n\n")
 	} else {
 		sb.WriteString("\n\t\t{\n")
@@ -1080,7 +1080,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		sb.WriteString("\t\t\tObjectDisposedException.ThrowIf(!IsValid, this);\n")
 	}
 
-	hasCtor := len(class.Constructors) > 0
+	//hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
 	methodName := method.Name
@@ -1102,11 +1102,11 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		} else {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 				ownership := ""
-				if hasDtor || hasCtor {
+				if hasDtor /*|| hasCtor*/ {
 					if binding.RetAlias.Owner {
-						ownership = ", Ownership.Owned"
+						ownership = fmt.Sprintf(", %s.Owned", OwnershipEnumName)
 					} else {
-						ownership = ", Ownership.Borrowed"
+						ownership = fmt.Sprintf(", %s.Borrowed", OwnershipEnumName)
 					}
 				}
 				sb.WriteString(fmt.Sprintf("\t\t\t\treturn new %s(%s.%s(%s)%s);\n",
@@ -1133,11 +1133,11 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		} else {
 			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 				ownership := ""
-				if hasDtor || hasCtor {
+				if hasDtor /*|| hasCtor*/ {
 					if binding.RetAlias.Owner {
-						ownership = ", Ownership.Owned"
+						ownership = fmt.Sprintf(", %s.Owned", OwnershipEnumName)
 					} else {
-						ownership = ", Ownership.Borrowed"
+						ownership = fmt.Sprintf(", %s.Borrowed", OwnershipEnumName)
 					}
 				}
 				sb.WriteString(fmt.Sprintf("\t\t\treturn new %s(%s.%s(%s)%s);\n",
@@ -1213,9 +1213,9 @@ func (g *DotnetGenerator) generateEnumsFile(m *manifest.Manifest) (string, error
 
 	// Ownership enum (if any class has destructor)
 	sb.WriteString("\t/// <summary>\n")
-	sb.WriteString("\t/// Ownership type for RAII wrappers\n")
+	sb.WriteString(fmt.Sprintf("\t/// %s type for RAII wrappers\n", OwnershipEnumName))
 	sb.WriteString("\t/// </summary>\n")
-	sb.WriteString("\tinternal enum Ownership { Borrowed, Owned }\n\n")
+	sb.WriteString(fmt.Sprintf("\tinternal enum %s { Borrowed, Owned }\n\n", OwnershipEnumName))
 
 	sb.WriteString("#pragma warning restore CS0649\n")
 	sb.WriteString("}\n")

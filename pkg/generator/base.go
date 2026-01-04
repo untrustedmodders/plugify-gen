@@ -17,7 +17,6 @@ const (
 
 	// Standard error messages
 	EmptyHandleError = "empty handle"
-	NullPtrError     = "null pointer"
 )
 
 // GeneratorOptions contains options for code generation
@@ -168,7 +167,7 @@ func (g *BaseGenerator) IsAliasCached(name string) bool {
 	return ok
 }
 
-// AliasDelegate marks an alias as generated
+// CacheAlias marks an alias as generated
 func (g *BaseGenerator) CacheAlias(name string) {
 	g.aliasCache[name] = struct{}{}
 }
@@ -508,7 +507,7 @@ func (g *BaseGenerator) ensureAliasGenerated(alias *manifest.Alias, typeName str
 	}
 	sb.WriteString(aliasCode)
 	sb.WriteString("\n")
-	g.CacheEnum(alias.Name)
+	g.CacheAlias(alias.Name)
 	return nil
 }
 

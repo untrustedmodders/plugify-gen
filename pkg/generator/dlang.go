@@ -81,7 +81,7 @@ func (g *DlangGenerator) generateEnumsFile(m *manifest.Manifest) (string, error)
 	sb.WriteString(fmt.Sprintf("module imported.%s.enums;\n\n", moduleName))
 
 	sb.WriteString("/// Ownership type for RAII wrappers\n")
-	sb.WriteString("enum Ownership : bool {\n")
+	sb.WriteString(fmt.Sprintf("enum %s : bool {\n", OwnershipEnumName))
 	sb.WriteString("\tBorrowed = false,\n")
 	sb.WriteString("\tOwned = true\n")
 	sb.WriteString("}\n\n")
@@ -414,14 +414,14 @@ func (g *DlangGenerator) generatePrivateHelpers(className, invalidValue, destruc
 	var sb strings.Builder
 
 	sb.WriteString("\tprivate void destroy() const nothrow {\n")
-	sb.WriteString(fmt.Sprintf("\t\tif (_handle !is %s && _ownership == Ownership.Owned) {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("\t\tif (_handle !is %s && _ownership == %s.Owned) {\n", invalidValue, OwnershipEnumName))
 	sb.WriteString(fmt.Sprintf("\t\t\t%s(_handle);\n", destructor))
 	sb.WriteString("\t\t}\n")
 	sb.WriteString("\t}\n\n")
 
 	sb.WriteString("\tprivate void nullify() nothrow @nogc {\n")
 	sb.WriteString(fmt.Sprintf("\t\t_handle = %s;\n", invalidValue))
-	sb.WriteString("\t\t_ownership = Ownership.Borrowed;\n")
+	sb.WriteString(fmt.Sprintf("\t\t_ownership = %s.Borrowed;\n", OwnershipEnumName))
 	sb.WriteString("\t}\n")
 
 	return sb.String()
@@ -742,7 +742,7 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 		// Private members
 		sb.WriteString(fmt.Sprintf("\tprivate %s _handle = %s;\n", handleType, invalidValue))
 		if hasDtor {
-			sb.WriteString("\tprivate Ownership _ownership = Ownership.Borrowed;\n\n")
+			sb.WriteString(fmt.Sprintf("\tprivate %s _ownership = %s.Borrowed;\n\n", OwnershipEnumName, OwnershipEnumName))
 
 			// Default constructor
 			hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
@@ -786,16 +786,16 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 			hasHandleOnlyConstructor := g.HasConstructorWithSingleHandleParam(m, class)
 			ownershipDefault := ""
 			if !hasHandleOnlyConstructor {
-				ownershipDefault = " = Ownership.Borrowed"
+				ownershipDefault = fmt.Sprintf(" = %s.Borrowed", OwnershipEnumName)
 			}
-			sb.WriteString(fmt.Sprintf("\tthis(%s handle, Ownership ownership%s) {\n", handleType, ownershipDefault))
+			sb.WriteString(fmt.Sprintf("\tthis(%s handle, %s ownership%s) {\n", handleType, OwnershipEnumName, ownershipDefault))
 			sb.WriteString("\t\t_handle = handle;\n")
 			sb.WriteString("\t\t_ownership = ownership;\n")
 			sb.WriteString("\t}\n\n")
 		} else {
 			ownershipTag := ""
 			if hasCtor {
-				ownershipTag = ", Ownership ownership = Ownership.Borrowed"
+				ownershipTag = fmt.Sprintf(", Ownership ownership = %s.Borrowed", OwnershipEnumName)
 			}
 			sb.WriteString(fmt.Sprintf("\tthis(%s handle%s) {\n", handleType, ownershipTag))
 			sb.WriteString("\t\t_handle = handle;\n")
@@ -886,7 +886,7 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 
 	sb.WriteString(fmt.Sprintf("\t\tthis(%s(", method.Name))
 	sb.WriteString(strings.Join(callArgs, ", "))
-	sb.WriteString("), Ownership.Owned);\n")
+	sb.WriteString(fmt.Sprintf("), %s.Owned);\n", OwnershipEnumName))
 	sb.WriteString("\t}\n")
 
 	return sb.String(), nil
@@ -972,7 +972,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		if err != nil {
 			return "", err
 		}
-		sb.WriteString(fmt.Sprintf("\t\tenforce(_handle !is %s, \"%s: Empty handle\");\n", invalidValue, class.Name))
+		sb.WriteString(fmt.Sprintf("\t\tenforce(_handle !is %s, \"%s: %s\");\n", invalidValue, class.Name, EmptyHandleError))
 	}
 
 	// Build call arguments
@@ -1003,17 +1003,17 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 		sb.WriteString("\t\t")
 	}
 
-	hasCtor := len(class.Constructors) > 0
+	//hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
 	// Check if the return value should be wrapped
 	if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 		ownership := ""
-		if hasDtor || hasCtor {
+		if hasDtor /*|| hasCtor*/ {
 			if binding.RetAlias.Owner {
-				ownership = ", Ownership.Owned"
+				ownership = fmt.Sprintf(", %s.Owned", OwnershipEnumName)
 			} else {
-				ownership = ", Ownership.Borrowed"
+				ownership = fmt.Sprintf(", %s.Borrowed", OwnershipEnumName)
 			}
 		}
 		sb.WriteString(fmt.Sprintf("%s(%s(", binding.RetAlias.Name, method.Name))
@@ -1130,7 +1130,7 @@ func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string, 
 	}
 
 	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
-	if class.HandleType == "ptr64" && nullptr {
+	if strings.HasPrefix(class.HandleType, "ptr") && nullptr {
 		invalidValue = "null"
 	} else if invalidValue == "" {
 		invalidValue = fmt.Sprintf("%s.init", handleType)

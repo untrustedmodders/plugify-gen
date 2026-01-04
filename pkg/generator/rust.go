@@ -347,9 +347,9 @@ func (g *RustGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) 
 	}
 
 	// Ownership enum (if any class has destructor)
-	sb.WriteString("/// Ownership type for RAII wrappers\n")
+	sb.WriteString(fmt.Sprintf("/// %s type for RAII wrappers\n", OwnershipEnumName))
 	sb.WriteString("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n")
-	sb.WriteString("pub enum Ownership {\n")
+	sb.WriteString(fmt.Sprintf("pub enum %s {\n", OwnershipEnumName))
 	sb.WriteString("    Borrowed,\n")
 	sb.WriteString("    Owned,\n")
 	sb.WriteString("}\n")
@@ -606,7 +606,7 @@ func (m *RustTypeMapper) MapHandleType(class *manifest.Class) (string, string, e
 	}
 
 	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
-	if class.HandleType == "ptr64" && nullptr {
+	if strings.HasPrefix(class.HandleType, "ptr") && nullptr {
 		invalidValue = "0"
 	} else if invalidValue == "" {
 		invalidValue = "Default::default()"
@@ -652,7 +652,7 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 		sb.WriteString(fmt.Sprintf("impl std::fmt::Display for %sError {\n", class.Name))
 		sb.WriteString("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n")
 		sb.WriteString("        match self {\n")
-		sb.WriteString(fmt.Sprintf("            %sError::EmptyHandle => write!(f, \"empty handle\"),\n", class.Name))
+		sb.WriteString(fmt.Sprintf("            %sError::EmptyHandle => write!(f, \"%s\"),\n", class.Name, EmptyHandleError))
 		sb.WriteString("        }\n")
 		sb.WriteString("    }\n")
 		sb.WriteString("}\n\n")
@@ -683,7 +683,7 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 	if hasHandle {
 		sb.WriteString(fmt.Sprintf("    handle: %s,\n", handleType))
 		if hasDtor {
-			sb.WriteString("    ownership: Ownership,\n")
+			sb.WriteString(fmt.Sprintf("    ownership: %s,\n", OwnershipEnumName))
 		}
 	}
 	sb.WriteString("}\n\n")
@@ -705,7 +705,7 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 		if hasDtor {
 			sb.WriteString(fmt.Sprintf("    /// Construct from raw handle with specified ownership\n"))
 			sb.WriteString("    #[allow(dead_code)]\n")
-			sb.WriteString(fmt.Sprintf("    pub unsafe fn from_raw(handle: %s, ownership: Ownership) -> Self {\n", handleType))
+			sb.WriteString(fmt.Sprintf("    pub unsafe fn from_raw(handle: %s, ownership: %s) -> Self {\n", handleType, OwnershipEnumName))
 			sb.WriteString("        Self { handle, ownership }\n")
 			sb.WriteString("    }\n\n")
 		} else {
@@ -780,7 +780,7 @@ func (g *RustGenerator) generateSafeConstructorBody(m *manifest.Manifest, class 
 	sb.WriteString("        Ok(Self {\n")
 	sb.WriteString("            handle: h,\n")
 	if hasDtor {
-		sb.WriteString("            ownership: Ownership::Owned,\n")
+		sb.WriteString(fmt.Sprintf("            ownership: %s::Owned,\n", OwnershipEnumName))
 	}
 	sb.WriteString("        })\n")
 
@@ -864,7 +864,7 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 				b.WriteString("        let h = self.handle;\n")
 				b.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
 				if hasDtor {
-					b.WriteString("        self.ownership = Ownership::Borrowed;\n")
+					b.WriteString(fmt.Sprintf("        self.ownership = %s::Borrowed;\n", OwnershipEnumName))
 				}
 				b.WriteString("        h\n")
 				return b.String()
@@ -876,13 +876,13 @@ func (g *RustGenerator) generateUtilityMethods(m *manifest.Manifest, class *mani
 			body: func() string {
 				var b strings.Builder
 				if hasDtor {
-					b.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
+					b.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == %s::Owned {\n", invalidValue, OwnershipEnumName))
 					b.WriteString(fmt.Sprintf("            crate::%s::%s(self.handle);\n", m.Name, *class.Destructor))
 					b.WriteString("        }\n")
 				}
 				b.WriteString(fmt.Sprintf("        self.handle = %s;\n", invalidValue))
 				if hasDtor {
-					b.WriteString("        self.ownership = Ownership::Borrowed;\n")
+					b.WriteString(fmt.Sprintf("        self.ownership = %s::Borrowed;\n", OwnershipEnumName))
 				}
 				return b.String()
 			},
@@ -1028,7 +1028,7 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 		return "", err
 	}
 
-	hasCtor := len(class.Constructors) > 0
+	//hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
 	functionName := fmt.Sprintf("crate::%s::%s", m.Name, method.FuncName)
@@ -1042,11 +1042,11 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 	} else {
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 			ownership := ""
-			if hasDtor || hasCtor {
+			if hasDtor /*|| hasCtor*/ {
 				if binding.RetAlias.Owner {
-					ownership = ", Ownership::Owned"
+					ownership = fmt.Sprintf(", %s::Owned", OwnershipEnumName)
 				} else {
-					ownership = ", Ownership::Borrowed"
+					ownership = fmt.Sprintf(", %s::Borrowed", OwnershipEnumName)
 				}
 			}
 			if binding.BindSelf {
@@ -1132,7 +1132,7 @@ func (g *RustGenerator) generateDropTrait(m *manifest.Manifest, class *manifest.
 
 	sb.WriteString(fmt.Sprintf("impl Drop for %s {\n", class.Name))
 	sb.WriteString("    fn drop(&mut self) {\n")
-	sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == Ownership::Owned {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("        if self.handle != %s && self.ownership == %s::Owned {\n", invalidValue, OwnershipEnumName))
 	sb.WriteString(fmt.Sprintf("            crate::%s::%s(self.handle);\n", m.Name, *class.Destructor))
 	sb.WriteString("        }\n")
 	sb.WriteString("    }\n")

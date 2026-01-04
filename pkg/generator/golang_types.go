@@ -1,6 +1,8 @@
 package generator
 
 import (
+	"strings"
+
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
@@ -469,7 +471,7 @@ func (m *GolangTypeMapper) MapHandleType(class *manifest.Class) (string, string,
 	}
 
 	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
-	if class.HandleType == "ptr64" && nullptr {
+	if strings.HasPrefix(class.HandleType, "ptr") && nullptr {
 		invalidValue = "0"
 	} else if invalidValue == "" {
 		invalidValue = "{}"

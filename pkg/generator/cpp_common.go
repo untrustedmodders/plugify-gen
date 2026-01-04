@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
@@ -135,7 +136,7 @@ func (m *CppCommonTypeMapper) MapHandleType(class *manifest.Class) (string, stri
 	}
 
 	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
-	if class.HandleType == "ptr64" && nullptr {
+	if strings.HasPrefix(class.HandleType, "ptr") && nullptr {
 		invalidValue = "nullptr"
 	} else if invalidValue == "" {
 		invalidValue = "{}"

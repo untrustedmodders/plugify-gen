@@ -338,13 +338,13 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 			hasHandleOnlyConstructor := g.HasConstructorWithSingleHandleParam(m, class)
 			ownershipDefault := ""
 			if !hasHandleOnlyConstructor {
-				ownershipDefault = " = Ownership::Borrowed"
+				ownershipDefault = fmt.Sprintf(" = %s::Borrowed", OwnershipEnumName)
 			}
-			sb.WriteString(fmt.Sprintf("    %s(%s handle, Ownership ownership%s) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType, ownershipDefault))
+			sb.WriteString(fmt.Sprintf("    %s(%s handle, %s ownership%s) : _handle(handle), _ownership(ownership) {}\n\n", class.Name, handleType, OwnershipEnumName, ownershipDefault))
 		} else {
 			ownershipTag := ""
 			if hasCtor {
-				ownershipTag = ", [[maybe_unused]] Ownership ownership = Ownership::Borrowed"
+				ownershipTag = fmt.Sprintf(", [[maybe_unused]] %s ownership = %s::Borrowed", OwnershipEnumName, OwnershipEnumName)
 			}
 			sb.WriteString(fmt.Sprintf("    explicit %s(%s handle%s) : _handle(handle) {}\n\n", class.Name, handleType, ownershipTag))
 		}
@@ -378,7 +378,7 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 		// Member variables
 		sb.WriteString(fmt.Sprintf("    %s _handle{%s};\n", handleType, invalidValue))
 		if hasDtor {
-			sb.WriteString("    Ownership _ownership{Ownership::Borrowed};\n")
+			sb.WriteString(fmt.Sprintf("    %s _ownership{%s::Borrowed};\n", OwnershipEnumName, OwnershipEnumName))
 		}
 	}
 
@@ -390,17 +390,17 @@ func (g *CxxGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 // generatePrivateHelpers generates private helper methods for classes with destructors
 func (g *CxxGenerator) generatePrivateHelpers(class *manifest.Class, invalidValue string) string {
 	return fmt.Sprintf(`    void destroy() const noexcept {
-      if (_handle != %s && _ownership == Ownership::Owned) {
+      if (_handle != %s && _ownership == %s::Owned) {
         %s(_handle);
       }
     }
 
     void nullify() noexcept {
       _handle = %s;
-      _ownership = Ownership::Borrowed;
+      _ownership = %s::Borrowed;
     }
 
-`, invalidValue, *class.Destructor, invalidValue)
+`, invalidValue, OwnershipEnumName, *class.Destructor, invalidValue, OwnershipEnumName)
 }
 
 // generateUtilityMethods generates get, release, reset, and swap methods
@@ -524,7 +524,7 @@ func (g *CxxGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("      : %s(%s(%s), Ownership::Owned) {}\n\n", class.Name, method.FuncName, paramNames))
+	sb.WriteString(fmt.Sprintf("      : %s(%s(%s), %s::Owned) {}\n\n", class.Name, method.FuncName, paramNames, OwnershipEnumName))
 
 	return sb.String(), nil
 }
@@ -595,7 +595,7 @@ func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		if err != nil {
 			return "", err
 		}
-		sb.WriteString(fmt.Sprintf("      if (_handle == %s) throw std::runtime_error(\"%s: Empty handle\");\n", invalidValue, class.Name))
+		sb.WriteString(fmt.Sprintf("      if (_handle == %s) throw std::runtime_error(\"%s: %s\");\n", invalidValue, class.Name, EmptyHandleError))
 	}
 
 	// Build call arguments
@@ -623,7 +623,7 @@ func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		}
 	}
 
-	hasCtor := len(class.Constructors) > 0
+	//hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
 	// Generate return statement
@@ -633,11 +633,11 @@ func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		// Handle return alias
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 			ownership := ""
-			if hasDtor || hasCtor {
+			if hasDtor /*|| hasCtor*/ {
 				if binding.RetAlias.Owner {
-					ownership = ", Ownership::Owned"
+					ownership = fmt.Sprintf(", %s::Owned", OwnershipEnumName)
 				} else {
-					ownership = ", Ownership::Borrowed"
+					ownership = fmt.Sprintf(", %s::Borrowed", OwnershipEnumName)
 				}
 			}
 			sb.WriteString(fmt.Sprintf("      return %s(%s::%s(%s)%s);\n", binding.RetAlias.Name, m.Name, method.FuncName, callArgs, ownership)) // always pass ownership just as a tag
@@ -704,8 +704,8 @@ func (g *CxxGenerator) generateEnumsFile(m *manifest.Manifest) (string, error) {
 	}
 
 	// Ownership enum (if any class has destructor)
-	sb.WriteString("  /// Ownership type for RAII wrappers\n")
-	sb.WriteString("  enum class Ownership : bool { Borrowed, Owned };\n\n")
+	sb.WriteString(fmt.Sprintf("  /// %s type for RAII wrappers\n", OwnershipEnumName))
+	sb.WriteString(fmt.Sprintf("  enum class %s : bool { Borrowed, Owned };\n\n", OwnershipEnumName))
 
 	// Close namespace
 	sb.WriteString(fmt.Sprintf("} // namespace %s\n", m.Name))

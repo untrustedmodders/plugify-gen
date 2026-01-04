@@ -179,16 +179,17 @@ func (g *GolangGenerator) resolveConflict(name string) string {
 
 // generateOwnershipTypes generates noCopy and ownership type definitions
 func (g *GolangGenerator) generateOwnershipTypes() string {
+	ownership := strings.ToLower(OwnershipEnumName)
 	var sb strings.Builder
 	sb.WriteString("// noCopy prevents copying via go vet\n")
 	sb.WriteString("type noCopy struct{}\n\n")
 	sb.WriteString("func (*noCopy) Lock()   {}\n")
 	sb.WriteString("func (*noCopy) Unlock() {}\n\n")
 	sb.WriteString("// ownership indicates whether the instance owns the underlying handle\n")
-	sb.WriteString("type ownership bool\n\n")
+	sb.WriteString(fmt.Sprintf("type %s bool\n\n", ownership))
 	sb.WriteString("const (\n")
-	sb.WriteString("\tOwned    ownership = true\n")
-	sb.WriteString("\tBorrowed ownership = false\n")
+	sb.WriteString(fmt.Sprintf("\tOwned    %s = true\n", ownership))
+	sb.WriteString(fmt.Sprintf("\tBorrowed %s = false\n", ownership))
 	sb.WriteString(")\n\n")
 	return sb.String()
 }
@@ -892,7 +893,7 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	if hasHandle {
 		// Generate error variable for this class
 		errVarName := fmt.Sprintf("%sErrEmptyHandle", class.Name)
-		sb.WriteString(fmt.Sprintf("var (\n\t%s = errors.New(\"%s: empty handle\")\n)\n\n", errVarName, class.Name))
+		sb.WriteString(fmt.Sprintf("var (\n\t%s = errors.New(\"%s: %s\")\n)\n\n", errVarName, class.Name, EmptyHandleError))
 	}
 
 	// Class documentation
@@ -1257,7 +1258,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		return "", err
 	}
 
-	hasCtor := len(class.Constructors) > 0
+	//hasCtor := len(class.Constructors) > 0
 	hasDtor := class.Destructor != nil
 
 	// Generate call
@@ -1273,7 +1274,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		}
 		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
 			ownership := ""
-			if hasDtor || hasCtor {
+			if hasDtor /*|| hasCtor*/ {
 				if binding.RetAlias.Owner {
 					ownership = fmt.Sprintf("New%sOwned", binding.RetAlias.Name)
 				} else {
@@ -1418,6 +1419,8 @@ func (g *GolangGenerator) generateDelegatesGoFile(m *manifest.Manifest) (string,
 	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
 
 	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
+
+	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
