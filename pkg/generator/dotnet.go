@@ -796,7 +796,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	if hasHandle {
 		// Default constructor
 		hasDefaultConstructor := g.HasConstructorWithNoParam(m, class)
-		if !hasDefaultConstructor {
+		if !hasDefaultConstructor && !hasDtor {
 			sb.WriteString(fmt.Sprintf("\t\tpublic %s() {}\n", class.Name))
 		}
 
