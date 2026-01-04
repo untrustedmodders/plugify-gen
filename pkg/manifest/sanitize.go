@@ -114,7 +114,7 @@ func sanitizeParamTypes(params []ParamType, sanitizeName SanitizeNameFunc) {
 }
 
 // sanitizeTypeInfo sanitizes type information (for return types)
-func sanitizeTypeInfo(typeInfo *TypeInfo, sanitizeName SanitizeNameFunc) {
+func sanitizeTypeInfo(typeInfo *RetType, sanitizeName SanitizeNameFunc) {
 	if typeInfo.Enum != nil {
 		sanitizeEnum(typeInfo.Enum, sanitizeName)
 	}

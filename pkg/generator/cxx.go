@@ -130,7 +130,7 @@ type CxxDocOptions struct {
 	Description  string
 	Params       []manifest.ParamType
 	ParamAliases []*manifest.ParamAlias
-	RetType      *manifest.TypeInfo
+	RetType      *manifest.RetType
 	RetAlias     *manifest.RetAlias
 	Indent       string // "  " for module-level, "    " for class members
 }
@@ -635,7 +635,7 @@ func (g *CxxGenerator) applyParamAliases(formattedParams string, params []manife
 	for i, param := range params {
 		if i < len(aliases) && aliases[i] != nil {
 			// Build the parameter type to search for
-			paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
+			paramType, _ := g.typeMapper.MapParamType(&param)
 
 			// Determine the replacement type
 			replacementType := aliases[i].Name

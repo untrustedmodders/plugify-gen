@@ -167,7 +167,7 @@ func (g *GolangGenerator) generateOwnershipTypes() string {
 
 // generateDocumentation generates documentation comments for functions/methods
 // If useBriefFormat is true, uses "// name \n//  @brief description" format, otherwise "// name - description"
-func (g *GolangGenerator) generateDocumentation(name string, description string, params []manifest.ParamType, retType *manifest.TypeInfo, useBriefFormat bool) string {
+func (g *GolangGenerator) generateDocumentation(name string, description string, params []manifest.ParamType, retType *manifest.RetType, useBriefFormat bool) string {
 	var sb strings.Builder
 
 	if description != "" {
@@ -580,7 +580,7 @@ func (g *GolangGenerator) generateParamAssign(param *manifest.ParamType, indent 
 }
 
 // generateReturnAssign generates assignment code for return value
-func (g *GolangGenerator) generateReturnAssign(retType *manifest.TypeInfo, indent string) (string, error) {
+func (g *GolangGenerator) generateReturnAssign(retType *manifest.RetType, indent string) (string, error) {
 	paramType := g.typeMapper.assTypeCastMap[retType.Type]
 
 	if paramType == "" {
@@ -634,7 +634,7 @@ func (g *GolangGenerator) generateParamCleanup(param *manifest.ParamType) string
 }
 
 // generateReturnCleanup generates cleanup code for return value
-func (g *GolangGenerator) generateReturnCleanup(retType *manifest.TypeInfo, indent string) string {
+func (g *GolangGenerator) generateReturnCleanup(retType *manifest.RetType, indent string) string {
 	returnType := g.typeMapper.delTypeCastMap[retType.Type]
 	if returnType == "" {
 		return ""
@@ -664,7 +664,7 @@ func (g *GolangGenerator) formatParams(params []manifest.ParamType, withTypes bo
 		name := param.Name
 
 		if withTypes {
-			typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+			typeName, err := g.typeMapper.MapParamType(&param)
 			if err != nil {
 				return "", err
 			}
@@ -1282,7 +1282,7 @@ func (g *GolangGenerator) formatClassParams(params []manifest.ParamType, aliases
 			if i < len(aliases) && aliases[i] != nil {
 				typeName = fmt.Sprintf("*%s", aliases[i].Name)
 			} else {
-				typeName, err = g.typeMapper.MapParamType(&param, TypeContextValue)
+				typeName, err = g.typeMapper.MapParamType(&param)
 				if err != nil {
 					return "", err
 				}
@@ -1365,6 +1365,8 @@ func (g *GolangGenerator) generateDelegatesGoFile(m *manifest.Manifest) (string,
 
 	// Package declaration
 	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))

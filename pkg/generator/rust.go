@@ -209,7 +209,7 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 // formatRustParams formats parameters in Rust style (name: type)
 func (g *RustGenerator) formatRustParams(params []manifest.ParamType, includeNames bool) (string, error) {
 	return g.formatParameters(params, func(_ int, param *manifest.ParamType) (string, error) {
-		typeName, err := g.typeMapper.MapParamType(param, TypeContextValue)
+		typeName, err := g.typeMapper.MapParamType(param)
 		if err != nil {
 			return "", err
 		}
@@ -339,7 +339,7 @@ func (g *RustGenerator) generateDelegatesFile(m *manifest.Manifest) (string, err
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::enums::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
-	sb.WriteString("use plugify::{PlgString, PlgVector, PlgVariant, Vector2, Vector3, Vector4, Matrix4x4};\n\n")
+	sb.WriteString("use plugify::{Str, Arr, Var, Vec2, Vec3, Vec4, Mat4x4};\n\n")
 
 	// Generate delegates
 	delegatesCode, err := g.generateDelegates(m)
@@ -365,7 +365,7 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::delegates::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
-	sb.WriteString("use plugify::{get_method_ptr, PlgString, PlgVector, PlgVariant, Vector2, Vector3, Vector4, Matrix4x4};\n\n")
+	sb.WriteString("use plugify::{get_method_ptr, Str, Arr, Var, Vec2, Vec3, Vec4, Mat4x4};\n\n")
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
@@ -452,12 +452,12 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 		"ptr64":  "usize",
 		"float":  "f32",
 		"double": "f64",
-		"string": "PlgString",
-		"any":    "PlgVariant",
-		"vec2":   "Vector2",
-		"vec3":   "Vector3",
-		"vec4":   "Vector4",
-		"mat4x4": "Matrix4x4",
+		"string": "Str",
+		"any":    "Var",
+		"vec2":   "Vec2",
+		"vec3":   "Vec3",
+		"vec4":   "Vec4",
+		"mat4x4": "Mat4x4",
 	}
 
 	mapped, ok := typeMap[baseType]
@@ -473,7 +473,7 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 
 	// Handle arrays
 	if isArray {
-		mapped = fmt.Sprintf("PlgVector<%s>", mapped)
+		mapped = fmt.Sprintf("Arr<%s>", mapped)
 	}
 
 	// Handle parameter context (value parameters)
@@ -505,53 +505,49 @@ func (m *RustTypeMapper) isObjectLikeType(baseType string) bool {
 	return objectLikeTypes[baseType]
 }
 
-func (m *RustTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Check for enum type first
-	if param.Enum != nil {
-		typeName := param.Enum.Name
-		if param.IsArray() {
-			typeName = fmt.Sprintf("PlgVector<%s>", typeName)
-		}
-		// Handle reference
-		if param.Ref {
-			return fmt.Sprintf("&mut %s", typeName), nil
-		} else if param.IsArray() {
-			return fmt.Sprintf("&%s", typeName), nil
-		}
-		return typeName, nil
-	}
-
-	// Check for function/delegate type
-	if param.Prototype != nil {
-		return param.Prototype.Name, nil
-	}
-
+func (m *RustTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	// Regular type mapping
 	ctx := TypeContextValue
 	if param.Ref {
 		ctx = TypeContextRef
 	}
 
-	return m.MapType(param.BaseType(), ctx, param.IsArray())
-}
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
 
-func (m *RustTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
-	// Check for enum type
-	if retType.Enum != nil {
-		typeName := retType.Enum.Name
-		if retType.IsArray() {
-			typeName = fmt.Sprintf("PlgVector<%s>", typeName)
-		}
-		return typeName, nil
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
+		return param.Prototype.Name, nil
+
+	default:
+		typeName = param.BaseType()
 	}
 
-	// Check for function/delegate type
-	if retType.Prototype != nil {
+	return m.MapType(typeName, ctx, param.IsArray())
+}
+
+func (m *RustTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	var typeName string
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
+
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
 	}
 
 	// Regular type mapping - returns always by value
-	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *RustTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
@@ -1038,7 +1034,7 @@ func (g *RustGenerator) formatClassParams(params []manifest.ParamType, aliases [
 			}
 		} else {
 			var err error
-			typeName, err = g.typeMapper.MapParamType(param, TypeContextValue)
+			typeName, err = g.typeMapper.MapParamType(param)
 			if err != nil {
 				return "", err
 			}

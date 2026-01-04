@@ -30,7 +30,7 @@ type Method struct {
 	Description string      `json:"description,omitempty"`
 	FuncName    string      `json:"funcName"`
 	ParamTypes  []ParamType `json:"paramTypes"`
-	RetType     TypeInfo    `json:"retType"`
+	RetType     RetType     `json:"retType"`
 }
 
 // ParamType represents a function parameter
@@ -40,15 +40,17 @@ type ParamType struct {
 	Ref         bool       `json:"ref,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Default     *int64     `json:"default,omitempty"`
+	Alias       *string    `json:"alias,omitempty"`
 	Enum        *EnumType  `json:"enum,omitempty"`
 	Prototype   *Prototype `json:"prototype,omitempty"`
 }
 
-// TypeInfo represents a type (return type or nested type)
-type TypeInfo struct {
+// RetType represents a type
+type RetType struct {
 	Type        string     `json:"type"`
 	Description string     `json:"description,omitempty"`
 	Ref         bool       `json:"ref,omitempty"`
+	Alias       *string    `json:"alias,omitempty"`
 	Enum        *EnumType  `json:"enum,omitempty"`
 	Prototype   *Prototype `json:"prototype,omitempty"`
 }
@@ -73,7 +75,7 @@ type Prototype struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
 	ParamTypes  []ParamType `json:"paramTypes"`
-	RetType     TypeInfo    `json:"retType"`
+	RetType     RetType     `json:"retType"`
 }
 
 // Class represents an RAII wrapper class for handle-based APIs
@@ -111,12 +113,12 @@ type RetAlias struct {
 }
 
 // IsArray returns true if the type is an array (ends with [])
-func (t *TypeInfo) IsArray() bool {
+func (t *RetType) IsArray() bool {
 	return len(t.Type) > 2 && t.Type[len(t.Type)-2:] == "[]"
 }
 
 // BaseType returns the type without array suffix
-func (t *TypeInfo) BaseType() string {
+func (t *RetType) BaseType() string {
 	if t.IsArray() {
 		return t.Type[:len(t.Type)-2]
 	}

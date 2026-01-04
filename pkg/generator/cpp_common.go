@@ -80,53 +80,50 @@ func (m *CppCommonTypeMapper) isObjectLikeType(baseType string) bool {
 	return objectLikeTypes[baseType]
 }
 
-func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Check for enum type first
-	if param.Enum != nil {
-		typeName := param.Enum.Name
-		if param.IsArray() {
-			typeName = fmt.Sprintf("plg::vector<%s>", typeName)
-		}
-		// Enums are primitive types, pass by value or reference
-		if param.Ref {
-			return typeName + "&", nil
-		} else if param.IsArray() {
-			return fmt.Sprintf("const %s&", typeName), nil
-		}
-		return typeName, nil
-	}
-
-	// Check for function/delegate type
-	if param.Prototype != nil {
-		return param.Prototype.Name, nil
-	}
-
+func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	// Regular type mapping
 	ctx := TypeContextValue
 	if param.Ref {
 		ctx = TypeContextRef
 	}
 
-	return m.MapType(param.BaseType(), ctx, param.IsArray())
-}
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
 
-func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
-	// Check for enum type
-	if retType.Enum != nil {
-		typeName := retType.Enum.Name
-		if retType.IsArray() {
-			typeName = fmt.Sprintf("plg::vector<%s>", typeName)
-		}
-		return typeName, nil
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
+		return param.Prototype.Name, nil
+
+	default:
+		typeName = param.BaseType()
 	}
 
-	// Check for function/delegate type
-	if retType.Prototype != nil {
+	return m.MapType(typeName, ctx, param.IsArray())
+}
+
+func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	var typeName string
+
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
+
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
 	}
 
 	// Regular type mapping - returns always by value
-	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *CppCommonTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

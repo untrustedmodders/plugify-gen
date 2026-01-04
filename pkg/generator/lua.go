@@ -211,7 +211,7 @@ func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	var sb strings.Builder
 
 	// Constructor documentation
-	classRetType := manifest.TypeInfo{Type: class.Name, Description: ""}
+	classRetType := manifest.RetType{Type: class.Name, Description: ""}
 	sb.WriteString(g.generateLuaDocumentation(LuaDocOptions{
 		Description:  method.Description,
 		FallbackName: fmt.Sprintf("Constructor for %s", class.Name),
@@ -305,7 +305,7 @@ type LuaDocOptions struct {
 	FallbackName     string
 	Params           []manifest.ParamType
 	ParamAliases     []*manifest.ParamAlias
-	RetType          *manifest.TypeInfo
+	RetType          *manifest.RetType
 	RetAlias         *manifest.RetAlias
 	IncludeCallbacks bool
 }
@@ -400,11 +400,11 @@ func (m *LuaTypeMapper) MapType(baseType string, context TypeContext, isArray bo
 	return "", nil
 }
 
-func (m *LuaTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
+func (m *LuaTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	return "", nil
 }
 
-func (m *LuaTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
+func (m *LuaTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
 	return "", nil
 }
 

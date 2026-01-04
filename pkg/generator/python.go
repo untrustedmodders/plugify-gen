@@ -437,7 +437,7 @@ func (g *PythonGenerator) formatParameters(params []manifest.ParamType) (string,
 			result += ", "
 		}
 
-		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		typeName, err := g.typeMapper.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}
@@ -450,7 +450,7 @@ func (g *PythonGenerator) formatParameters(params []manifest.ParamType) (string,
 	return result, nil
 }
 
-func (g *PythonGenerator) generateReturnType(retType *manifest.TypeInfo, params []manifest.ParamType) (string, error) {
+func (g *PythonGenerator) generateReturnType(retType *manifest.RetType, params []manifest.ParamType) (string, error) {
 	// Check if any parameters are ref (out parameters)
 	hasRef := false
 	for _, param := range params {
@@ -473,7 +473,7 @@ func (g *PythonGenerator) generateReturnType(retType *manifest.TypeInfo, params 
 	types := []string{baseRetType}
 	for _, param := range params {
 		if param.Ref {
-			paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+			paramType, err := g.typeMapper.MapParamType(&param)
 			if err != nil {
 				return "", err
 			}
@@ -489,7 +489,7 @@ type PythonDocOptions struct {
 	Description      string
 	Params           []manifest.ParamType
 	ParamAliases     []*manifest.ParamAlias
-	RetType          *manifest.TypeInfo
+	RetType          *manifest.RetType
 	RetAlias         *manifest.RetAlias
 	IncludeCallbacks bool
 	Indent           string // "    " for class methods, "" for top-level
@@ -616,47 +616,49 @@ func (m *PythonTypeMapper) MapType(baseType string, context TypeContext, isArray
 	return mapped, nil
 }
 
-func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Check for enum
-	if param.Enum != nil {
-		typeName := param.Enum.Name
-		if param.IsArray() {
-			typeName = fmt.Sprintf("list[%s]", typeName)
-		}
-		return typeName, nil
-	}
+func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
 
-	// Check for function/delegate
-	if param.Prototype != nil {
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
 		return m.generateCallableType(param.Prototype)
+
+	default:
+		typeName = param.BaseType()
 	}
 
-	return m.MapType(param.BaseType(), context, param.IsArray())
+	return m.MapType(typeName, TypeContextValue, param.IsArray())
 }
 
-func (m *PythonTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
-	// Check for enum
-	if retType.Enum != nil {
-		typeName := retType.Enum.Name
-		if retType.IsArray() {
-			typeName = fmt.Sprintf("list[%s]", typeName)
-		}
-		return typeName, nil
-	}
+func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	var typeName string
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
 
-	// Check for function/delegate
-	if retType.Prototype != nil {
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return m.generateCallableType(retType.Prototype)
+
+	default:
+		typeName = retType.BaseType()
 	}
 
-	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (string, error) {
 	// Generate parameter types
 	paramTypes := []string{}
 	for _, param := range proto.ParamTypes {
-		pType, err := m.MapParamType(&param, TypeContextValue)
+		pType, err := m.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}

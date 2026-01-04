@@ -1,8 +1,6 @@
 package generator
 
 import (
-	"fmt"
-
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
 )
 
@@ -392,77 +390,74 @@ func (m *GolangTypeMapper) MapType(baseType string, context TypeContext, isArray
 		typeKey += "[]"
 	}
 
-	result, ok := m.typesMap[typeKey]
+	mapped, ok := m.typesMap[typeKey]
 	if !ok {
-		return "", fmt.Errorf("unsupported type: %s", typeKey)
-	}
-
-	return result, nil
-}
-
-// MapParamType implements TypeMapper interface
-func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Handle delegate/function types
-	if param.Type == "function" && param.Prototype != nil {
-		return param.Prototype.Name, nil
-	}
-
-	// Handle enum types
-	if param.Enum != nil {
-		enumName := param.Enum.Name
-		if param.Type[len(param.Type)-2:] == "[]" {
-			if param.Ref {
-				return "*[]" + enumName, nil
-			}
-			return "[]" + enumName, nil
+		mapped, ok = m.typesMap[baseType]
+		if !ok {
+			// Custom type (enum or delegate)
+			mapped = baseType
 		}
-		if param.Ref {
-			return "*" + enumName, nil
+		if isArray {
+			mapped = "[]" + mapped
 		}
-		return enumName, nil
-	}
-
-	// Get base type
-	goType, err := m.MapType(param.Type, context, false)
-	if err != nil {
-		return "", err
 	}
 
 	// Handle reference parameters
-	if param.Ref {
-		return "*" + goType, nil
+	if context == TypeContextRef && baseType != "void" {
+		mapped = "*" + mapped
 	}
 
-	return goType, nil
+	return mapped, nil
+}
+
+// MapParamType implements TypeMapper interface
+func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
+	// Regular type mapping
+	ctx := TypeContextValue
+	if param.Ref {
+		ctx = TypeContextRef
+	}
+
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
+
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
+		return param.Prototype.Name, nil
+
+	default:
+		typeName = param.BaseType()
+	}
+
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
 // MapReturnType implements TypeMapper interface
-func (m *GolangTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
+func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
 	if retType == nil || retType.Type == "void" {
 		return "", nil
 	}
 
-	// Handle delegate/function types
-	if retType.Type == "function" && retType.Prototype != nil {
+	var typeName string
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
+
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
 	}
 
-	// Handle enum types
-	if retType.Enum != nil {
-		enumName := retType.Enum.Name
-		if retType.Type[len(retType.Type)-2:] == "[]" {
-			return "[]" + enumName, nil
-		}
-		return enumName, nil
-	}
-
-	// Get base type
-	goType, err := m.MapType(retType.Type, TypeContextReturn, false)
-	if err != nil {
-		return "", err
-	}
-
-	return goType, nil
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 // MapHandleType implements TypeMapper interface

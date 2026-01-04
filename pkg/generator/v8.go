@@ -551,7 +551,7 @@ func (g *V8Generator) applyParamAliases(formattedParams string, params []manifes
 	return result
 }
 
-func (g *V8Generator) generateReturnType(retType *manifest.TypeInfo, params []manifest.ParamType) (string, error) {
+func (g *V8Generator) generateReturnType(retType *manifest.RetType, params []manifest.ParamType) (string, error) {
 	// Check if any parameters are ref (out parameters)
 	hasRef := false
 	for _, param := range params {
@@ -574,7 +574,7 @@ func (g *V8Generator) generateReturnType(retType *manifest.TypeInfo, params []ma
 	types := []string{baseRetType}
 	for _, param := range params {
 		if param.Ref {
-			paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+			paramType, err := g.typeMapper.MapParamType(&param)
 			if err != nil {
 				return "", err
 			}
@@ -597,7 +597,7 @@ func (g *V8Generator) formatTSParameters(params []manifest.ParamType) (string, e
 			result += ", "
 		}
 
-		typeName, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		typeName, err := g.typeMapper.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}
@@ -616,7 +616,7 @@ type JSDocOptions struct {
 	Description  string
 	Params       []manifest.ParamType
 	ParamAliases []*manifest.ParamAlias
-	RetType      *manifest.TypeInfo
+	RetType      *manifest.RetType
 	Indent       string // "  " for top-level, "    " for class methods
 }
 
@@ -725,42 +725,44 @@ func (m *V8TypeMapper) MapType(baseType string, context TypeContext, isArray boo
 	return mapped, nil
 }
 
-func (m *V8TypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Check for enum type first
-	if param.Enum != nil {
-		typeName := param.Enum.Name
-		if param.IsArray() {
-			typeName = typeName + "[]"
-		}
-		return typeName, nil
-	}
+func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
 
-	// Check for function/delegate type
-	if param.Prototype != nil {
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
 		return param.Prototype.Name, nil
+
+	default:
+		typeName = param.BaseType()
 	}
 
 	// Regular type mapping
-	return m.MapType(param.BaseType(), context, param.IsArray())
+	return m.MapType(typeName, TypeContextValue, param.IsArray())
 }
 
-func (m *V8TypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
-	// Check for enum type
-	if retType.Enum != nil {
-		typeName := retType.Enum.Name
-		if retType.IsArray() {
-			typeName = typeName + "[]"
-		}
-		return typeName, nil
-	}
+func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	var typeName string
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
 
-	// Check for function/delegate type
-	if retType.Prototype != nil {
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
 	}
 
 	// Regular type mapping
-	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

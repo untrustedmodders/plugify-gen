@@ -287,7 +287,7 @@ func (g *DotnetGenerator) generateDocumentation(method *manifest.Method) string 
 
 func (g *DotnetGenerator) formatManagedTypes(method *manifest.Method) (string, error) {
 	typesStr, err := g.formatParameters(method.ParamTypes, func(_ int, param *manifest.ParamType) (string, error) {
-		return g.typeMapper.MapParamType(param, TypeContextValue)
+		return g.typeMapper.MapParamType(param)
 	})
 	if err != nil {
 		return "", err
@@ -327,7 +327,7 @@ func (g *DotnetGenerator) formatUnmanagedTypes(method *manifest.Method) (string,
 
 func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (string, error) {
 	return g.formatParameters(params, func(_ int, param *manifest.ParamType) (string, error) {
-		typeName, err := g.typeMapper.MapParamType(param, TypeContextValue)
+		typeName, err := g.typeMapper.MapParamType(param)
 		if err != nil {
 			return "", err
 		}
@@ -1021,7 +1021,7 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 			formattedParams += ", "
 		}
 
-		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, err := g.typeMapper.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}

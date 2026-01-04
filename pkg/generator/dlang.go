@@ -232,7 +232,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 type DDocOptions struct {
 	Description string
 	Params      []manifest.ParamType
-	RetType     *manifest.TypeInfo
+	RetType     *manifest.RetType
 	Indent      string // "" for top-level, "\t" for class members
 	AddThrows   bool   // Whether to add "Throws: Exception if handle is null"
 }
@@ -412,13 +412,13 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 	params := []string{}
 	for _, param := range proto.ParamTypes {
 		paramName := param.Name
-		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, err := g.typeMapper.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}
 
 		// Convert to C ABI type
-		cType, err := g.toCType(paramType, &manifest.TypeInfo{
+		cType, err := g.toCType(paramType, &manifest.RetType{
 			Type: param.Type,
 			Enum: param.Enum,
 		}, param.Ref)
@@ -462,7 +462,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 	params := []string{}
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
-		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, err := g.typeMapper.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}
@@ -484,10 +484,10 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 
 	for i, param := range method.ParamTypes {
 		paramName := param.Name
-		paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, _ := g.typeMapper.MapParamType(&param)
 
 		// Check if we need conversion
-		cType, _ := g.toCType(paramType, &manifest.TypeInfo{
+		cType, _ := g.toCType(paramType, &manifest.RetType{
 			Type: param.Type,
 			Enum: param.Enum,
 		}, param.Ref)
@@ -557,9 +557,9 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method, pluginName
 	params := []string{}
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
-		paramType, _ := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, _ := g.typeMapper.MapParamType(&param)
 
-		cType, _ := g.toCType(paramType, &manifest.TypeInfo{
+		cType, _ := g.toCType(paramType, &manifest.RetType{
 			Type: param.Type,
 			Enum: param.Enum,
 		}, param.Ref)
@@ -589,7 +589,7 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method, pluginName
 }
 
 // toCType converts D native types to C ABI types
-func (g *DlangGenerator) toCType(nativeType string, typeInfo *manifest.TypeInfo, isRef bool) (string, error) {
+func (g *DlangGenerator) toCType(nativeType string, typeInfo *manifest.RetType, isRef bool) (string, error) {
 	// Map native types to C types
 	typeMap := map[string]string{
 		"void":     "void",
@@ -820,7 +820,7 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 	params := []string{}
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
-		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, err := g.typeMapper.MapParamType(&param)
 		if err != nil {
 			return "", err
 		}
@@ -897,7 +897,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	paramStrs := []string{}
 	for i, param := range methodParams {
 		paramName := param.Name
-		paramType, err := g.typeMapper.MapParamType(&param, TypeContextValue)
+		paramType, err := g.typeMapper.MapParamType(&param)
 		paramRef := param.Ref
 		paramMode := "ref"
 		if err != nil {
@@ -1034,42 +1034,50 @@ func (m *DlangTypeMapper) MapType(baseType string, context TypeContext, isArray 
 	return mapped, nil
 }
 
-func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Check for enum type first
-	if param.Enum != nil {
-		typeName := param.Enum.Name
-		if param.IsArray() {
-			typeName = typeName + "[]"
-		}
-		return typeName, nil
+func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
+	// Regular type mapping
+	ctx := TypeContextValue
+	if param.Ref {
+		ctx = TypeContextRef
 	}
 
-	// Check for function/delegate type
-	if param.Prototype != nil {
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
+
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
 		return param.Prototype.Name, nil
+
+	default:
+		typeName = param.BaseType()
 	}
 
 	// Regular type mapping
-	return m.MapType(param.BaseType(), context, param.IsArray())
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
-func (m *DlangTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
-	// Check for enum type
-	if retType.Enum != nil {
-		typeName := retType.Enum.Name
-		if retType.IsArray() {
-			typeName = typeName + "[]"
-		}
-		return typeName, nil
-	}
+func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	var typeName string
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
 
-	// Check for function/delegate type
-	if retType.Prototype != nil {
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
 	}
 
 	// Regular type mapping
-	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

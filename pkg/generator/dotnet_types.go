@@ -244,57 +244,56 @@ func (m *DotnetTypeMapper) MapType(baseType string, context TypeContext, isArray
 		}
 	}
 
+	// Handle reference context (ref=true parameters)
+	if context == TypeContextRef && baseType != "void" {
+		mapped = "ref " + mapped
+	}
+
 	return mapped, nil
 }
 
-func (m *DotnetTypeMapper) MapParamType(param *manifest.ParamType, context TypeContext) (string, error) {
-	// Check for enum
-	if param.Enum != nil {
-		typeName := param.Enum.Name
-		if param.IsArray() {
-			typeName = typeName + "[]"
-		}
-		if param.Ref {
-			return "ref " + typeName, nil
-		}
-		return typeName, nil
-	}
-
-	// Check for delegate
-	if param.Prototype != nil {
-		return param.Prototype.Name, nil
-	}
-
-	// Regular type
-	typeName, err := m.MapType(param.BaseType(), context, param.IsArray())
-	if err != nil {
-		return "", err
-	}
-
-	// Apply ref modifier for all types when ref is true
+func (m *DotnetTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
+	// Regular type mapping
+	ctx := TypeContextValue
 	if param.Ref {
-		return "ref " + typeName, nil
+		ctx = TypeContextRef
 	}
 
-	return typeName, nil
+	var typeName string
+	switch {
+	case param.Enum != nil:
+		typeName = param.Enum.Name
+
+	case param.Alias != nil:
+		typeName = *param.Alias
+
+	case param.Prototype != nil:
+		return param.Prototype.Name, nil
+
+	default:
+		typeName = param.BaseType()
+	}
+
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
-func (m *DotnetTypeMapper) MapReturnType(retType *manifest.TypeInfo) (string, error) {
-	// Check for enum
-	if retType.Enum != nil {
-		typeName := retType.Enum.Name
-		if retType.IsArray() {
-			typeName = typeName + "[]"
-		}
-		return typeName, nil
-	}
+func (m *DotnetTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	var typeName string
+	switch {
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
 
-	// Check for delegate
-	if retType.Prototype != nil {
+	case retType.Alias != nil:
+		typeName = *retType.Alias
+
+	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
 	}
 
-	return m.MapType(retType.BaseType(), TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
@@ -349,7 +348,7 @@ func (m *DotnetTypeMapper) MapDelegateParamType(param *manifest.ParamType) (stri
 }
 
 // MapDelegateReturnType maps return type for delegate definitions
-func (m *DotnetTypeMapper) MapDelegateReturnType(retType *manifest.TypeInfo) (string, error) {
+func (m *DotnetTypeMapper) MapDelegateReturnType(retType *manifest.RetType) (string, error) {
 	// Same as regular return type
 	return m.MapReturnType(retType)
 }
@@ -396,7 +395,7 @@ func (m *DotnetTypeMapper) MapUnmanagedParamType(param *manifest.ParamType) (str
 }
 
 // MapUnmanagedReturnType maps return type for unmanaged function pointer declarations
-func (m *DotnetTypeMapper) MapUnmanagedReturnType(retType *manifest.TypeInfo) (string, error) {
+func (m *DotnetTypeMapper) MapUnmanagedReturnType(retType *manifest.RetType) (string, error) {
 	// Check for enum
 	if retType.Enum != nil && !retType.IsArray() {
 		return retType.Enum.Name, nil
