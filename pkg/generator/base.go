@@ -51,15 +51,15 @@ type GeneratorResult struct {
 // DocOptions holds common documentation generation options
 // This provides a unified interface for documentation across different language generators
 type DocOptions struct {
-	Indent           string                 // Indentation string (e.g., "\t", "  ")
-	Summary          string                 // Summary/brief description
-	Description      string                 // Detailed description
-	Deprecated       string                 // Detailed deprecation message
-	Params           []manifest.ParamType   // Method parameters
-	ParamAliases     []*manifest.ParamAlias // Parameter aliases for type substitution
-	Returns          string                 // Return value description
-	RetType          manifest.RetType       // Return type information
-	RetAlias         *manifest.RetAlias     // Return value alias
+	Indent       string                 // Indentation string (e.g., "\t", "  ")
+	Summary      string                 // Summary/brief description
+	Description  string                 // Detailed description
+	Deprecated   string                 // Detailed deprecation message
+	Params       []manifest.ParamType   // Method parameters
+	ParamAliases []*manifest.ParamAlias // Parameter aliases for type substitution
+	//Returns          string                 // Return value description
+	RetType          manifest.RetType   // Return type information
+	RetAlias         *manifest.RetAlias // Return value alias
 	IncludeCallbacks bool
 	AddThrows        bool
 }

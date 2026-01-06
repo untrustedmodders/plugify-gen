@@ -118,9 +118,20 @@ func (g *CppGenerator) generateDocumentation(opts DocOptions) string {
 		sb.WriteString("\n")
 	}
 
-	// Return type
-	if opts.Returns != "" {
-		sb.WriteString(fmt.Sprintf("%s * @return %s\n", opts.Indent, opts.Returns))
+	// Return type section
+	if opts.RetType.Type != "void" {
+		returnType := opts.RetType.Type
+
+		// Apply return alias if provided
+		if opts.RetAlias != nil && opts.RetAlias.Name != "" {
+			returnType = opts.RetAlias.Name
+		}
+
+		sb.WriteString(fmt.Sprintf("%s * @return %s", opts.Indent, returnType))
+		if opts.RetType.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", opts.RetType.Description))
+		}
+		sb.WriteString("\n")
 	}
 
 	sb.WriteString(fmt.Sprintf("%s */\n", opts.Indent))
@@ -373,20 +384,11 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 	sb.WriteString(fmt.Sprintf("extern \"C\" PLUGIN_API %s::_%s __%s_%s;\n", pluginName, method.Name, pluginName, method.Name))
 	sb.WriteString(fmt.Sprintf("namespace %s {\n", pluginName))
 
-	// Generate documentation comment
-	returns := ""
-	if method.RetType.Type != "void" {
-		returns = method.RetType.Type
-		if method.RetType.Description != "" {
-			returns += ": " + method.RetType.Description
-		}
-	}
-
 	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
 		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
-		Returns:     returns,
+		RetType:     method.RetType,
 		Indent:      "  ",
 	}))
 
@@ -586,19 +588,6 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	}
 	methodParams := params[startIdx:]
 
-	// Generate documentation
-	returns := ""
-	if method.RetType.Type != "void" {
-		returnType := method.RetType.Type
-		if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-			returnType = binding.RetAlias.Name
-		}
-		returns = returnType
-		if method.RetType.Description != "" {
-			returns += ": " + method.RetType.Description
-		}
-	}
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
@@ -609,7 +598,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		Description:  method.Description,
 		Deprecated:   deprecationReason,
 		Params:       methodParams,
-		Returns:      returns,
+		RetType:      method.RetType,
 		ParamAliases: binding.ParamAliases,
 		Indent:       "    ",
 	}))

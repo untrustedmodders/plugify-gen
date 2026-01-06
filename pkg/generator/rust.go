@@ -104,10 +104,10 @@ func (g *RustGenerator) generateDocumentation(opts DocOptions) string {
 	}
 
 	// Returns
-	if opts.Returns != "" {
+	if opts.RetType.Type != "void" && opts.RetType.Description != "" {
 		sb.WriteString(fmt.Sprintf("%s///\n", opts.Indent))
 		sb.WriteString(fmt.Sprintf("%s/// # Returns\n", opts.Indent))
-		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.Returns))
+		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.RetType.Description))
 	}
 
 	// Add deprecation attribute if present
@@ -247,20 +247,11 @@ func (g *RustGenerator) formatRustParams(params []manifest.ParamType, includeNam
 func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
-	// Generate documentation comment
-	returns := ""
-	if method.RetType.Type != "void" {
-		returns = method.RetType.Type
-		if method.RetType.Description != "" {
-			returns += ": " + method.RetType.Description
-		}
-	}
-
 	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
 		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
-		Returns:     returns,
+		RetType:     method.RetType,
 		Indent:      "",
 	}))
 
@@ -937,12 +928,6 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 	}
 	methodParams := params[startIdx:]
 
-	// Generate documentation
-	returns := ""
-	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		returns = method.RetType.Description
-	}
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
@@ -953,7 +938,7 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 		Description: method.Description,
 		Deprecated:  deprecationReason,
 		Params:      methodParams,
-		Returns:     returns,
+		RetType:     method.RetType,
 		Indent:      "    ",
 	}))
 

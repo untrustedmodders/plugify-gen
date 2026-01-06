@@ -70,8 +70,8 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	return result, nil
 }
 
-// generateXmlDocumentation generates XML documentation comments
-func (g *DotnetGenerator) generateXmlDocumentation(opts DocOptions) string {
+// generateDocumentation generates XML documentation comments
+func (g *DotnetGenerator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	// Summary
@@ -97,9 +97,9 @@ func (g *DotnetGenerator) generateXmlDocumentation(opts DocOptions) string {
 	}
 
 	// Returns
-	if opts.Returns != "" {
+	if opts.RetType.Type != "void" && opts.RetType.Description != "" {
 		sb.WriteString(fmt.Sprintf("%s/// <returns>%s</returns>\n",
-			opts.Indent, opts.Returns))
+			opts.Indent, opts.RetType.Description))
 	}
 
 	// Add deprecation attribute if present
@@ -150,7 +150,7 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.Enum, underlyingType strin
 
 	// XML documentation
 	if enum.Description != "" {
-		sb.WriteString(g.generateXmlDocumentation(DocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Indent:  "\t",
 			Summary: enum.Description,
 		}))
@@ -160,7 +160,7 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.Enum, underlyingType strin
 
 	for i, val := range enum.Values {
 		if val.Description != "" {
-			sb.WriteString(g.generateXmlDocumentation(DocOptions{
+			sb.WriteString(g.generateDocumentation(DocOptions{
 				Indent:  "\t\t",
 				Summary: val.Description,
 			}))
@@ -185,7 +185,7 @@ func (g *DotnetGenerator) generateAlias(alias *manifest.Alias, underlyingType st
 
 	// XML documentation
 	if alias.Description != "" {
-		sb.WriteString(g.generateXmlDocumentation(DocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Indent:  "\t",
 			Summary: alias.Description,
 		}))
@@ -205,7 +205,7 @@ func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 
 	// XML documentation
 	if proto.Description != "" {
-		sb.WriteString(g.generateXmlDocumentation(DocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Indent:  "\t",
 			Summary: proto.Description,
 		}))
@@ -238,11 +238,21 @@ func (g *DotnetGenerator) formatDelegateParameters(params []manifest.ParamType) 
 	})
 }
 
-func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName string) (string, error) {
+func (g *DotnetGenerator) generateMethod(method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
 	// XML documentation
-	sb.WriteString(g.generateDocumentation(method))
+	summary := method.Description
+	if summary == "" {
+		summary = method.Name
+	}
+
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Indent:  "\t\t",
+		Summary: summary,
+		Params:  method.ParamTypes,
+		RetType: method.RetType,
+	}))
 
 	// Generate function pointer declarations
 	managedTypes, err := g.formatManagedTypes(method)
@@ -287,25 +297,6 @@ func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName str
 	sb.WriteString("\t\t}\n")
 
 	return sb.String(), nil
-}
-
-func (g *DotnetGenerator) generateDocumentation(method *manifest.Method) string {
-	summary := method.Description
-	if summary == "" {
-		summary = method.Name
-	}
-
-	returns := ""
-	if method.RetType.Type != "void" && method.RetType.Description != "" {
-		returns = method.RetType.Description
-	}
-
-	return g.generateXmlDocumentation(DocOptions{
-		Indent:  "\t\t",
-		Summary: summary,
-		Params:  method.ParamTypes,
-		Returns: returns,
-	})
 }
 
 func (g *DotnetGenerator) formatManagedTypes(method *manifest.Method) (string, error) {
@@ -771,7 +762,7 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			summary = "Static utility class for " + class.Name
 		}
 	}
-	sb.WriteString(g.generateXmlDocumentation(DocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Deprecated: class.Deprecated,
 		Indent:     "\t",
 		Summary:    summary,
@@ -948,7 +939,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	if summary == "" {
 		summary = "Creates a new " + class.Name + " instance"
 	}
-	sb.WriteString(g.generateXmlDocumentation(DocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Indent:     "\t\t",
 		Summary:    summary,
 		Deprecated: method.Deprecated,
@@ -1008,29 +999,17 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		summary = binding.Name
 	}
 
-	returns := ""
-	if method.RetType.Type != "void" {
-		returns = method.RetType.Description
-		if returns == "" {
-			if binding.RetAlias != nil && binding.RetAlias.Name != "" {
-				returns = binding.RetAlias.Name + " instance"
-			} else {
-				returns = "Return value"
-			}
-		}
-	}
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
 
-	sb.WriteString(g.generateXmlDocumentation(DocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Indent:       "\t\t",
 		Summary:      summary,
 		Params:       methodParams,
-		Returns:      returns,
+		RetType:      method.RetType,
 		ParamAliases: binding.ParamAliases,
 		Deprecated:   deprecationReason,
 	}))
@@ -1308,7 +1287,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 	for _, method := range m.Methods {
 		methodGroup := method.Group
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethod(&method, m.Name)
+			methodCode, err := g.generateMethod(&method)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
 			}
