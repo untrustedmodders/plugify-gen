@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.1.2](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.1...v1.1.2) (2026-01-06)
+
+
+### Bug Fixes
+
+* add alias generator ([bb87691](https://github.com/untrustedmodders/plugify-gen/commit/bb87691d7f1c9d2ebe8f4c45fe92587de8dccb37))
+* add alias generator (2) ([2d4a974](https://github.com/untrustedmodders/plugify-gen/commit/2d4a9742ecfa95fb5026442b8f71c7c9404ebc69))
+* add support of handless wrappers ([87cb505](https://github.com/untrustedmodders/plugify-gen/commit/87cb5050d883f50ded3a193eed910e1b30385ce3))
+* add wasm versioning ([046f344](https://github.com/untrustedmodders/plugify-gen/commit/046f34410bb8f68ffd68c2c81911bbb56ea4bf1b))
+* allow classes constructed without ctors ([5cbd2a4](https://github.com/untrustedmodders/plugify-gen/commit/5cbd2a498744de7113d86a63729a1aa3bff2bb72))
+* allow paramAlias be null ([c40ecea](https://github.com/untrustedmodders/plugify-gen/commit/c40ecea8695c484e92cd4c914a3388649ae7efd1))
+* **claude:** add deprecation feature ([22aa5f3](https://github.com/untrustedmodders/plugify-gen/commit/22aa5f3eb5719ab484b7eccd344e80bb8088a518))
+* **claude:** add deprecation feature to classes ([5d94397](https://github.com/untrustedmodders/plugify-gen/commit/5d94397014dcf86c6f916e18e5fe02e85aaa9b1a))
+* **claude:** add rust class gen ([b9d9c61](https://github.com/untrustedmodders/plugify-gen/commit/b9d9c61aba5c40d455e3cd30aa835ea174624101))
+* **claude:** add rust class gen ([d9ae20c](https://github.com/untrustedmodders/plugify-gen/commit/d9ae20c14e5c9e6214cceb171448cb927e6e9b66))
+* **claude:** add rust class gen ([977d43f](https://github.com/untrustedmodders/plugify-gen/commit/977d43ff10bd0a699f2ee9db7b1af8d42b0b35f3))
+* **claude:** add rust generator ([804b335](https://github.com/untrustedmodders/plugify-gen/commit/804b33555d823f6209de35d8e5d9ea580c643ce8))
+* **claude:** fix toggle of classes for already generated code ([29d26b6](https://github.com/untrustedmodders/plugify-gen/commit/29d26b692d1410c124dd00362fd92540795a477d))
+* **claude:** make class gen optional ([7abd0c4](https://github.com/untrustedmodders/plugify-gen/commit/7abd0c43c064aa74217756e5e524b1b6d8a0317d))
+* **claude:** more refactor ([ba747c0](https://github.com/untrustedmodders/plugify-gen/commit/ba747c0a602904f48b7772ad6018e18bc90f1066))
+* **claude:** more refactor ([012c353](https://github.com/untrustedmodders/plugify-gen/commit/012c353daff3b84c5a70099a6a2b1c0dff5f056d))
+* **claude:** remove dublicates code ([d09f466](https://github.com/untrustedmodders/plugify-gen/commit/d09f466f8e15fe63eb9f11aa749d10f0df9c74c5))
+* **claude:** small refactor ([dd23f98](https://github.com/untrustedmodders/plugify-gen/commit/dd23f98fc0b419f40b6d20a1e6b3d1adbb217b71))
+* **claude:** split cxx and cpp ([6ecbb2e](https://github.com/untrustedmodders/plugify-gen/commit/6ecbb2ef599c1ca7ef05f7dc2c4f080c54304252))
+* **claude:** split cxx and cpp ([4a7c451](https://github.com/untrustedmodders/plugify-gen/commit/4a7c451714cc6bbf967df48cc6b7fdfc51f21dff))
+* cleanup sanitizer ([54215ad](https://github.com/untrustedmodders/plugify-gen/commit/54215ad58532a81a598e016f7f1ac192d789dc02))
+* cpp static methods calls ([77339e5](https://github.com/untrustedmodders/plugify-gen/commit/77339e5f116bd7fc2a99417a659380922dcc7c91))
+* dotnet ctors ([0a83ee0](https://github.com/untrustedmodders/plugify-gen/commit/0a83ee023b0349c137237ac38d17b4cbda67fc82))
+* enum types ([7e55c02](https://github.com/untrustedmodders/plugify-gen/commit/7e55c028f7eb74970622286b9e0418e2dff57abb))
+* html fixes ([c9745cb](https://github.com/untrustedmodders/plugify-gen/commit/c9745cb7475a1cf0772a3a9770e4f727d6cb8858))
+* improve golang static method gen ([3ed468a](https://github.com/untrustedmodders/plugify-gen/commit/3ed468ab6e3fe520ad6e3c27c1512a83484a931f))
+* improve handle type getters ([7db73de](https://github.com/untrustedmodders/plugify-gen/commit/7db73debc14d1f497f3c0f8a39bb8848d3fa9811))
+* improve sanitizer ([3545381](https://github.com/untrustedmodders/plugify-gen/commit/35453812e63c5fb0ca0a67230abb0ec4bb9f902b))
+* make ctor public in golang ([79886ac](https://github.com/untrustedmodders/plugify-gen/commit/79886ac41f676a535ef775e6b66656c72edde629))
+* more code gen improvements ([94750f7](https://github.com/untrustedmodders/plugify-gen/commit/94750f783eba86b78e986b6d47c1120654758277))
+* more code gen improvements ([bc6a8dc](https://github.com/untrustedmodders/plugify-gen/commit/bc6a8dc8bdf3c8fa922e0e3027bfbf7fb73a0c7a))
+* more code gen improvements ([a644892](https://github.com/untrustedmodders/plugify-gen/commit/a6448921580494a4d299fbcfbf4499d5ad093da9))
+* more improvement with ctors ([9499b19](https://github.com/untrustedmodders/plugify-gen/commit/9499b198a0c26f1f6a50f718dc455a820dae9c06))
+* more refactor ([9d7f6a9](https://github.com/untrustedmodders/plugify-gen/commit/9d7f6a990060271f0e1cb53b89c59b98105833e5))
+* more refactor ([66c142e](https://github.com/untrustedmodders/plugify-gen/commit/66c142ed1b4b6a01a4766f761c97f7846d0546c2))
+* more refactor ([5119ef3](https://github.com/untrustedmodders/plugify-gen/commit/5119ef3553a97bea4dff30a9b57e956d148ac22a))
+* more refactor ([cc64b40](https://github.com/untrustedmodders/plugify-gen/commit/cc64b40ecb88a99f5a5bb8f71ccfdff47b6bad28))
+* more refactor ([7d65139](https://github.com/untrustedmodders/plugify-gen/commit/7d6513916a32dcec73d11dcbfc8bc10ea7117761))
+* remove code dublication ([02462de](https://github.com/untrustedmodders/plugify-gen/commit/02462def62dc26608c3b9b8d4799338574e106ff))
+* rework enum and generator gens ([03133b7](https://github.com/untrustedmodders/plugify-gen/commit/03133b7bf86bfda7ea9d15c553636121912ea718))
+* small code refactor ([0d2d06e](https://github.com/untrustedmodders/plugify-gen/commit/0d2d06e86e13f61a8c5bdc44027d5701690e9269))
+* some cpp and rust improvements ([5330616](https://github.com/untrustedmodders/plugify-gen/commit/53306161899d92e82797bac17808823ccf174901))
+
 ## [1.1.1](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.0...v1.1.1) (2025-12-01)
 
 
