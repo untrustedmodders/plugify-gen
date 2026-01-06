@@ -270,17 +270,8 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	return sb.String(), nil
 }
 
-// DDocOptions configures DDoc-style documentation generation for D
-type DDocOptions struct {
-	Description string
-	Params      []manifest.ParamType
-	RetType     *manifest.RetType
-	Indent      string // "" for top-level, "\t" for class members
-	AddThrows   bool   // Whether to add "Throws: Exception if handle is null"
-}
-
-// generateDDoc generates DDoc-style comments for D language
-func (g *DlangGenerator) generateDDoc(opts DDocOptions) string {
+// generateDocumentation generates DDoc-style comments for D language
+func (g *DlangGenerator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	sb.WriteString(opts.Indent + "/++\n")
@@ -300,7 +291,7 @@ func (g *DlangGenerator) generateDDoc(opts DDocOptions) string {
 	}
 
 	// Return type section
-	if opts.RetType != nil && opts.RetType.Type != "void" {
+	if opts.RetType.Type != "void" {
 		if len(opts.Params) > 0 || opts.Description != "" {
 			sb.WriteString(opts.Indent + "\n")
 		}
@@ -319,6 +310,12 @@ func (g *DlangGenerator) generateDDoc(opts DDocOptions) string {
 	}
 
 	sb.WriteString(opts.Indent + "+/\n")
+
+	// Add deprecation attribute if present
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("\tdeprecated(\"%s\")\n", opts.Deprecated))
+	}
+
 	return sb.String()
 }
 
@@ -430,7 +427,7 @@ func (g *DlangGenerator) generatePrivateHelpers(className, invalidValue, destruc
 func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
-	sb.WriteString(g.generateDDoc(DDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: proto.Description,
 		Params:      proto.ParamTypes,
 		Indent:      "",
@@ -451,7 +448,7 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 	sb.WriteString(fmt.Sprintf("alias %s = extern (C) %s function(", proto.Name, cRetType))
 
 	// Generate parameters
-	params := []string{}
+	var params []string
 	for _, param := range proto.ParamTypes {
 		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param)
@@ -485,17 +482,13 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 	var sb strings.Builder
 
 	// Documentation
-	sb.WriteString(g.generateDDoc(DDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
-		RetType:     &method.RetType,
+		RetType:     method.RetType,
 		Indent:      "",
 	}))
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("deprecated(\"%s\")\n", method.Deprecated))
-	}
 
 	// Function signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
@@ -506,7 +499,7 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 	sb.WriteString(fmt.Sprintf("%s %s(", retType, method.Name))
 
 	// Parameters
-	params := []string{}
+	var params []string
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param)
@@ -601,7 +594,7 @@ func (g *DlangGenerator) generateMethodAlias(method *manifest.Method, pluginName
 	sb.WriteString(fmt.Sprintf("alias _%s = extern (C) %s function(", method.Name, cRetType))
 
 	// Parameters
-	params := []string{}
+	var params []string
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
 		paramType, _ := g.typeMapper.MapParamType(&param)
@@ -724,25 +717,11 @@ func (g *DlangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cla
 	}
 
 	// Class documentation
-	sb.WriteString("/**\n")
-	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf(" * %s\n", class.Description))
-	}
-	if hasHandle {
-		if hasDtor {
-			sb.WriteString(fmt.Sprintf(" * RAII wrapper for %s handle.\n", class.Name))
-		} else {
-			sb.WriteString(fmt.Sprintf(" * Wrapper for %s handle.\n", class.Name))
-		}
-	} else {
-		sb.WriteString(fmt.Sprintf(" * Static utility class for %s.\n", class.Name))
-	}
-	sb.WriteString(" */\n")
-
-	// Add deprecation attribute if present
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("deprecated(\"%s\")\n", class.Deprecated))
-	}
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description: class.Description,
+		Deprecated:  class.Deprecated,
+		Indent:      "",
+	}))
 
 	// Struct declaration
 	sb.WriteString(fmt.Sprintf("struct %s {\n", class.Name))
@@ -859,22 +838,18 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 		description = fmt.Sprintf("Creates a new %s instance", class.Name)
 	}
 
-	sb.WriteString(g.generateDDoc(DDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
 		Indent:      "\t",
 	}))
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("\tdeprecated(\"%s\")\n", method.Deprecated))
-	}
 
 	// Constructor signature
 	sb.WriteString("\tthis(")
 
 	// Parameters
-	params := []string{}
+	var params []string
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param)
@@ -893,7 +868,7 @@ func (g *DlangGenerator) generateConstructor(m *manifest.Manifest, class *manife
 	sb.WriteString(") {\n")
 
 	// Constructor body - call the method and capture handle
-	callArgs := []string{}
+	var callArgs []string
 	for _, param := range method.ParamTypes {
 		paramName := param.Name
 		callArgs = append(callArgs, paramName)
@@ -924,23 +899,21 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	}
 	methodParams := params[startIdx:]
 
-	// Generate documentation
-	sb.WriteString(g.generateDDoc(DDocOptions{
-		Description: method.Description,
-		Params:      methodParams,
-		RetType:     &method.RetType,
-		Indent:      "\t",
-		AddThrows:   binding.BindSelf,
-	}))
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
-	if deprecationReason != "" {
-		sb.WriteString(fmt.Sprintf("\tdeprecated(\"%s\")\n", deprecationReason))
-	}
+
+	// Generate documentation
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description: method.Description,
+		Deprecated:  deprecationReason,
+		Params:      methodParams,
+		RetType:     method.RetType,
+		Indent:      "\t",
+		AddThrows:   binding.BindSelf,
+	}))
 
 	// Method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
@@ -960,7 +933,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	}
 
 	// Parameters (excluding self if bindSelf)
-	paramStrs := []string{}
+	var paramStrs []string
 	for i, param := range methodParams {
 		paramName := param.Name
 		paramType, err := g.typeMapper.MapParamType(&param)
@@ -1000,7 +973,7 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 	}
 
 	// Build call arguments
-	callArgs := []string{}
+	var callArgs []string
 	if binding.BindSelf {
 		callArgs = append(callArgs, "_handle")
 	}

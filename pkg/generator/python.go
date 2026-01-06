@@ -325,7 +325,7 @@ func (g *PythonGenerator) generateConstructor(m *manifest.Manifest, class *manif
 
 	// Generate docstring
 	if method.Description != "" {
-		sb.WriteString(g.generatePythonDocstring(PythonDocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: method.Description,
 			Params:      method.ParamTypes,
 			Indent:      "    ",
@@ -404,11 +404,11 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 
 	// Generate docstring
 	if method.Description != "" {
-		sb.WriteString(g.generatePythonDocstring(PythonDocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description:  method.Description,
 			Params:       methodParams,
 			ParamAliases: binding.ParamAliases,
-			RetType:      &method.RetType,
+			RetType:      method.RetType,
 			RetAlias:     binding.RetAlias,
 			Indent:       "    ",
 		}))
@@ -534,19 +534,8 @@ func (g *PythonGenerator) generateReturnType(retType *manifest.RetType, params [
 	return fmt.Sprintf("tuple[%s]", strings.Join(types, ", ")), nil
 }
 
-// PythonDocOptions configures Python docstring generation
-type PythonDocOptions struct {
-	Description      string
-	Params           []manifest.ParamType
-	ParamAliases     []*manifest.ParamAlias
-	RetType          *manifest.RetType
-	RetAlias         *manifest.RetAlias
-	IncludeCallbacks bool
-	Indent           string // "    " for class methods, "" for top-level
-}
-
-// generatePythonDocstring generates a Python docstring with Args and Returns sections
-func (g *PythonGenerator) generatePythonDocstring(opts PythonDocOptions) string {
+// generateDocumentation generates a Python docstring with Args and Returns sections
+func (g *PythonGenerator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	sb.WriteString(opts.Indent + "    \"\"\"\n")
@@ -572,7 +561,7 @@ func (g *PythonGenerator) generatePythonDocstring(opts PythonDocOptions) string 
 	}
 
 	// Return type section
-	if opts.RetType != nil && opts.RetType.Type != "void" {
+	if opts.RetType.Type != "void" {
 		returnType := opts.RetType.Type
 
 		// Apply return alias if provided
@@ -612,10 +601,11 @@ func (g *PythonGenerator) generatePythonDocstring(opts PythonDocOptions) string 
 }
 
 func (g *PythonGenerator) generateDocstring(method *manifest.Method) string {
-	return g.generatePythonDocstring(PythonDocOptions{
+	return g.generateDocumentation(DocOptions{
 		Description:      method.Description,
+		Deprecated:       method.Deprecated,
 		Params:           method.ParamTypes,
-		RetType:          &method.RetType,
+		RetType:          method.RetType,
 		IncludeCallbacks: true,
 		Indent:           "",
 	})

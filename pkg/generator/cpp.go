@@ -82,17 +82,8 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	return result, nil
 }
 
-// CppDocOptions configures C++ Doxygen documentation generation
-type CppDocOptions struct {
-	Description  string
-	Params       []manifest.ParamType
-	Returns      string
-	ParamAliases []*manifest.ParamAlias
-	Indent       string
-}
-
-// generateCppDocumentation generates C++ Doxygen-style documentation comments (/** */)
-func (g *CppGenerator) generateCppDocumentation(opts CppDocOptions) string {
+// generateDocumentation generates C++ Doxygen-style documentation comments (/** */)
+func (g *CppGenerator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("%s/**\n", opts.Indent))
@@ -133,6 +124,12 @@ func (g *CppGenerator) generateCppDocumentation(opts CppDocOptions) string {
 	}
 
 	sb.WriteString(fmt.Sprintf("%s */\n", opts.Indent))
+
+	// Add deprecation attribute if present
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("    [[deprecated(\"%s\")]]\n", opts.Deprecated))
+	}
+
 	return sb.String()
 }
 
@@ -385,17 +382,13 @@ func (g *CppGenerator) generateMethod(pluginName string, method *manifest.Method
 		}
 	}
 
-	sb.WriteString(g.generateCppDocumentation(CppDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
 		Returns:     returns,
 		Indent:      "  ",
 	}))
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("  [[deprecated(\"%s\")]]\n", method.Deprecated))
-	}
 
 	sb.WriteString(fmt.Sprintf("  inline %s %s(%s) {\n", retType, method.Name, formattedParams))
 	if method.RetType.Type == "void" {
@@ -453,16 +446,11 @@ func (g *CppGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	}
 
 	// Class documentation
-	sb.WriteString("  /**\n")
-	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("   * @brief %s\n", class.Description))
-	}
-	sb.WriteString("   */\n")
-
-	// Add deprecation attribute if present
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("  [[deprecated(\"%s\")]]\n", class.Deprecated))
-	}
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description: class.Description,
+		Deprecated:  class.Deprecated,
+		Indent:      "  ",
+	}))
 
 	// Class declaration
 	sb.WriteString(fmt.Sprintf("  class %s final {\n", class.Name))
@@ -555,8 +543,9 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	var sb strings.Builder
 
 	// Generate documentation
-	sb.WriteString(g.generateCppDocumentation(CppDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
 		Indent:      "    ",
 	}))
@@ -565,11 +554,6 @@ func (g *CppGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 	formattedParams, err := FormatParameters(method.ParamTypes, ParamFormatTypesAndNames, g.typeMapper)
 	if err != nil {
 		return "", err
-	}
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("    [[deprecated(\"%s\")]]\n", method.Deprecated))
 	}
 
 	sb.WriteString(fmt.Sprintf("    explicit %s(%s)\n", class.Name, formattedParams))
@@ -615,22 +599,20 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		}
 	}
 
-	sb.WriteString(g.generateCppDocumentation(CppDocOptions{
-		Description:  method.Description,
-		Params:       methodParams,
-		Returns:      returns,
-		ParamAliases: binding.ParamAliases,
-		Indent:       "    ",
-	}))
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
-	if deprecationReason != "" {
-		sb.WriteString(fmt.Sprintf("    [[deprecated(\"%s\")]]\n", deprecationReason))
-	}
+
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description:  method.Description,
+		Deprecated:   deprecationReason,
+		Params:       methodParams,
+		Returns:      returns,
+		ParamAliases: binding.ParamAliases,
+		Indent:       "    ",
+	}))
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

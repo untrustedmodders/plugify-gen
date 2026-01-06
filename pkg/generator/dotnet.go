@@ -70,18 +70,8 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	return result, nil
 }
 
-// XmlDocOptions configures XML documentation generation
-type XmlDocOptions struct {
-	Indent       string
-	Summary      string
-	Params       []manifest.ParamType
-	Returns      string
-	ParamAliases []*manifest.ParamAlias
-	Deprecated   string
-}
-
 // generateXmlDocumentation generates XML documentation comments
-func (g *DotnetGenerator) generateXmlDocumentation(opts XmlDocOptions) string {
+func (g *DotnetGenerator) generateXmlDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	// Summary
@@ -113,8 +103,8 @@ func (g *DotnetGenerator) generateXmlDocumentation(opts XmlDocOptions) string {
 	}
 
 	// Add deprecation attribute if present
-	if Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", Deprecated))
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", opts.Deprecated))
 	}
 
 	return sb.String()
@@ -126,7 +116,7 @@ func (g *DotnetGenerator) formatParameters(params []manifest.ParamType, formatte
 		return "", nil
 	}
 
-	parts := []string{}
+	var parts []string
 	for i, param := range params {
 		part, err := formatter(i, &param)
 		if err != nil {
@@ -160,7 +150,7 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.Enum, underlyingType strin
 
 	// XML documentation
 	if enum.Description != "" {
-		sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+		sb.WriteString(g.generateXmlDocumentation(DocOptions{
 			Indent:  "\t",
 			Summary: enum.Description,
 		}))
@@ -170,7 +160,7 @@ func (g *DotnetGenerator) generateEnum(enum *manifest.Enum, underlyingType strin
 
 	for i, val := range enum.Values {
 		if val.Description != "" {
-			sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+			sb.WriteString(g.generateXmlDocumentation(DocOptions{
 				Indent:  "\t\t",
 				Summary: val.Description,
 			}))
@@ -195,7 +185,7 @@ func (g *DotnetGenerator) generateAlias(alias *manifest.Alias, underlyingType st
 
 	// XML documentation
 	if alias.Description != "" {
-		sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+		sb.WriteString(g.generateXmlDocumentation(DocOptions{
 			Indent:  "\t",
 			Summary: alias.Description,
 		}))
@@ -215,7 +205,7 @@ func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 
 	// XML documentation
 	if proto.Description != "" {
-		sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
+		sb.WriteString(g.generateXmlDocumentation(DocOptions{
 			Indent:  "\t",
 			Summary: proto.Description,
 		}))
@@ -310,7 +300,7 @@ func (g *DotnetGenerator) generateDocumentation(method *manifest.Method) string 
 		returns = method.RetType.Description
 	}
 
-	return g.generateXmlDocumentation(XmlDocOptions{
+	return g.generateXmlDocumentation(DocOptions{
 		Indent:  "\t\t",
 		Summary: summary,
 		Params:  method.ParamTypes,
@@ -781,15 +771,11 @@ func (g *DotnetGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 			summary = "Static utility class for " + class.Name
 		}
 	}
-	sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
-		Indent:  "\t",
-		Summary: summary,
+	sb.WriteString(g.generateXmlDocumentation(DocOptions{
+		Deprecated: class.Deprecated,
+		Indent:     "\t",
+		Summary:    summary,
 	}))
-
-	// Add deprecation attribute if present
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("\t[Obsolete(\"%s\", true)]\n", class.Deprecated))
-	}
 
 	// Class declaration
 	if hasHandle {
@@ -962,16 +948,12 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	if summary == "" {
 		summary = "Creates a new " + class.Name + " instance"
 	}
-	sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
-		Indent:  "\t\t",
-		Summary: summary,
-		Params:  method.ParamTypes,
+	sb.WriteString(g.generateXmlDocumentation(DocOptions{
+		Indent:     "\t\t",
+		Summary:    summary,
+		Deprecated: method.Deprecated,
+		Params:     method.ParamTypes,
 	}))
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", method.Deprecated))
-	}
 
 	// Generate constructor signature
 	params, err := g.formatMethodParameters(method.ParamTypes)
@@ -982,7 +964,7 @@ func (g *DotnetGenerator) generateClassConstructor(m *manifest.Manifest, class *
 	sb.WriteString(fmt.Sprintf("\t\tpublic %s(%s)", class.Name, params))
 
 	// Generate initialization
-	paramNames := []string{}
+	var paramNames []string
 	for _, param := range method.ParamTypes {
 		paramNames = append(paramNames, param.Name)
 	}
@@ -1038,22 +1020,20 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 		}
 	}
 
-	sb.WriteString(g.generateXmlDocumentation(XmlDocOptions{
-		Indent:       "\t\t",
-		Summary:      summary,
-		Params:       methodParams,
-		Returns:      returns,
-		ParamAliases: binding.ParamAliases,
-	}))
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
-	if deprecationReason != "" {
-		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", deprecationReason))
-	}
+
+	sb.WriteString(g.generateXmlDocumentation(DocOptions{
+		Indent:       "\t\t",
+		Summary:      summary,
+		Params:       methodParams,
+		Returns:      returns,
+		ParamAliases: binding.ParamAliases,
+		Deprecated:   deprecationReason,
+	}))
 
 	// Generate method signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)

@@ -75,16 +75,8 @@ func (g *RustGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (
 	return result, nil
 }
 
-// RustDocOptions configures Rust documentation generation
-type RustDocOptions struct {
-	Description string
-	Params      []manifest.ParamType
-	Returns     string
-	Indent      string
-}
-
-// generateRustDocumentation generates Rust-style documentation comments (///)
-func (g *RustGenerator) generateRustDocumentation(opts RustDocOptions) string {
+// generateDocumentation generates Rust-style documentation comments (///)
+func (g *RustGenerator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	// Main description
@@ -118,6 +110,11 @@ func (g *RustGenerator) generateRustDocumentation(opts RustDocOptions) string {
 		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.Returns))
 	}
 
+	// Add deprecation attribute if present
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("#[deprecated(note = \"%s\")]\n", opts.Deprecated))
+	}
+
 	return sb.String()
 }
 
@@ -127,7 +124,7 @@ func (g *RustGenerator) formatParameters(params []manifest.ParamType, formatter 
 		return "", nil
 	}
 
-	parts := []string{}
+	var parts []string
 	for i, param := range params {
 		part, err := formatter(i, &param)
 		if err != nil {
@@ -148,7 +145,7 @@ func (g *RustGenerator) generateEnum(enum *manifest.Enum, underlyingType string)
 	var sb strings.Builder
 
 	if enum.Description != "" {
-		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: enum.Description,
 			Indent:      "",
 		}))
@@ -162,7 +159,7 @@ func (g *RustGenerator) generateEnum(enum *manifest.Enum, underlyingType string)
 
 	for _, val := range enum.Values {
 		if val.Description != "" {
-			sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+			sb.WriteString(g.generateDocumentation(DocOptions{
 				Description: val.Description,
 				Indent:      "    ",
 			}))
@@ -183,7 +180,7 @@ func (g *RustGenerator) generateAlias(alias *manifest.Alias, underlyingType stri
 	var sb strings.Builder
 
 	if alias.Description != "" {
-		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: alias.Description,
 			Indent:      "",
 		}))
@@ -202,7 +199,7 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 	var sb strings.Builder
 
 	if proto.Description != "" {
-		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: proto.Description,
 			Indent:      "",
 		}))
@@ -259,17 +256,13 @@ func (g *RustGenerator) generateMethod(pluginName string, method *manifest.Metho
 		}
 	}
 
-	sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
 		Returns:     returns,
 		Indent:      "",
 	}))
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("#[deprecated(note = \"%s\")]\n", method.Deprecated))
-	}
 
 	// Generate function signature
 	retType, err := g.typeMapper.MapReturnType(&method.RetType)
@@ -667,15 +660,11 @@ func (g *RustGenerator) generateClass(m *manifest.Manifest, class *manifest.Clas
 
 	// Class documentation
 	if class.Description != "" {
-		sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: class.Description,
+			Deprecated:  class.Deprecated,
 			Indent:      "",
 		}))
-	}
-
-	// Add deprecation attribute if present
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("#[deprecated(note = \"%s\")]\n", class.Deprecated))
 	}
 
 	// Struct definition
@@ -807,8 +796,9 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 	var sb strings.Builder
 
 	// Generate documentation
-	sb.WriteString(g.generateRustDocumentation(RustDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
 		Indent:      "    ",
 	}))
@@ -823,11 +813,6 @@ func (g *RustGenerator) generateConstructor(m *manifest.Manifest, class *manifes
 	if method.Name != class.Name {
 		// If constructor method name is different from class name, use it as suffix
 		funcName = fmt.Sprintf("new_%s", method.Name)
-	}
-
-	// Add deprecation attribute if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("    #[deprecated(note = \"%s\")]\n", method.Deprecated))
 	}
 
 	sb.WriteString("    #[allow(dead_code, non_snake_case)]\n")
@@ -958,21 +943,19 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 		returns = method.RetType.Description
 	}
 
-	sb.WriteString(g.generateRustDocumentation(RustDocOptions{
-		Description: method.Description,
-		Params:      methodParams,
-		Returns:     returns,
-		Indent:      "    ",
-	}))
-
 	// Add deprecation attribute if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
-	if deprecationReason != "" {
-		sb.WriteString(fmt.Sprintf("    #[deprecated(note = \"%s\")]\n", deprecationReason))
-	}
+
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description: method.Description,
+		Deprecated:  deprecationReason,
+		Params:      methodParams,
+		Returns:     returns,
+		Indent:      "    ",
+	}))
 
 	// Generate method signature
 	formattedParams, err := g.formatClassParams(methodParams, binding.ParamAliases)

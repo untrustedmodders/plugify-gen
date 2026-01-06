@@ -195,26 +195,30 @@ func (g *GolangGenerator) generateOwnershipTypes() string {
 }
 
 // generateDocumentation generates documentation comments for functions/methods
-// If useBriefFormat is true, uses "// name \n//  @brief description" format, otherwise "// name - description"
-func (g *GolangGenerator) generateDocumentation(name string, description string, params []manifest.ParamType, retType *manifest.RetType, useBriefFormat bool) string {
+func (g *GolangGenerator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
-	if description != "" {
-		if useBriefFormat {
-			sb.WriteString(fmt.Sprintf("// %s \n//  @brief %s\n//\n", name, description))
-		} else {
-			sb.WriteString(fmt.Sprintf("// %s - %s\n", name, description))
-		}
+	if opts.Summary != "" {
+		sb.WriteString(fmt.Sprintf("// %s \n", opts.Summary))
 	}
 
-	for _, param := range params {
+	if opts.Description != "" {
+		sb.WriteString(fmt.Sprintf("//  @brief %s\n//\n", opts.Description))
+	}
+
+	for _, param := range opts.Params {
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf("//  @param %s: %s\n", param.Name, param.Description))
 		}
 	}
 
-	if retType != nil && retType.Type != "void" && retType.Description != "" {
-		sb.WriteString(fmt.Sprintf("//\n//  @return %s\n", retType.Description))
+	if opts.RetType.Type != "void" && opts.RetType.Description != "" {
+		sb.WriteString(fmt.Sprintf("//\n//  @return %s\n", opts.RetType.Description))
+	}
+
+	// Add deprecation comment if present
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", opts.Deprecated))
 	}
 
 	return sb.String()
@@ -277,13 +281,14 @@ func (g *GolangGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 func (g *GolangGenerator) generateMethod(method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
-	// Add deprecation comment if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", method.Deprecated))
-	}
-
 	// Generate documentation
-	sb.WriteString(g.generateDocumentation(method.Name, method.Description, method.ParamTypes, &method.RetType, true))
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Summary:     method.Name,
+		Description: method.Description,
+		Deprecated:  method.Deprecated,
+		Params:      method.ParamTypes,
+		RetType:     method.RetType,
+	}))
 
 	// Generate function signature
 	params, err := g.formatParams(method.ParamTypes, true)
@@ -902,12 +907,10 @@ func (g *GolangGenerator) generateClass(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	// Class documentation
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", class.Deprecated))
-	}
-	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("// %s - %s\n", class.Name, class.Description))
-	}
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description: class.Description,
+		Deprecated:  class.Deprecated,
+	}))
 
 	// Struct definition
 	sb.WriteString(fmt.Sprintf("type %s struct {\n", class.Name))
@@ -986,14 +989,14 @@ func (g *GolangGenerator) generateConstructor(m *manifest.Manifest, class *manif
 
 	var sb strings.Builder
 
-	// Add deprecation comment if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", method.Deprecated))
-	}
-
 	// Generate documentation
 	funcName := fmt.Sprintf("New%s%s", class.Name, method.Name)
-	sb.WriteString(g.generateDocumentation(funcName, method.Description, method.ParamTypes, nil, false))
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Summary:     funcName,
+		Description: method.Description,
+		Deprecated:  method.Deprecated,
+		Params:      method.ParamTypes,
+	}))
 
 	// Generate function signature
 	params, err := g.formatParams(method.ParamTypes, true)
@@ -1197,12 +1200,14 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
-	if deprecationReason != "" {
-		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", deprecationReason))
-	}
-
 	// Generate documentation
-	sb.WriteString(g.generateDocumentation(binding.Name, method.Description, methodParams, &method.RetType, false))
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Summary:     binding.Name,
+		Description: method.Description,
+		Deprecated:  deprecationReason,
+		Params:      method.ParamTypes,
+		RetType:     method.RetType,
+	}))
 
 	// Generate method signature
 	formattedParams, err := g.formatClassParams(methodParams, binding.ParamAliases, true)

@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(GOOS=js GOARCH=wasm go build:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(done)",
+      "Bash(for file in v8.go lua.go python.go dlang.go)",
+      "Bash(do echo \"===UPDATING $file===\")",
+      "Bash(./plugify-gen.exe:*)"
     ],
     "deny": [],
     "ask": []

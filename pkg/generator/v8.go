@@ -377,15 +377,11 @@ func (g *V8Generator) generateClass(m *manifest.Manifest, class *manifest.Class)
 	hasDtor := class.Destructor != nil
 
 	// Class JSDoc comment
-	sb.WriteString("  /**\n")
-	if class.Description != "" {
-		sb.WriteString(fmt.Sprintf("   * %s\n", class.Description))
-	}
-	// Add deprecation comment if present
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("   * @deprecated %s\n", class.Deprecated))
-	}
-	sb.WriteString("   */\n")
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Description: class.Description,
+		Deprecated:  class.Deprecated,
+		Indent:      "  ",
+	}))
 
 	// Class declaration
 	sb.WriteString(fmt.Sprintf("  export class %s {\n", class.Name))
@@ -484,8 +480,9 @@ func (g *V8Generator) generateConstructor(m *manifest.Manifest, class *manifest.
 	var sb strings.Builder
 
 	// JSDoc comment
-	sb.WriteString(g.generateJSDoc(JSDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
 		Indent:      "    ",
 	}))
@@ -541,10 +538,11 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 	}
 
 	// JSDoc comment
-	sb.WriteString(g.generateJSDoc(JSDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      methodParams,
-		RetType:     &method.RetType,
+		RetType:     method.RetType,
 		Indent:      "    ",
 	}))
 
@@ -643,17 +641,8 @@ func (g *V8Generator) formatTSParameters(params []manifest.ParamType) (string, e
 	return result, nil
 }
 
-// JSDocOptions configures JSDoc comment generation for TypeScript
-type JSDocOptions struct {
-	Description  string
-	Params       []manifest.ParamType
-	ParamAliases []*manifest.ParamAlias
-	RetType      *manifest.RetType
-	Indent       string // "  " for top-level, "    " for class methods
-}
-
-// generateJSDoc generates JSDoc-style comments for methods
-func (g *V8Generator) generateJSDoc(opts JSDocOptions) string {
+// generateDocumentation generates JSDoc-style comments for methods
+func (g *V8Generator) generateDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	sb.WriteString(opts.Indent + "/**\n")
@@ -676,12 +665,12 @@ func (g *V8Generator) generateJSDoc(opts JSDocOptions) string {
 	}
 
 	// Return type section
-	if opts.RetType != nil && opts.RetType.Type != "void" && opts.RetType.Description != "" {
+	if opts.RetType.Type != "void" && opts.RetType.Description != "" {
 		sb.WriteString(fmt.Sprintf("%s * @returns %s\n", opts.Indent, opts.RetType.Description))
 	}
 	// Add deprecation comment if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("   * @deprecated %s\n", method.Deprecated))
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("   * @deprecated %s\n", opts.Deprecated))
 	}
 	sb.WriteString("   */\n")
 
@@ -693,10 +682,11 @@ func (g *V8Generator) generateMethod(method *manifest.Method) (string, error) {
 	var sb strings.Builder
 
 	// JSDoc comment
-	sb.WriteString(g.generateJSDoc(JSDocOptions{
+	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: method.Description,
+		Deprecated:  method.Deprecated,
 		Params:      method.ParamTypes,
-		RetType:     &method.RetType,
+		RetType:     method.RetType,
 		Indent:      "  ",
 	}))
 

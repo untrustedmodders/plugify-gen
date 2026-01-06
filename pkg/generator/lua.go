@@ -125,11 +125,6 @@ func (g *LuaGenerator) generateClass(m *manifest.Manifest, class *manifest.Class
 	// Class comment
 	sb.WriteString(g.formatDescriptionComment(class.Description, fmt.Sprintf("Class: %s", class.Name)))
 
-	// Add deprecation annotation if present
-	if class.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", class.Deprecated))
-	}
-
 	// Class table declaration
 	sb.WriteString(fmt.Sprintf("%s = {}\n\n", class.Name))
 
@@ -217,17 +212,13 @@ func (g *LuaGenerator) generateConstructor(m *manifest.Manifest, class *manifest
 
 	// Constructor documentation
 	classRetType := manifest.RetType{Type: class.Name, Description: ""}
-	sb.WriteString(g.generateLuaDocumentation(LuaDocOptions{
-		Description:  method.Description,
-		FallbackName: fmt.Sprintf("Constructor for %s", class.Name),
-		Params:       method.ParamTypes,
-		RetType:      &classRetType,
+	sb.WriteString(g.generateLuaDocumentation(DocOptions{
+		Description: method.Description,
+		Deprecated:  method.Deprecated,
+		Summary:     class.Name,
+		Params:      method.ParamTypes,
+		RetType:     classRetType,
 	}))
-
-	// Add deprecation annotation if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", method.Deprecated))
-	}
 
 	// Constructor signature (using .new convention)
 	params := g.formatParameters(method.ParamTypes)
@@ -253,24 +244,22 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 	}
 	methodParams := params[startIdx:]
 
-	// Method documentation
-	sb.WriteString(g.generateLuaDocumentation(LuaDocOptions{
-		Description:  method.Description,
-		FallbackName: binding.Name,
-		Params:       methodParams,
-		ParamAliases: binding.ParamAliases,
-		RetType:      &method.RetType,
-		RetAlias:     binding.RetAlias,
-	}))
-
 	// Add deprecation annotation if present (check both binding and underlying method)
 	deprecationReason := binding.Deprecated
 	if deprecationReason == "" {
 		deprecationReason = method.Deprecated
 	}
-	if deprecationReason != "" {
-		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", deprecationReason))
-	}
+
+	// Method documentation
+	sb.WriteString(g.generateLuaDocumentation(DocOptions{
+		Description:  method.Description,
+		Deprecated:   deprecationReason,
+		Summary:      binding.Name,
+		Params:       methodParams,
+		ParamAliases: binding.ParamAliases,
+		RetType:      method.RetType,
+		RetAlias:     binding.RetAlias,
+	}))
 
 	// Method signature
 	formattedParams := g.formatParameters(methodParams)
@@ -292,11 +281,6 @@ func (g *LuaGenerator) generateMethod(method *manifest.Method) (string, error) {
 
 	// Generate LDoc-style documentation
 	sb.WriteString(g.generateDocumentation(method))
-
-	// Add deprecation annotation if present
-	if method.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", method.Deprecated))
-	}
 
 	// Generate function signature
 	params := g.formatParameters(method.ParamTypes)
@@ -323,17 +307,6 @@ func (g *LuaGenerator) formatParameters(params []manifest.ParamType) string {
 	return result
 }
 
-// LuaDocOptions configures LDoc-style documentation generation
-type LuaDocOptions struct {
-	Description      string
-	FallbackName     string
-	Params           []manifest.ParamType
-	ParamAliases     []*manifest.ParamAlias
-	RetType          *manifest.RetType
-	RetAlias         *manifest.RetAlias
-	IncludeCallbacks bool
-}
-
 // formatDescriptionComment generates description comment with fallback
 func (g *LuaGenerator) formatDescriptionComment(description, fallbackName string) string {
 	if description != "" {
@@ -343,11 +316,11 @@ func (g *LuaGenerator) formatDescriptionComment(description, fallbackName string
 }
 
 // generateLuaDocumentation generates LDoc-style documentation for methods
-func (g *LuaGenerator) generateLuaDocumentation(opts LuaDocOptions) string {
+func (g *LuaGenerator) generateLuaDocumentation(opts DocOptions) string {
 	var sb strings.Builder
 
 	// Main description
-	sb.WriteString(g.formatDescriptionComment(opts.Description, opts.FallbackName))
+	sb.WriteString(g.formatDescriptionComment(opts.Description, opts.Summary))
 
 	// Parameters
 	for i, param := range opts.Params {
@@ -364,7 +337,7 @@ func (g *LuaGenerator) generateLuaDocumentation(opts LuaDocOptions) string {
 	}
 
 	// Return type
-	if opts.RetType != nil && opts.RetType.Type != "void" {
+	if opts.RetType.Type != "void" {
 		retType := opts.RetType.Type
 		retDesc := opts.RetType.Description
 
@@ -399,15 +372,21 @@ func (g *LuaGenerator) generateLuaDocumentation(opts LuaDocOptions) string {
 		}
 	}
 
+	// Add deprecation annotation if present
+	if opts.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", opts.Deprecated))
+	}
+
 	return sb.String()
 }
 
 func (g *LuaGenerator) generateDocumentation(method *manifest.Method) string {
-	return g.generateLuaDocumentation(LuaDocOptions{
+	return g.generateLuaDocumentation(DocOptions{
 		Description:      method.Description,
-		FallbackName:     method.Name,
+		Deprecated:       method.Deprecated,
+		Summary:          method.Name,
 		Params:           method.ParamTypes,
-		RetType:          &method.RetType,
+		RetType:          method.RetType,
 		IncludeCallbacks: true,
 	})
 }
