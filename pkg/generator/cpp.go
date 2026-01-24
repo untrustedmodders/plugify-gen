@@ -864,8 +864,9 @@ func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[strin
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n", m.Name))
 	sb.WriteString("// This header includes all generated components\n\n")
 
-	// Include enums and delegates first
+	// Include enums, aliases and delegates first
 	sb.WriteString(fmt.Sprintf("#include \"%s/enums.hpp\"\n", m.Name))
+	sb.WriteString(fmt.Sprintf("#include \"%s/aliases.hpp\"\n", m.Name))
 	sb.WriteString(fmt.Sprintf("#include \"%s/delegates.hpp\"\n", m.Name))
 
 	// Import all group headers
