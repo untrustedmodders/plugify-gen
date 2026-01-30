@@ -529,7 +529,7 @@ func (g *BaseGenerator) ensureDelegateGenerated(proto *manifest.Prototype, sb *s
 	return nil
 }
 
-func getType(prop manifest.Property) string {
+func getType(prop *manifest.Property) string {
 	if prop.Type == "function" && prop.Prototype != nil {
 		return prop.Prototype.Name
 	}
@@ -555,7 +555,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 	for _, method := range m.Methods {
 		// method return
 		if method.RetType.Enum != nil {
-			if err := g.ensureEnumGenerated(method.RetType.Enum, getType(method.RetType), ctx, &sb, enumGen); err != nil {
+			if err := g.ensureEnumGenerated(method.RetType.Enum, getType(&method.RetType), ctx, &sb, enumGen); err != nil {
 				return "", err
 			}
 		}
@@ -569,7 +569,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 		// parameters
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil {
-				if err := g.ensureEnumGenerated(param.Enum, getType(param), ctx, &sb, enumGen); err != nil {
+				if err := g.ensureEnumGenerated(param.Enum, getType(&param), ctx, &sb, enumGen); err != nil {
 					return "", err
 				}
 			}
@@ -602,7 +602,7 @@ func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGener
 	for _, method := range m.Methods {
 		// method return
 		if method.RetType.Alias != nil {
-			if err := g.ensureAliasGenerated(method.RetType.Alias, getType(method.RetType), ctx, &sb, aliasGen); err != nil {
+			if err := g.ensureAliasGenerated(method.RetType.Alias, getType(&method.RetType), ctx, &sb, aliasGen); err != nil {
 				return "", err
 			}
 		}
@@ -616,7 +616,7 @@ func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGener
 		// parameters
 		for _, param := range method.ParamTypes {
 			if param.Alias != nil {
-				if err := g.ensureAliasGenerated(param.Alias, getType(param), ctx, &sb, aliasGen); err != nil {
+				if err := g.ensureAliasGenerated(param.Alias, getType(&param), ctx, &sb, aliasGen); err != nil {
 					return "", err
 				}
 			}
