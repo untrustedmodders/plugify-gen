@@ -481,7 +481,7 @@ func (g *BaseGenerator) ensureEnumGenerated(enum *manifest.Enum, typeName string
 	if g.IsEnumCached(enum.Name) {
 		return nil
 	}
-	mapped, err := g.typeMapper.MapType(typeName, context, strings.Contains(typeName, "[]"))
+	mapped, err := g.typeMapper.MapType(strings.TrimSuffix(typeName, "[]"), context, strings.Contains(typeName, "[]"))
 	if err != nil {
 		return err
 	}
@@ -500,7 +500,7 @@ func (g *BaseGenerator) ensureAliasGenerated(alias *manifest.Alias, typeName str
 	if g.IsAliasCached(alias.Name) {
 		return nil
 	}
-	mapped, err := g.typeMapper.MapType(typeName, context, strings.Contains(typeName, "[]"))
+	mapped, err := g.typeMapper.MapType(strings.TrimSuffix(typeName, "[]"), context, strings.Contains(typeName, "[]"))
 	if err != nil {
 		return err
 	}
