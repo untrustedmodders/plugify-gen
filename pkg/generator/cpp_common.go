@@ -45,11 +45,11 @@ func (m *CppCommonTypeMapper) MapType(baseType string, context TypeContext, isAr
 	if !ok {
 		// Assume it's a custom type (enum or delegate)
 		mapped = baseType
-	} else {
-		// Handle arrays
-		if isArray {
-			mapped = fmt.Sprintf("plg::vector<%s>", mapped)
-		}
+	}
+
+	// Handle arrays
+	if context != TypeContextAlias && isArray {
+		mapped = fmt.Sprintf("plg::vector<%s>", mapped)
 	}
 
 	// Handle parameter context (value parameters)

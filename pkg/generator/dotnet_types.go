@@ -239,7 +239,7 @@ func (m *DotnetTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if isArray {
+		if context != TypeContextAlias && isArray {
 			mapped = mapped + "[]"
 		}
 	}

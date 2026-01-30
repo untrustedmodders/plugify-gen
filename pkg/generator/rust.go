@@ -521,7 +521,7 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 	}
 
 	// Handle arrays
-	if isArray {
+	if context != TypeContextAlias && isArray {
 		mapped = fmt.Sprintf("Arr<%s>", mapped)
 	}
 

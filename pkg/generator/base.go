@@ -204,6 +204,7 @@ const (
 	TypeContextValue  TypeContext = iota // Value parameter
 	TypeContextRef                       // Reference parameter
 	TypeContextReturn                    // Return type
+	TypeContextAlias                     // Alias type
 )
 
 // EnumGenerator is a callback function that generates code for an enum type
@@ -587,7 +588,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGenerator) (string, error) {
 	var sb strings.Builder
 
-	ctx := TypeContextReturn
+	ctx := TypeContextAlias
 
 	onEnum := func(enum *manifest.Enum, typeName string) error {
 		return nil

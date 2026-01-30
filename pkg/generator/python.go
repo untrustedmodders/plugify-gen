@@ -649,7 +649,7 @@ func (m *PythonTypeMapper) MapType(baseType string, context TypeContext, isArray
 		mapped = baseType
 	}
 
-	if isArray {
+	if context != TypeContextAlias && isArray {
 		mapped = fmt.Sprintf("list[%s]", mapped)
 	}
 
