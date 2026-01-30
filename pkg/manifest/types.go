@@ -34,8 +34,8 @@ type Method struct {
 	RetType     RetType     `json:"retType"`
 }
 
-// ParamType represents a function parameter
-type ParamType struct {
+// Property represents a parameter/return type
+type Property struct {
 	Name        string     `json:"name"`
 	Type        string     `json:"type"`
 	Ref         bool       `json:"ref,omitempty"`
@@ -46,15 +46,11 @@ type ParamType struct {
 	Prototype   *Prototype `json:"prototype,omitempty"`
 }
 
+// ParamType represents a function parameter
+type ParamType = Property
+
 // RetType represents a type
-type RetType struct {
-	Type        string     `json:"type"`
-	Description string     `json:"description,omitempty"`
-	Ref         bool       `json:"ref,omitempty"`
-	Alias       *Alias     `json:"alias,omitempty"`
-	Enum        *Enum      `json:"enum,omitempty"`
-	Prototype   *Prototype `json:"prototype,omitempty"`
-}
+type RetType = Property
 
 // Alias represents an alias definition
 type Alias struct {
@@ -109,17 +105,17 @@ type Binding struct {
 	RetAlias     *RetAlias     `json:"retAlias,omitempty"`
 }
 
-// ParamAlias represents a parameter that should be treated as a class type
-type ParamAlias struct {
+// Bind represents a value that should be treated as a class type
+type Bind struct {
 	Name  string `json:"name"`
 	Owner bool   `json:"owner,omitempty"`
 }
 
+// ParamAlias represents a parameter that should be treated as a class type
+type ParamAlias = Bind
+
 // RetAlias represents a return value that should be treated as a class type
-type RetAlias struct {
-	Name  string `json:"name"`
-	Owner bool   `json:"owner,omitempty"`
-}
+type RetAlias = Bind
 
 // IsArray returns true if the type is an array (ends with [])
 func (t *RetType) IsArray() bool {
@@ -132,17 +128,4 @@ func (t *RetType) BaseType() string {
 		return t.Type[:len(t.Type)-2]
 	}
 	return t.Type
-}
-
-// IsArray returns true if the parameter type is an array
-func (p *ParamType) IsArray() bool {
-	return len(p.Type) > 2 && p.Type[len(p.Type)-2:] == "[]"
-}
-
-// BaseType returns the parameter type without array suffix
-func (p *ParamType) BaseType() string {
-	if p.IsArray() {
-		return p.Type[:len(p.Type)-2]
-	}
-	return p.Type
 }
