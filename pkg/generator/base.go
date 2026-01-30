@@ -477,11 +477,15 @@ func (g *BaseGenerator) walkPrototype(proto *manifest.Prototype, onEnum enumHand
 }
 
 // ensureEnumGenerated centralizes mapType -> enumGen -> write -> cache
-func (g *BaseGenerator) ensureEnumGenerated(enum *manifest.Enum, typeName string, sb *strings.Builder, enumGen EnumGenerator) error {
+func (g *BaseGenerator) ensureEnumGenerated(enum *manifest.Enum, typeName string, context TypeContext, sb *strings.Builder, enumGen EnumGenerator) error {
 	if g.IsEnumCached(enum.Name) {
 		return nil
 	}
-	enumCode, err := enumGen(enum, typeName)
+	mapped, err := g.typeMapper.MapType(strings.TrimSuffix(typeName, "[]"), context, strings.Contains(typeName, "[]"))
+	if err != nil {
+		return err
+	}
+	enumCode, err := enumGen(enum, mapped)
 	if err != nil {
 		return err
 	}
@@ -492,11 +496,15 @@ func (g *BaseGenerator) ensureEnumGenerated(enum *manifest.Enum, typeName string
 }
 
 // ensureEnumGenerated centralizes mapType -> enumGen -> write -> cache
-func (g *BaseGenerator) ensureAliasGenerated(alias *manifest.Alias, typeName string, sb *strings.Builder, aliasGen AliasGenerator) error {
+func (g *BaseGenerator) ensureAliasGenerated(alias *manifest.Alias, typeName string, context TypeContext, sb *strings.Builder, aliasGen AliasGenerator) error {
 	if g.IsAliasCached(alias.Name) {
 		return nil
 	}
-	aliasCode, err := aliasGen(alias, typeName)
+	mapped, err := g.typeMapper.MapType(strings.TrimSuffix(typeName, "[]"), context, strings.Contains(typeName, "[]"))
+	if err != nil {
+		return err
+	}
+	aliasCode, err := aliasGen(alias, mapped)
 	if err != nil {
 		return err
 	}
@@ -521,12 +529,21 @@ func (g *BaseGenerator) ensureDelegateGenerated(proto *manifest.Prototype, sb *s
 	return nil
 }
 
+func getType(prop manifest.Property) string {
+	if prop.Type == "function" && prop.Prototype != nil {
+		return prop.Prototype.Name
+	}
+	return prop.Type
+}
+
 // CollectEnums uses the generic walker and the helper above
 func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator) (string, error) {
 	var sb strings.Builder
 
+	ctx := TypeContextReturn
+
 	onEnum := func(enum *manifest.Enum, typeName string) error {
-		return g.ensureEnumGenerated(enum, typeName, &sb, enumGen)
+		return g.ensureEnumGenerated(enum, typeName, ctx, &sb, enumGen)
 	}
 	onAlias := func(alias *manifest.Alias, typeName string) error {
 		return nil
@@ -538,11 +555,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 	for _, method := range m.Methods {
 		// method return
 		if method.RetType.Enum != nil {
-			typeName, err := g.typeMapper.MapReturnType(&method.RetType)
-			if err != nil {
-				return "", err
-			}
-			if err := g.ensureEnumGenerated(method.RetType.Enum, typeName, &sb, enumGen); err != nil {
+			if err := g.ensureEnumGenerated(method.RetType.Enum, getType(method.RetType), ctx, &sb, enumGen); err != nil {
 				return "", err
 			}
 		}
@@ -556,11 +569,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 		// parameters
 		for _, param := range method.ParamTypes {
 			if param.Enum != nil {
-				typeName, err := g.typeMapper.MapReturnType(&param)
-				if err != nil {
-					return "", err
-				}
-				if err := g.ensureEnumGenerated(param.Enum, typeName, &sb, enumGen); err != nil {
+				if err := g.ensureEnumGenerated(param.Enum, getType(param), ctx, &sb, enumGen); err != nil {
 					return "", err
 				}
 			}
@@ -578,11 +587,13 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGenerator) (string, error) {
 	var sb strings.Builder
 
+	ctx := TypeContextReturn
+
 	onEnum := func(enum *manifest.Enum, typeName string) error {
 		return nil
 	}
 	onAlias := func(alias *manifest.Alias, typeName string) error {
-		return g.ensureAliasGenerated(alias, typeName, &sb, aliasGen)
+		return g.ensureAliasGenerated(alias, typeName, ctx, &sb, aliasGen)
 	}
 	onProto := func(proto *manifest.Prototype) error {
 		return nil
@@ -591,11 +602,7 @@ func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGener
 	for _, method := range m.Methods {
 		// method return
 		if method.RetType.Alias != nil {
-			typeName, err := g.typeMapper.MapReturnType(&method.RetType)
-			if err != nil {
-				return "", err
-			}
-			if err := g.ensureAliasGenerated(method.RetType.Alias, typeName, &sb, aliasGen); err != nil {
+			if err := g.ensureAliasGenerated(method.RetType.Alias, getType(method.RetType), ctx, &sb, aliasGen); err != nil {
 				return "", err
 			}
 		}
@@ -609,11 +616,7 @@ func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGener
 		// parameters
 		for _, param := range method.ParamTypes {
 			if param.Alias != nil {
-				typeName, err := g.typeMapper.MapReturnType(&param)
-				if err != nil {
-					return "", err
-				}
-				if err := g.ensureAliasGenerated(param.Alias, typeName, &sb, aliasGen); err != nil {
+				if err := g.ensureAliasGenerated(param.Alias, getType(param), ctx, &sb, aliasGen); err != nil {
 					return "", err
 				}
 			}
