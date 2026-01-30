@@ -256,8 +256,8 @@ func (g *LuaGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		Deprecated:   deprecationReason,
 		Summary:      binding.Name,
 		Params:       methodParams,
-		ParamAliases: binding.ParamAliases,
 		RetType:      method.RetType,
+		ParamAliases: binding.ParamAliases,
 		RetAlias:     binding.RetAlias,
 	}))
 

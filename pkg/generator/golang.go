@@ -1202,11 +1202,13 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	}
 	// Generate documentation
 	sb.WriteString(g.generateDocumentation(DocOptions{
-		Summary:     binding.Name,
-		Description: method.Description,
-		Deprecated:  deprecationReason,
-		Params:      method.ParamTypes,
-		RetType:     method.RetType,
+		Summary:      binding.Name,
+		Description:  method.Description,
+		Deprecated:   deprecationReason,
+		Params:       method.ParamTypes,
+		RetType:      method.RetType,
+		ParamAliases: binding.ParamAliases,
+		RetAlias:     binding.RetAlias,
 	}))
 
 	// Generate method signature

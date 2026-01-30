@@ -907,12 +907,14 @@ func (g *DlangGenerator) generateBinding(m *manifest.Manifest, class *manifest.C
 
 	// Generate documentation
 	sb.WriteString(g.generateDocumentation(DocOptions{
-		Description: method.Description,
-		Deprecated:  deprecationReason,
-		Params:      methodParams,
-		RetType:     method.RetType,
-		Indent:      "\t",
-		AddThrows:   binding.BindSelf,
+		Description:  method.Description,
+		Deprecated:   deprecationReason,
+		Params:       methodParams,
+		RetType:      method.RetType,
+		ParamAliases: binding.ParamAliases,
+		RetAlias:     binding.RetAlias,
+		Indent:       "\t",
+		AddThrows:    binding.BindSelf,
 	}))
 
 	// Method signature

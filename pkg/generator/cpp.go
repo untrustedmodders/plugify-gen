@@ -100,18 +100,12 @@ func (g *CppGenerator) generateDocumentation(opts DocOptions) string {
 			paramType += "&"
 		}
 
-		// Check for alias
-		var aliasName string
+		// Apply parameter alias if provided
 		if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil {
-			aliasName = opts.ParamAliases[i].Name
+			paramType = opts.ParamAliases[i].Name
 		}
 
-		if aliasName != "" {
-			sb.WriteString(fmt.Sprintf("%s * @param %s (%s)", opts.Indent, param.Name, aliasName))
-		} else {
-			sb.WriteString(fmt.Sprintf("%s * @param %s (%s)", opts.Indent, param.Name, paramType))
-		}
-
+		sb.WriteString(fmt.Sprintf("%s * @param %s (%s)", opts.Indent, param.Name, paramType))
 		if param.Description != "" {
 			sb.WriteString(fmt.Sprintf(": %s", param.Description))
 		}
@@ -600,6 +594,7 @@ func (g *CppGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		Params:       methodParams,
 		RetType:      method.RetType,
 		ParamAliases: binding.ParamAliases,
+		RetAlias:     binding.RetAlias,
 		Indent:       "    ",
 	}))
 

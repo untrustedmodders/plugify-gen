@@ -407,8 +407,8 @@ func (g *PythonGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description:  method.Description,
 			Params:       methodParams,
-			ParamAliases: binding.ParamAliases,
 			RetType:      method.RetType,
+			ParamAliases: binding.ParamAliases,
 			RetAlias:     binding.RetAlias,
 			Indent:       "    ",
 		}))

@@ -90,11 +90,17 @@ func (g *RustGenerator) generateDocumentation(opts DocOptions) string {
 			sb.WriteString(fmt.Sprintf("%s///\n", opts.Indent))
 		}
 		sb.WriteString(fmt.Sprintf("%s/// # Arguments\n", opts.Indent))
-		for _, param := range opts.Params {
+		for i, param := range opts.Params {
 			paramType := param.Type
 			if param.Ref {
 				paramType += "&"
 			}
+
+			// Apply parameter alias if provided
+			if i < len(opts.ParamAliases) && opts.ParamAliases[i] != nil {
+				paramType = opts.ParamAliases[i].Name
+			}
+
 			sb.WriteString(fmt.Sprintf("%s/// * `%s` - (%s)", opts.Indent, param.Name, paramType))
 			if param.Description != "" {
 				sb.WriteString(fmt.Sprintf(": %s", param.Description))
@@ -105,8 +111,15 @@ func (g *RustGenerator) generateDocumentation(opts DocOptions) string {
 
 	// Returns
 	if opts.RetType.Type != "void" && opts.RetType.Description != "" {
+		returnType := opts.RetType.Type
+
+		// Apply return alias if provided
+		if opts.RetAlias != nil && opts.RetAlias.Name != "" {
+			returnType = opts.RetAlias.Name
+		}
+
 		sb.WriteString(fmt.Sprintf("%s///\n", opts.Indent))
-		sb.WriteString(fmt.Sprintf("%s/// # Returns\n", opts.Indent))
+		sb.WriteString(fmt.Sprintf("%s/// # Returns - (%s):\n", opts.Indent, returnType))
 		sb.WriteString(fmt.Sprintf("%s/// %s\n", opts.Indent, opts.RetType.Description))
 	}
 
@@ -935,11 +948,13 @@ func (g *RustGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cl
 	}
 
 	sb.WriteString(g.generateDocumentation(DocOptions{
-		Description: method.Description,
-		Deprecated:  deprecationReason,
-		Params:      methodParams,
-		RetType:     method.RetType,
-		Indent:      "    ",
+		Description:  method.Description,
+		Deprecated:   deprecationReason,
+		Params:       methodParams,
+		RetType:      method.RetType,
+		ParamAliases: binding.ParamAliases,
+		RetAlias:     binding.RetAlias,
+		Indent:       "    ",
 	}))
 
 	// Generate method signature

@@ -554,8 +554,8 @@ func (g *CxxGenerator) generateBinding(m *manifest.Manifest, class *manifest.Cla
 		Description:  method.Description,
 		Deprecated:   deprecationReason,
 		Params:       methodParams,
-		ParamAliases: binding.ParamAliases,
 		RetType:      method.RetType,
+		ParamAliases: binding.ParamAliases,
 		RetAlias:     binding.RetAlias,
 		Indent:       "    ",
 	}))

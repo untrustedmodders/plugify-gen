@@ -539,11 +539,13 @@ func (g *V8Generator) generateBinding(m *manifest.Manifest, class *manifest.Clas
 
 	// JSDoc comment
 	sb.WriteString(g.generateDocumentation(DocOptions{
-		Description: method.Description,
-		Deprecated:  method.Deprecated,
-		Params:      methodParams,
-		RetType:     method.RetType,
-		Indent:      "    ",
+		Description:  method.Description,
+		Deprecated:   method.Deprecated,
+		Params:       methodParams,
+		RetType:      method.RetType,
+		ParamAliases: binding.ParamAliases,
+		RetAlias:     binding.RetAlias,
+		Indent:       "    ",
 	}))
 
 	// Method signature
