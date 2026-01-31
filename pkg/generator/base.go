@@ -588,7 +588,7 @@ func (g *BaseGenerator) CollectEnums(m *manifest.Manifest, enumGen EnumGenerator
 func (g *BaseGenerator) CollectAliases(m *manifest.Manifest, aliasGen AliasGenerator) (string, error) {
 	var sb strings.Builder
 
-	ctx := TypeContextAlias
+	ctx := TypeContextReturn
 
 	onEnum := func(enum *manifest.Enum, typeName string) error {
 		return nil
