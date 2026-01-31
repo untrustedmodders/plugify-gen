@@ -251,7 +251,7 @@ func (m *MyLangTypeMapper) MapType(baseType string, context TypeContext, isArray
     }
 
     mapped := typeMap[baseType]
-    if isArray {
+    if isArray && context&TypeContextAlias == 0 {
         mapped = "[]" + mapped  // Adjust for your language
     }
     return mapped, nil

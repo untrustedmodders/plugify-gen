@@ -228,7 +228,7 @@ func initDestructorMap() map[string]string {
 
 func (m *DotnetTypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
 	typeName := baseType
-	if isArray {
+	if isArray && context&TypeContextAlias == 0 {
 		typeName = baseType + "[]"
 	}
 
@@ -239,7 +239,7 @@ func (m *DotnetTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if isArray {
+		if isArray && context&TypeContextAlias == 0 {
 			mapped = mapped + "[]"
 		}
 	}

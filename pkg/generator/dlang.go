@@ -1068,7 +1068,7 @@ func (m *DlangTypeMapper) MapType(baseType string, context TypeContext, isArray 
 	}
 
 	// Handle arrays
-	if isArray {
+	if isArray && context&TypeContextAlias == 0 {
 		mapped = mapped + "[]"
 	}
 

@@ -388,7 +388,7 @@ func NewGolangTypeMapper() *GolangTypeMapper {
 // MapType implements TypeMapper interface
 func (m *GolangTypeMapper) MapType(baseType string, context TypeContext, isArray bool) (string, error) {
 	typeKey := baseType
-	if isArray {
+	if isArray && context&TypeContextAlias == 0 {
 		typeKey += "[]"
 	}
 
@@ -399,7 +399,7 @@ func (m *GolangTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if isArray {
+		if isArray && context&TypeContextAlias == 0 {
 			mapped = "[]" + mapped
 		}
 	}

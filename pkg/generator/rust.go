@@ -521,14 +521,14 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 	}
 
 	// Handle arrays
-	if isArray {
+	if isArray && context&TypeContextAlias == 0 {
 		mapped = fmt.Sprintf("Arr<%s>", mapped)
 	}
 
 	// Handle parameter context (value parameters)
 	// Object-like types pass by const& (in Rust: &) even when not ref=true
 	if context&TypeContextValue != 0 && baseType != "void" {
-		if m.isObjectLikeType(baseType) || (isArray && context&TypeContextAlias == 0) {
+		if m.isObjectLikeType(baseType) || isArray {
 			mapped = fmt.Sprintf("&%s", mapped)
 		}
 	}

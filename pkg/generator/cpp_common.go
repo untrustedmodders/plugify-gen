@@ -48,14 +48,14 @@ func (m *CppCommonTypeMapper) MapType(baseType string, context TypeContext, isAr
 	}
 
 	// Handle arrays
-	if isArray {
+	if isArray && context&TypeContextAlias == 0 {
 		mapped = fmt.Sprintf("plg::vector<%s>", mapped)
 	}
 
 	// Handle parameter context (value parameters)
 	// Object-like types pass by const& even when not ref=true
 	if context&TypeContextValue != 0 && baseType != "void" {
-		if m.isObjectLikeType(baseType) || (isArray && context&TypeContextAlias == 0) {
+		if m.isObjectLikeType(baseType) || isArray {
 			mapped = fmt.Sprintf("const %s&", mapped)
 		}
 	}
