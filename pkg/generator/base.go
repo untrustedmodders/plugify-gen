@@ -201,10 +201,10 @@ type TypeMapper interface {
 type TypeContext int
 
 const (
-	TypeContextValue  TypeContext = iota // Value parameter
-	TypeContextRef                       // Reference parameter
-	TypeContextReturn                    // Return type
-	TypeContextAlias                     // Alias type
+	TypeContextValue  TypeContext = 1 << iota // Value parameter
+	TypeContextRef                            // Reference parameter
+	TypeContextReturn                         // Return type
+	TypeContextAlias                          // Alias type
 )
 
 // EnumGenerator is a callback function that generates code for an enum type

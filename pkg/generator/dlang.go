@@ -1068,7 +1068,7 @@ func (m *DlangTypeMapper) MapType(baseType string, context TypeContext, isArray 
 	}
 
 	// Handle arrays
-	if isArray && context != TypeContextAlias {
+	if isArray && context&TypeContextAlias == 0 {
 		mapped = mapped + "[]"
 	}
 
@@ -1086,6 +1086,7 @@ func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType) (string, error
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
+		ctx |= TypeContextAlias
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -1102,10 +1103,13 @@ func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType) (string, error
 }
 
 func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	ctx := TypeContextReturn
+
 	var typeName string
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
+		ctx |= TypeContextAlias
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name
@@ -1118,7 +1122,7 @@ func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, erro
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, ctx, retType.IsArray())
 }
 
 func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

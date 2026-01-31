@@ -48,20 +48,20 @@ func (m *CppCommonTypeMapper) MapType(baseType string, context TypeContext, isAr
 	}
 
 	// Handle arrays
-	if isArray && context != TypeContextAlias {
+	if isArray && context&TypeContextAlias == 0 {
 		mapped = fmt.Sprintf("plg::vector<%s>", mapped)
 	}
 
 	// Handle parameter context (value parameters)
 	// Object-like types pass by const& even when not ref=true
-	if context == TypeContextValue && baseType != "void" {
+	if context&TypeContextValue != 0 && baseType != "void" {
 		if m.isObjectLikeType(baseType) || isArray {
 			mapped = fmt.Sprintf("const %s&", mapped)
 		}
 	}
 
 	// Handle reference context (ref=true parameters)
-	if context == TypeContextRef && baseType != "void" {
+	if context&TypeContextRef != 0 && baseType != "void" {
 		mapped = mapped + "&"
 	}
 
@@ -93,6 +93,7 @@ func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, e
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
+		ctx |= TypeContextAlias
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -108,11 +109,13 @@ func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, e
 }
 
 func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
-	var typeName string
+	ctx := TypeContextReturn
 
+	var typeName string
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
+		ctx |= TypeContextAlias
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name
@@ -125,7 +128,7 @@ func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, 
 	}
 
 	// Regular type mapping - returns always by value
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, ctx, retType.IsArray())
 }
 
 func (m *CppCommonTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

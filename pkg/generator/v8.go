@@ -747,7 +747,7 @@ func (m *V8TypeMapper) MapType(baseType string, context TypeContext, isArray boo
 	}
 
 	// Handle arrays
-	if isArray && context != TypeContextAlias {
+	if isArray && context&TypeContextAlias == 0 {
 		mapped = mapped + "[]"
 	}
 
@@ -755,10 +755,13 @@ func (m *V8TypeMapper) MapType(baseType string, context TypeContext, isArray boo
 }
 
 func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
+	ctx := TypeContextValue
+
 	var typeName string
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
+		ctx |= TypeContextAlias
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -771,14 +774,17 @@ func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextValue, param.IsArray())
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
 func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	ctx := TypeContextReturn
+
 	var typeName string
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
+		ctx |= TypeContextAlias
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name
@@ -791,7 +797,7 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) 
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, ctx, retType.IsArray())
 }
 
 func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

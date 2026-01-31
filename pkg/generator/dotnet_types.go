@@ -239,13 +239,13 @@ func (m *DotnetTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if isArray && context != TypeContextAlias {
+		if isArray && context&TypeContextAlias == 0 {
 			mapped = mapped + "[]"
 		}
 	}
 
 	// Handle reference context (ref=true parameters)
-	if context == TypeContextRef && baseType != "void" {
+	if context&TypeContextRef != 0 && baseType != "void" {
 		mapped = "ref " + mapped
 	}
 
@@ -263,6 +263,7 @@ func (m *DotnetTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
+		ctx |= TypeContextAlias
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -278,10 +279,13 @@ func (m *DotnetTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 }
 
 func (m *DotnetTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
+	ctx := TypeContextReturn
+
 	var typeName string
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
+		ctx |= TypeContextAlias
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name
@@ -293,7 +297,7 @@ func (m *DotnetTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, ctx, retType.IsArray())
 }
 
 func (m *DotnetTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
