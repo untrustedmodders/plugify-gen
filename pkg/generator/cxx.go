@@ -726,7 +726,8 @@ func (g *CxxGenerator) generateAliasesFile(m *manifest.Manifest) (string, error)
 	sb.WriteString(fmt.Sprintf("export module %s.aliases;\n\n", m.Name))
 
 	// Global module fragment for standard library includes
-	sb.WriteString("import <cstdint>;\n\n")
+	sb.WriteString("import <cstdint>;\n")
+	sb.WriteString("import <plg>;\n\n")
 
 	// Namespace
 	sb.WriteString(fmt.Sprintf("export namespace %s {\n\n", m.Name))

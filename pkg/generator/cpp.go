@@ -738,6 +738,8 @@ func (g *CppGenerator) generateAliasesFile(m *manifest.Manifest) (string, error)
 	// Header guard and includes
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString("#include <cstdint>\n")
+	sb.WriteString("#include <plg/plugin.hpp>\n")
+	sb.WriteString("#include <plg/any.hpp>\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 
 	// Namespace
@@ -767,8 +769,6 @@ func (g *CppGenerator) generateDelegatesFile(m *manifest.Manifest) (string, erro
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString("#include \"enums.hpp\"\n")
 	sb.WriteString("#include \"aliases.hpp\"\n")
-	sb.WriteString("#include <plg/plugin.hpp>\n")
-	sb.WriteString("#include <plg/any.hpp>\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 
 	// Namespace
