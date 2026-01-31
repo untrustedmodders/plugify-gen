@@ -747,7 +747,7 @@ func (m *V8TypeMapper) MapType(baseType string, context TypeContext, isArray boo
 	}
 
 	// Handle arrays
-	if isArray && context&TypeContextAlias == 0 {
+	if isArray {
 		mapped = mapped + "[]"
 	}
 

@@ -399,7 +399,7 @@ func (m *GolangTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if isArray && context&TypeContextAlias == 0 {
+		if isArray {
 			mapped = "[]" + mapped
 		}
 	}
