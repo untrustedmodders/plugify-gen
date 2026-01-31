@@ -1068,7 +1068,7 @@ func (m *DlangTypeMapper) MapType(baseType string, context TypeContext, isArray 
 	}
 
 	// Handle arrays
-	if isArray {
+	if isArray && context != TypeContextAlias {
 		mapped = mapped + "[]"
 	}
 
@@ -1098,7 +1098,7 @@ func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType) (string, error
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, ctx, param.IsArray() && ctx != TypeContextAlias)
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
 func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {

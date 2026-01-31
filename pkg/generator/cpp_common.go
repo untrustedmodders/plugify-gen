@@ -48,7 +48,7 @@ func (m *CppCommonTypeMapper) MapType(baseType string, context TypeContext, isAr
 	}
 
 	// Handle arrays
-	if isArray {
+	if isArray && context != TypeContextAlias {
 		mapped = fmt.Sprintf("plg::vector<%s>", mapped)
 	}
 
@@ -104,7 +104,7 @@ func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, e
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, ctx, param.IsArray() && ctx != TypeContextAlias)
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
 func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {

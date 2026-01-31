@@ -649,7 +649,7 @@ func (m *PythonTypeMapper) MapType(baseType string, context TypeContext, isArray
 		mapped = baseType
 	}
 
-	if isArray {
+	if isArray && context != TypeContextAlias {
 		mapped = fmt.Sprintf("list[%s]", mapped)
 	}
 
@@ -672,7 +672,7 @@ func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextValue, param.IsArray() && ctx != TypeContextAlias)
+	return m.MapType(typeName, TypeContextValue, param.IsArray())
 }
 
 func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {

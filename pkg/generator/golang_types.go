@@ -399,7 +399,7 @@ func (m *GolangTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if isArray {
+		if isArray && context != TypeContextAlias {
 			mapped = "[]" + mapped
 		}
 	}
@@ -435,7 +435,7 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, ctx, param.IsArray() && ctx != TypeContextAlias)
+	return m.MapType(typeName, ctx, param.IsArray())
 }
 
 // MapReturnType implements TypeMapper interface

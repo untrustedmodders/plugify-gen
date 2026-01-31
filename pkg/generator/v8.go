@@ -747,7 +747,7 @@ func (m *V8TypeMapper) MapType(baseType string, context TypeContext, isArray boo
 	}
 
 	// Handle arrays
-	if isArray {
+	if isArray && context != TypeContextAlias {
 		mapped = mapped + "[]"
 	}
 
@@ -771,7 +771,7 @@ func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextValue, param.IsArray() && ctx != TypeContextAlias)
+	return m.MapType(typeName, TypeContextValue, param.IsArray())
 }
 
 func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
