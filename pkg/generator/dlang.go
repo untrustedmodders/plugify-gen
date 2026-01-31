@@ -1098,7 +1098,7 @@ func (m *DlangTypeMapper) MapParamType(param *manifest.ParamType) (string, error
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, ctx, param.IsArray() && param.Alias == nil)
+	return m.MapType(typeName, ctx, param.IsArray() && ctx != TypeContextAlias)
 }
 
 func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
@@ -1118,7 +1118,7 @@ func (m *DlangTypeMapper) MapReturnType(retType *manifest.RetType) (string, erro
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *DlangTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

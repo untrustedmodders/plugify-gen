@@ -104,7 +104,7 @@ func (m *CppCommonTypeMapper) MapParamType(param *manifest.ParamType) (string, e
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, ctx, param.IsArray() && param.Alias == nil)
+	return m.MapType(typeName, ctx, param.IsArray() && ctx != TypeContextAlias)
 }
 
 func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
@@ -125,7 +125,7 @@ func (m *CppCommonTypeMapper) MapReturnType(retType *manifest.RetType) (string, 
 	}
 
 	// Regular type mapping - returns always by value
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *CppCommonTypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {

@@ -435,7 +435,7 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, ctx, param.IsArray() && param.Alias == nil)
+	return m.MapType(typeName, ctx, param.IsArray() && ctx != TypeContextAlias)
 }
 
 // MapReturnType implements TypeMapper interface
@@ -459,7 +459,7 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 // MapHandleType implements TypeMapper interface

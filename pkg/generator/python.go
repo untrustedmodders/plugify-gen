@@ -672,7 +672,7 @@ func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextValue, param.IsArray() && param.Alias == nil)
+	return m.MapType(typeName, TypeContextValue, param.IsArray() && ctx != TypeContextAlias)
 }
 
 func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
@@ -691,7 +691,7 @@ func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (string, error) {

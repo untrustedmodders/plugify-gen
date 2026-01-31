@@ -771,7 +771,7 @@ func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextValue, param.IsArray() && param.Alias == nil)
+	return m.MapType(typeName, TypeContextValue, param.IsArray() && ctx != TypeContextAlias)
 }
 
 func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
@@ -791,7 +791,7 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) 
 	}
 
 	// Regular type mapping
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
 }
 
 func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string, error) {
