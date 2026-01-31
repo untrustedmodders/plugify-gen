@@ -528,7 +528,7 @@ func (m *RustTypeMapper) MapType(baseType string, context TypeContext, isArray b
 	// Handle parameter context (value parameters)
 	// Object-like types pass by const& (in Rust: &) even when not ref=true
 	if context&TypeContextValue != 0 && baseType != "void" {
-		if m.isObjectLikeType(baseType) || isArray {
+		if context&TypeContextObject != 0 || isArray {
 			mapped = fmt.Sprintf("&%s", mapped)
 		}
 	}
@@ -560,6 +560,9 @@ func (m *RustTypeMapper) MapParamType(param *manifest.ParamType) (string, error)
 	ctx := TypeContextValue
 	if param.Ref {
 		ctx = TypeContextRef
+	}
+	if m.isObjectLikeType(param.BaseType()) {
+		ctx |= TypeContextObject
 	}
 
 	var typeName string

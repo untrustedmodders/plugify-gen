@@ -205,6 +205,7 @@ const (
 	TypeContextRef                            // Reference parameter
 	TypeContextReturn                         // Return type
 	TypeContextAlias                          // Alias type
+	TypeContextObject
 )
 
 // EnumGenerator is a callback function that generates code for an enum type
