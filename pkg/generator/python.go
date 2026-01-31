@@ -649,7 +649,7 @@ func (m *PythonTypeMapper) MapType(baseType string, context TypeContext, isArray
 		mapped = baseType
 	}
 
-	if context != TypeContextAlias && isArray {
+	if isArray {
 		mapped = fmt.Sprintf("list[%s]", mapped)
 	}
 
@@ -659,11 +659,11 @@ func (m *PythonTypeMapper) MapType(baseType string, context TypeContext, isArray
 func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	var typeName string
 	switch {
-	case param.Enum != nil:
-		typeName = param.Enum.Name
-
 	case param.Alias != nil:
 		typeName = param.Alias.Name
+
+	case param.Enum != nil:
+		typeName = param.Enum.Name
 
 	case param.Prototype != nil:
 		return m.generateCallableType(param.Prototype)
@@ -672,17 +672,17 @@ func (m *PythonTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextValue, param.IsArray())
+	return m.MapType(typeName, TypeContextValue, param.IsArray() && param.Alias == nil)
 }
 
 func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
 	var typeName string
 	switch {
-	case retType.Enum != nil:
-		typeName = retType.Enum.Name
-
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
+
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
 
 	case retType.Prototype != nil:
 		return m.generateCallableType(retType.Prototype)
@@ -691,7 +691,7 @@ func (m *PythonTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
 }
 
 func (m *PythonTypeMapper) generateCallableType(proto *manifest.Prototype) (string, error) {

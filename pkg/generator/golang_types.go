@@ -399,7 +399,7 @@ func (m *GolangTypeMapper) MapType(baseType string, context TypeContext, isArray
 			// Custom type (enum or delegate)
 			mapped = baseType
 		}
-		if context != TypeContextAlias && isArray {
+		if isArray {
 			mapped = "[]" + mapped
 		}
 	}
@@ -422,11 +422,11 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 
 	var typeName string
 	switch {
-	case param.Enum != nil:
-		typeName = param.Enum.Name
-
 	case param.Alias != nil:
 		typeName = param.Alias.Name
+
+	case param.Enum != nil:
+		typeName = param.Enum.Name
 
 	case param.Prototype != nil:
 		return param.Prototype.Name, nil
@@ -435,7 +435,7 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 		typeName = param.BaseType()
 	}
 
-	return m.MapType(typeName, ctx, param.IsArray())
+	return m.MapType(typeName, ctx, param.IsArray() && param.Alias == nil)
 }
 
 // MapReturnType implements TypeMapper interface
@@ -446,11 +446,11 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 
 	var typeName string
 	switch {
-	case retType.Enum != nil:
-		typeName = retType.Enum.Name
-
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
+
+	case retType.Enum != nil:
+		typeName = retType.Enum.Name
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
@@ -459,7 +459,7 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 		typeName = retType.BaseType()
 	}
 
-	return m.MapType(typeName, TypeContextReturn, retType.IsArray())
+	return m.MapType(typeName, TypeContextReturn, retType.IsArray() && retType.Alias == nil)
 }
 
 // MapHandleType implements TypeMapper interface
