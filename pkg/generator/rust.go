@@ -199,7 +199,7 @@ func (g *RustGenerator) generateAlias(alias *manifest.Alias, underlyingType stri
 		}))
 	}
 
-	sb.WriteString(fmt.Sprintf("    type %s = %s;\n", alias.Name, underlyingType))
+	sb.WriteString(fmt.Sprintf("#[allow(dead_code)]\npub type %s = %s;\n", alias.Name, underlyingType))
 
 	return sb.String(), nil
 }
@@ -365,7 +365,7 @@ func (g *RustGenerator) generateAliasesFile(m *manifest.Manifest) (string, error
 
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 	sb.WriteString("#[allow(unused_imports)]\n")
-	sb.WriteString("use plugify::{vector_enum_traits};\n\n")
+	sb.WriteString("use plugify::{Str, Arr, Var, Vec2, Vec3, Vec4, Mat4x4};\n\n")
 
 	// Generate aliases
 	aliasesCode, err := g.generateAliases(m)
@@ -387,6 +387,8 @@ func (g *RustGenerator) generateDelegatesFile(m *manifest.Manifest) (string, err
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::enums::*;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use super::aliases::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use plugify::{Str, Arr, Var, Vec2, Vec3, Vec4, Mat4x4};\n\n")
 
@@ -411,6 +413,8 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 	sb.WriteString("use std::sync::RwLock;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::enums::*;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("use super::aliases::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::delegates::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
@@ -457,6 +461,7 @@ func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]
 	// Declare modules
 
 	sb.WriteString("pub mod enums;\n")
+	sb.WriteString("pub mod aliases;\n")
 	sb.WriteString("pub mod delegates;\n")
 	for groupName := range groups {
 		sb.WriteString(fmt.Sprintf("pub mod %s;\n", groupName))
@@ -466,6 +471,8 @@ func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]
 	// Re-export everything
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("pub use enums::*;\n")
+	sb.WriteString("#[allow(unused_imports)]\n")
+	sb.WriteString("pub use aliases::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("pub use delegates::*;\n")
 	for groupName := range groups {

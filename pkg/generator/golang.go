@@ -1424,6 +1424,8 @@ func (g *GolangGenerator) generateAliasesGoFile(m *manifest.Manifest) (string, e
 	// Package declaration
 	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
 
+	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
+
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
 

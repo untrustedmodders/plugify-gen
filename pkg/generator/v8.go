@@ -321,7 +321,7 @@ func (g *V8Generator) generateAlias(alias *manifest.Alias, underlyingType string
 		sb.WriteString(fmt.Sprintf("  /** %s */\n", alias.Description))
 	}
 
-	sb.WriteString(fmt.Sprintf("    %s = %s;\n", alias.Name, underlyingType))
+	sb.WriteString(fmt.Sprintf("    type %s = %s;\n", alias.Name, underlyingType))
 
 	return sb.String(), nil
 }
@@ -672,9 +672,8 @@ func (g *V8Generator) generateDocumentation(opts DocOptions) string {
 	}
 	// Add deprecation comment if present
 	if opts.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("   * @deprecated %s\n", opts.Deprecated))
+		sb.WriteString(fmt.Sprintf("%s   * @deprecated %s\n", opts.Indent, opts.Deprecated))
 	}
-	sb.WriteString("   */\n")
 
 	sb.WriteString(opts.Indent + " */\n")
 	return sb.String()

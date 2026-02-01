@@ -191,7 +191,24 @@ func (g *DotnetGenerator) generateAlias(alias *manifest.Alias, underlyingType st
 		}))
 	}
 
-	sb.WriteString(fmt.Sprintf("\tusing %s = %s;\n", alias.Name, underlyingType))
+	switch underlyingType {
+	case "Bool8":
+	case "Char8":
+	case "Bool8[]":
+	case "Char8[]":
+		underlyingType = fmt.Sprintf("Plugify.%s", underlyingType)
+	case "Vector2":
+	case "Vector3":
+	case "Vector4":
+	case "Matrix4x4":
+	case "Vector2[]":
+	case "Vector3[]":
+	case "Vector4[]":
+	case "Matrix4x4[]":
+		underlyingType = fmt.Sprintf("System.Numerics.%s", underlyingType)
+	}
+
+	sb.WriteString(fmt.Sprintf("global using %s = %s;\n", alias.Name, underlyingType))
 
 	return sb.String(), nil
 }
@@ -1212,12 +1229,7 @@ func (g *DotnetGenerator) generateAliasesFile(m *manifest.Manifest) (string, err
 	var sb strings.Builder
 
 	// Using statements
-	sb.WriteString("using System;\n\n")
 	sb.WriteString(fmt.Sprintf("// Generated from %s.pplugin\n\n", m.Name))
-
-	// Namespace
-	sb.WriteString(fmt.Sprintf("namespace %s {\n", m.Name))
-	sb.WriteString("#pragma warning disable CS0649\n\n")
 
 	// Generate aliases
 	aliasesCode, err := g.generateAliases(m)
@@ -1228,9 +1240,6 @@ func (g *DotnetGenerator) generateAliasesFile(m *manifest.Manifest) (string, err
 		sb.WriteString(aliasesCode)
 		sb.WriteString("\n")
 	}
-
-	sb.WriteString("#pragma warning restore CS0649\n")
-	sb.WriteString("}\n")
 
 	return sb.String(), nil
 }
