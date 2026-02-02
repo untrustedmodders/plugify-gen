@@ -371,8 +371,13 @@ downloadAllBtn.addEventListener('click', async () => {
             const blob = await zip.generateAsync({ type: 'blob' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
+
+            const name = fileName.textContent;
+            const dotIndex = name.lastIndexOf('.');
+            const nameWithoutExt = dotIndex !== -1 ? name.slice(0, dotIndex) : name;
+
             a.href = url;
-            a.download = 'generated-bindings.zip';
+            a.download = `${nameWithoutExt}-${selectedLanguage}-bindings.zip`;
             a.click();
             URL.revokeObjectURL(url);
 
