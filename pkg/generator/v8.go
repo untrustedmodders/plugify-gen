@@ -760,7 +760,9 @@ func (m *V8TypeMapper) MapParamType(param *manifest.ParamType) (string, error) {
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
-		ctx |= TypeContextAlias
+		if !param.Alias.Element {
+			ctx |= TypeContextAlias
+		}
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -783,7 +785,9 @@ func (m *V8TypeMapper) MapReturnType(retType *manifest.RetType) (string, error) 
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
-		ctx |= TypeContextAlias
+		if !retType.Alias.Element {
+			ctx |= TypeContextAlias
+		}
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name

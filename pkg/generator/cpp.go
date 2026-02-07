@@ -132,7 +132,7 @@ func (g *CppGenerator) generateDocumentation(opts DocOptions) string {
 
 	// Add deprecation attribute if present
 	if opts.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("    [[deprecated(\"%s\")]]\n", opts.Deprecated))
+		sb.WriteString(fmt.Sprintf("%s[[deprecated(\"%s\")]]\n", opts.Indent, opts.Deprecated))
 	}
 
 	return sb.String()

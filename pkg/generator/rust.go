@@ -125,7 +125,7 @@ func (g *RustGenerator) generateDocumentation(opts DocOptions) string {
 
 	// Add deprecation attribute if present
 	if opts.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("#[deprecated(note = \"%s\")]\n", opts.Deprecated))
+		sb.WriteString(fmt.Sprintf("%s#[deprecated(note = \"%s\")]\n", opts.Indent, opts.Deprecated))
 	}
 
 	return sb.String()
@@ -576,7 +576,9 @@ func (m *RustTypeMapper) MapParamType(param *manifest.ParamType) (string, error)
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
-		ctx |= TypeContextAlias
+		if !param.Alias.Element {
+			ctx |= TypeContextAlias
+		}
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -598,7 +600,9 @@ func (m *RustTypeMapper) MapReturnType(retType *manifest.RetType) (string, error
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
-		ctx |= TypeContextAlias
+		if !retType.Alias.Element {
+			ctx |= TypeContextAlias
+		}
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name

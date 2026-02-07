@@ -56,6 +56,7 @@ type RetType = Property
 type Alias struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Element     bool   `json:"element,omitempty"`
 }
 
 // Enum represents an enum definition
@@ -107,8 +108,9 @@ type Binding struct {
 
 // Bind represents a value that should be treated as a class type
 type Bind struct {
-	Name  string `json:"name"`
-	Owner bool   `json:"owner,omitempty"`
+	Name        string `json:"name"`
+	Description bool   `json:"description,omitempty"`
+	Owner       bool   `json:"owner,omitempty"`
 }
 
 // ParamAlias represents a parameter that should be treated as a class type

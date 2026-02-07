@@ -104,7 +104,7 @@ func (g *DotnetGenerator) generateDocumentation(opts DocOptions) string {
 
 	// Add deprecation attribute if present
 	if opts.Deprecated != "" {
-		sb.WriteString(fmt.Sprintf("\t\t[Obsolete(\"%s\", true)]\n", opts.Deprecated))
+		sb.WriteString(fmt.Sprintf("%s[Obsolete(\"%s\", true)]\n", opts.Indent, opts.Deprecated))
 	}
 
 	return sb.String()
