@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.1.3](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.2...v1.1.3) (2026-02-16)
+
+
+### Bug Fixes
+
+* add alias for element types and intent fixes for deprecated block ([9eea7bf](https://github.com/untrustedmodders/plugify-gen/commit/9eea7bf8fbb91acf2d9d2082b6fa50e0cdf07e2a))
+* add favicon ([829b0bd](https://github.com/untrustedmodders/plugify-gen/commit/829b0bd32ee83499bcf28071dceedefc4ff96ebf))
+* add ref to alias param objects ([f0004c0](https://github.com/untrustedmodders/plugify-gen/commit/f0004c0e86683835184a21d11f902b0a4157b244))
+* add support of array types to aliases ([910d880](https://github.com/untrustedmodders/plugify-gen/commit/910d8806ff4724547cf105f6832ce8828a89c563))
+* add support of array types to aliases (2) ([164c245](https://github.com/untrustedmodders/plugify-gen/commit/164c2458fc21fae895ea61f01e8f528a123d7728))
+* add support of array types to aliases (3) ([893a584](https://github.com/untrustedmodders/plugify-gen/commit/893a58414b6ac29cbd77cb60b2a412e7b023cb97))
+* add support of array types to aliases (4) ([fe3672a](https://github.com/untrustedmodders/plugify-gen/commit/fe3672ada13c8dedade54f2beb0510aa3bfb00d4))
+* add support of array types to aliases (4) ([11fa09b](https://github.com/untrustedmodders/plugify-gen/commit/11fa09b226003c3fa4bbbbf754e2015e2bd3a466))
+* added manifest and language name in bindings archive filename ([12fa958](https://github.com/untrustedmodders/plugify-gen/commit/12fa958c10548c6593196133351ab8169878bc05))
+* alias arrays ([a0087e2](https://github.com/untrustedmodders/plugify-gen/commit/a0087e21569e7869ece4fe886661f53349fdde96))
+* alias for arrays ([a6abfea](https://github.com/untrustedmodders/plugify-gen/commit/a6abfea3c7415683ccc55fde252fa81d08a3372f))
+* alias params ([3ad76e6](https://github.com/untrustedmodders/plugify-gen/commit/3ad76e604d27829584b974363ad35e2b115aa00b))
+* alias params (2) ([0845384](https://github.com/untrustedmodders/plugify-gen/commit/0845384a2dc04b2715997e66850bbadd8d32b21d))
+* alias vector params ([9eb31ed](https://github.com/untrustedmodders/plugify-gen/commit/9eb31edb38f27b7c8096feefbc8c01cf7ca76911))
+* change alias ctx ([a4eca0a](https://github.com/untrustedmodders/plugify-gen/commit/a4eca0a582b2c4aa3ddca889023eb1acd641f6bb))
+* cpp main header ([719ef8c](https://github.com/untrustedmodders/plugify-gen/commit/719ef8c32fbb5fcb71b21d90de96b3f915dc6827))
+* favicon ([114d268](https://github.com/untrustedmodders/plugify-gen/commit/114d26822fc153053461a1c82bf4bec840241b3f))
+* improve aliases ([ad72322](https://github.com/untrustedmodders/plugify-gen/commit/ad723222357f235b6d92f40eb36146a8475545ba))
+* other minor alias change ([ee2aa4c](https://github.com/untrustedmodders/plugify-gen/commit/ee2aa4c4d1ad44975a7279325f53dc9090be32e0))
+* other minor alias change (2) ([de4795d](https://github.com/untrustedmodders/plugify-gen/commit/de4795dde6cbb61b59ee05125078856ec0f415d6))
+* some alias generations ([9b8d637](https://github.com/untrustedmodders/plugify-gen/commit/9b8d63709c0af607fb39155adf3629c19debf956))
+* vector alias ([edbc4fb](https://github.com/untrustedmodders/plugify-gen/commit/edbc4fb12d06eb0bd0fcc49abf0573d0af9c7f4a))
+
 ## [1.1.2](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.1...v1.1.2) (2026-01-06)
 
 
