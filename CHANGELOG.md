@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.0...v1.2.1) (2026-03-25)
+
+
+### Bug Fixes
+
+* golang avoid AddCleanup ptr capture ([873eb56](https://github.com/untrustedmodders/plugify-gen/commit/873eb56648e6f28bc5a510f7fc5634dc09a23748))
+
 ## [1.2.0](https://github.com/untrustedmodders/plugify-gen/compare/v1.1.2...v1.2.0) (2026-03-11)
 
 
