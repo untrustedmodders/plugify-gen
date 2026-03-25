@@ -1058,7 +1058,7 @@ func (g *GolangGenerator) generateHelperConstructors(class *manifest.Class) (str
 	sb.WriteString("\t\thandle:    handle,\n")
 	sb.WriteString("\t\townership: Owned,\n")
 	sb.WriteString("\t}\n")
-	sb.WriteString("\tw.cleanup = runtime.AddCleanup(w, w.finalize, struct{}{})\n")
+	sb.WriteString(fmt.Sprintf("\tw.cleanup = runtime.AddCleanup(w, destroy%sHandle, handle)\n", class.Name))
 	sb.WriteString("\treturn w\n")
 	sb.WriteString("}\n\n")
 
@@ -1087,16 +1087,17 @@ func (g *GolangGenerator) generateDefaultConstructor(class *manifest.Class) (str
 func (g *GolangGenerator) generateFinalizer(class *manifest.Class) (string, error) {
 	var sb strings.Builder
 
-	invalidValue, _, err := g.typeMapper.MapHandleType(class)
+	invalidValue, handleType, err := g.typeMapper.MapHandleType(class)
 	if err != nil {
 		return "", err
 	}
 
-	// finalize function
-	sb.WriteString("// finalize is the finalizer function (like C++ destructor)\n")
-	sb.WriteString(fmt.Sprintf("func (w *%s) finalize(_ struct{}) {\n", class.Name))
-	sb.WriteString("\tif plugify.Plugin.Loaded {\n")
-	sb.WriteString("\t\tw.destroy()\n")
+	// handle cleanup function (must not close over *T)
+	// This is used with runtime.AddCleanup and should behave like finalize: do nothing if plugin isn't loaded.
+	sb.WriteString(fmt.Sprintf("// destroy%sHandle destroys an owned handle.\n", class.Name))
+	sb.WriteString(fmt.Sprintf("func destroy%sHandle(handle %s) {\n", class.Name, handleType))
+	sb.WriteString(fmt.Sprintf("\tif plugify.Plugin.Loaded && handle != %s {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("\t\t%s(handle)\n", *class.Destructor))
 	sb.WriteString("\t}\n")
 	sb.WriteString("}\n\n")
 
@@ -1146,7 +1147,7 @@ func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class) (string,
 	sb.WriteString("// Release releases ownership and returns the handle\n")
 	sb.WriteString(fmt.Sprintf("func (w *%s) Release() %s {\n", class.Name, handleType))
 	if hasDtor {
-		sb.WriteString("\tif w.ownership == Owned {\n")
+		sb.WriteString(fmt.Sprintf("\tif w.ownership == Owned && w.handle != %s {\n", invalidValue))
 		sb.WriteString("\t\tw.cleanup.Stop()\n")
 		sb.WriteString("\t}\n")
 	}
@@ -1163,7 +1164,7 @@ func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class) (string,
 	sb.WriteString("// Reset destroys and resets the handle\n")
 	sb.WriteString(fmt.Sprintf("func (w *%s) Reset() {\n", class.Name))
 	if hasDtor {
-		sb.WriteString("\tif w.ownership == Owned {\n")
+		sb.WriteString(fmt.Sprintf("\tif w.ownership == Owned && w.handle != %s {\n", invalidValue))
 		sb.WriteString("\t\tw.cleanup.Stop()\n")
 		sb.WriteString("\t}\n")
 		sb.WriteString("\tw.destroy()\n")
