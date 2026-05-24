@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.1...v1.2.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* update for new plugify ([b4ee006](https://github.com/untrustedmodders/plugify-gen/commit/b4ee0068a3fcc64c41c2aac39298966ec3350bbc))
+
 ## [1.2.1](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.0...v1.2.1) (2026-03-25)
 
 
