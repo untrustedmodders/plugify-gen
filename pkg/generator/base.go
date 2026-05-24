@@ -23,14 +23,14 @@ const (
 type GeneratorOptions struct {
 	// GenerateClasses controls whether to generate class wrappers
 	GenerateClasses bool
-	// GenerateLogs controls whether to generate call logs
-	GenerateLogs bool
+	// GenerateScopes controls whether to generate call scopes
+	GenerateScopes bool
 }
 
 // EnsureOptions returns valid options, using defaults if nil
 func EnsureOptions(opts *GeneratorOptions) *GeneratorOptions {
 	if opts == nil {
-		return &GeneratorOptions{GenerateClasses: true, GenerateLogs: true}
+		return &GeneratorOptions{GenerateClasses: true, GenerateScopes: true}
 	}
 	return opts
 }

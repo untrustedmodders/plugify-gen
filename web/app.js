@@ -24,7 +24,7 @@ const fileName = document.getElementById('fileName');
 const dropZone = document.getElementById('dropZone');
 const autoConvert = document.getElementById('autoConvert');
 const generateClasses = document.getElementById('generateClasses');
-const generateLogs = document.getElementById('generateLogs');
+const generateScopes = document.getElementById('generateScopes');
 const languageButtons = document.querySelectorAll('.lang-btn');
 const convertBtn = document.getElementById('convertBtn');
 const statusDiv = document.getElementById('status');
@@ -95,7 +95,7 @@ async function performConversion() {
         // Call WebAssembly function
         const options = {
             generateClasses: generateClasses.checked,
-            generateLogs: generateLogs.checked
+            generateScopes: generateScopes.checked
         };
         const result = window.convertManifest(manifestContent, selectedLanguage, options);
 
@@ -439,11 +439,11 @@ function loadGenerateClassesPreference() {
     }
 }
 
-// Load generate-logs preference from localStorage
-function loadGenerateLogsPreference() {
-    const savedPreference = localStorage.getItem('generateLogs');
+// Load generate-scopes preference from localStorage
+function loadGenerateScopesPreference() {
+    const savedPreference = localStorage.getItem('generateScopes');
     if (savedPreference !== null) {
-        generateLogs.checked = savedPreference === 'true';
+        generateScopes.checked = savedPreference === 'true';
     }
 }
 
@@ -452,9 +452,9 @@ function saveGenerateClassesPreference() {
     localStorage.setItem('generateClasses', generateClasses.checked);
 }
 
-// Save generate-logs preference to localStorage
-function saveGenerateLogsPreference() {
-    localStorage.setItem('generateLogs', generateLogs.checked);
+// Save generate-scopes preference to localStorage
+function saveGenerateScopesPreference() {
+    localStorage.setItem('generateScopes', generateScopes.checked);
 }
 
 // Auto-convert toggle change handler
@@ -472,9 +472,9 @@ generateClasses.addEventListener('change', () => {
     }
 });
 
-// Generate logs toggle change handler
-generateLogs.addEventListener('change', () => {
-    saveGenerateLogsPreference();
+// Generate scopes toggle change handler
+generateScopes.addEventListener('change', () => {
+    saveGenerateScopesPreference();
 
     // Always regenerate if manifest is loaded and files have been generated
     if (manifestContent && wasmReady && Object.keys(generatedFiles).length > 0) {
@@ -486,5 +486,5 @@ generateLogs.addEventListener('change', () => {
 initializeDefaultLanguage();
 loadAutoConvertPreference();
 loadGenerateClassesPreference();
-loadGenerateLogsPreference();
+loadGenerateScopesPreference();
 loadWasm();

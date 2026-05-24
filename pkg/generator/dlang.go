@@ -238,7 +238,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	for _, method := range m.Methods {
 		methodGroup := method.Group
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethodWrapper(&method, m.Name, opts.GenerateLogs)
+			methodCode, err := g.generateMethodWrapper(&method, m.Name, opts.GenerateScopes)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate method wrapper %s: %w", method.Name, err)
 			}
@@ -478,7 +478,7 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 	return sb.String(), nil
 }
 
-func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginName string, generateLogs bool) (string, error) {
+func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginName string, generateScopes bool) (string, error) {
 	var sb strings.Builder
 
 	// Documentation
@@ -514,14 +514,14 @@ func (g *DlangGenerator) generateMethodWrapper(method *manifest.Method, pluginNa
 		}
 	}
 
-	if generateLogs {
+	if generateScopes {
 		params = append(params, "Location __location = Location(__LINE__, __FILE__, __FUNCTION__, __MODULE__)")
 	}
 
 	sb.WriteString(strings.Join(params, ", "))
 	sb.WriteString(") {\n")
 
-	if generateLogs {
+	if generateScopes {
 		sb.WriteString(fmt.Sprintf("\tlog(\"%s::%s\", Severity.Trace, __location);\n", pluginName, method.Name))
 	}
 

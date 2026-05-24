@@ -23,8 +23,8 @@ func main() {
 		language        = flag.String("lang", "", "Target language: cpp, cxx, v8, golang, dotnet, python, lua, rust, dlang (required)")
 		overwrite       = flag.Bool("overwrite", false, "Overwrite existing files")
 		verbose         = flag.Bool("verbose", false, "Enable verbose output")
-		generateClasses = flag.Bool("classes", false, "Generate class wrappers (default: true)")
-		generateLogs    = flag.Bool("logs", false, "Generate call logs (default: true)")
+		generateClasses = flag.Bool("classes", false, "Generate class wrappers")
+		generateScopes  = flag.Bool("scopes", false, "Generate call scopes")
 		showVersion     = flag.Bool("version", false, "Show version")
 	)
 
@@ -78,7 +78,7 @@ func main() {
 
 	opts := &generator.GeneratorOptions{
 		GenerateClasses: *generateClasses,
-		GenerateLogs:    *generateLogs,
+		GenerateScopes:  *generateScopes,
 	}
 
 	result, err := gen.Generate(m, opts)

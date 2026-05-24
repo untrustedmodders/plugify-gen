@@ -246,7 +246,7 @@ func (g *DotnetGenerator) formatDelegateParameters(params []manifest.ParamType) 
 	})
 }
 
-func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName string, generateLogs bool) (string, error) {
+func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName string, generateScopes bool) (string, error) {
 	var sb strings.Builder
 
 	// XML documentation
@@ -308,7 +308,7 @@ func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName str
 		RetType: method.RetType,
 	}))
 
-	if generateLogs {
+	if generateScopes {
 		if len(params) > 0 {
 			params += ", "
 		}
@@ -324,8 +324,8 @@ func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName str
 		return "", err
 	}
 
-	if generateLogs {
-		sb.WriteString(fmt.Sprintf("\t\t\tNativeMethods.Log(\"%s::%s\", Severity.Trace, callerLine, callerFile, callerFunction, callerModule);\n", pluginName, methodName))
+	if generateScopes {
+		sb.WriteString(fmt.Sprintf("\t\t\tusing var scope = new Scope(\"%s::%s\", callerLine, callerFile, callerFunction, callerModule);\n", pluginName, methodName))
 	}
 
 	if method.RetType.Type != "void" {
@@ -1339,7 +1339,7 @@ func (g *DotnetGenerator) generateGroupFile(m *manifest.Manifest, groupName stri
 	for _, method := range m.Methods {
 		methodGroup := method.Group
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateLogs)
+			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateScopes)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
 			}

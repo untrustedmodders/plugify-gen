@@ -278,7 +278,7 @@ func (g *GolangGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 }
 
 // generateMethod generates a single method implementation
-func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName string, generateLogs bool) (string, error) {
+func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName string, generateScopes bool) (string, error) {
 	var sb strings.Builder
 
 	// Generate documentation
@@ -310,8 +310,8 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName str
 	}
 	sb.WriteString(" {\n")
 
-	if generateLogs {
-		sb.WriteString(fmt.Sprintf("\tplugify.Log(\"%s::%s\", plugify.Trace, 2)\n", pluginName, method.Name))
+	if generateScopes {
+		sb.WriteString(fmt.Sprintf("\tdefer plugify.Scope(\"%s::%s\", 3)()\n", pluginName, method.Name))
 	}
 
 	// Generate method body
@@ -1096,7 +1096,7 @@ func (g *GolangGenerator) generateFinalizer(class *manifest.Class) (string, erro
 	// This is used with runtime.AddCleanup and should behave like finalize: do nothing if plugin isn't loaded.
 	sb.WriteString(fmt.Sprintf("// destroy%sHandle destroys an owned handle.\n", class.Name))
 	sb.WriteString(fmt.Sprintf("func destroy%sHandle(handle %s) {\n", class.Name, handleType))
-	sb.WriteString(fmt.Sprintf("\tif plugify.Plugin.Loaded && handle != %s {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("\tif plugify.Plugin().Loaded() && handle != %s {\n", invalidValue))
 	sb.WriteString(fmt.Sprintf("\t\t%s(handle)\n", *class.Destructor))
 	sb.WriteString("\t}\n")
 	sb.WriteString("}\n\n")
@@ -1431,7 +1431,7 @@ func (g *GolangGenerator) generateAliasesGoFile(m *manifest.Manifest) (string, e
 
 	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
 
-	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
+	sb.WriteString("var _ = plugify.Plugin()\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
@@ -1458,7 +1458,7 @@ func (g *GolangGenerator) generateDelegatesGoFile(m *manifest.Manifest) (string,
 
 	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
 
-	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
+	sb.WriteString("var _ = plugify.Plugin()\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
@@ -1562,7 +1562,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	sb.WriteString("var _ = reflect.TypeOf(0)\n")
 	sb.WriteString("var _ = runtime.GOOS\n")
 	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
-	sb.WriteString("var _ = plugify.Plugin.Loaded\n\n")
+	sb.WriteString("var _ = plugify.Plugin()\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s (group: %s)\n\n", m.Name, groupName))
@@ -1571,7 +1571,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	for _, method := range m.Methods {
 		methodGroup := method.Group
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateLogs)
+			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateScopes)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
 			}

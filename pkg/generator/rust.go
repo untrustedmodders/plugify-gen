@@ -230,7 +230,7 @@ func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, err
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("pub type %s = unsafe extern \"C\" fn(", proto.Name))
+	sb.WriteString(fmt.Sprintf("#[allow(unused)]\npub type %s = unsafe extern \"C\" fn(", proto.Name))
 	sb.WriteString(params)
 	sb.WriteString(")")
 	if retType != "" && retType != "()" {
@@ -257,7 +257,7 @@ func (g *RustGenerator) formatRustParams(params []manifest.ParamType, includeNam
 	})
 }
 
-func (g *RustGenerator) generateMethod(method *manifest.Method, pluginName string) (string, error) {
+func (g *RustGenerator) generateMethod(method *manifest.Method, pluginName string, generateScopes bool) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(g.generateDocumentation(DocOptions{
@@ -303,7 +303,9 @@ func (g *RustGenerator) generateMethod(method *manifest.Method, pluginName strin
 	}
 	sb.WriteString(" {\n")
 
-	sb.WriteString(fmt.Sprintf("    trace!(\"%s::%s\");\n", pluginName, method.Name))
+	if generateScopes {
+		sb.WriteString(fmt.Sprintf("    let __scope = scope!(\"%s::%s\");\n", pluginName, method.Name))
+	}
 
 	sb.WriteString("    unsafe { ")
 	sb.WriteString(fmt.Sprintf("__%s_%s", pluginName, method.Name))
@@ -422,13 +424,13 @@ func (g *RustGenerator) generateGroupFile(m *manifest.Manifest, groupName string
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("use super::delegates::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
-	sb.WriteString("use plugify::{trace, Str, Arr, Var, Vec2, Vec3, Vec4, Mat4x4};\n\n")
+	sb.WriteString("use plugify::{scope, Str, Arr, Var, Vec2, Vec3, Vec4, Mat4x4};\n\n")
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
 		methodGroup := method.Group
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethod(&method, m.Name)
+			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateScopes)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
 			}

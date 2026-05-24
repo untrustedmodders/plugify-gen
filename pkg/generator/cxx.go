@@ -203,7 +203,7 @@ func (g *CxxGenerator) generateDocumentation(opts DocOptions) string {
 	return sb.String()
 }
 
-func (g *CxxGenerator) generateMethod(method *manifest.Method, pluginName string, generateLogs bool) (string, error) {
+func (g *CxxGenerator) generateMethod(method *manifest.Method, pluginName string, generateScopes bool) (string, error) {
 	var sb strings.Builder
 
 	// Generate function signature
@@ -242,7 +242,7 @@ func (g *CxxGenerator) generateMethod(method *manifest.Method, pluginName string
 		Indent:      "  ",
 	}))
 
-	if generateLogs {
+	if generateScopes {
 		if len(formattedParams) > 0 {
 			formattedParams += ", "
 		}
@@ -251,8 +251,8 @@ func (g *CxxGenerator) generateMethod(method *manifest.Method, pluginName string
 
 	sb.WriteString(fmt.Sprintf("\n  %s %s(%s) {\n", retType, method.Name, formattedParams))
 
-	if generateLogs {
-		sb.WriteString(fmt.Sprintf("    plg::Log(\"%s::%s\", plg::Severity::Trace, __location);\n", pluginName, method.Name))
+	if generateScopes {
+		sb.WriteString(fmt.Sprintf("    [[maybe_unused]] auto __scope = plg::Scope(\"%s::%s\", __location);\n", pluginName, method.Name))
 	}
 
 	if method.RetType.Type == "void" {
@@ -834,7 +834,7 @@ func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 	for _, method := range m.Methods {
 		methodGroup := method.Group
 		if methodGroup == groupName {
-			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateLogs)
+			methodCode, err := g.generateMethod(&method, m.Name, opts.GenerateScopes)
 			if err != nil {
 				return "", fmt.Errorf("failed to generate method %s: %w", method.Name, err)
 			}

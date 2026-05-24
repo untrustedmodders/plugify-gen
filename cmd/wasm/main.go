@@ -32,14 +32,14 @@ func convertManifest(this js.Value, args []js.Value) interface{} {
 	// Parse options if provided
 	opts := &generator.GeneratorOptions{
 		GenerateClasses: true, // Default to true
-		GenerateLogs:    true, // Default to true
+		GenerateScopes:  true, // Default to true
 	}
 	if len(args) >= 3 && args[2].Type() == js.TypeObject {
 		if generateClasses := args[2].Get("generateClasses"); generateClasses.Type() == js.TypeBoolean {
 			opts.GenerateClasses = generateClasses.Bool()
 		}
-		if generateLogs := args[2].Get("generateLogs"); generateLogs.Type() == js.TypeBoolean {
-			opts.GenerateLogs = generateLogs.Bool()
+		if generateScopes := args[2].Get("generateScopes"); generateScopes.Type() == js.TypeBoolean {
+			opts.GenerateScopes = generateScopes.Bool()
 		}
 	}
 
