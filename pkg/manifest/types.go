@@ -40,7 +40,7 @@ type Property struct {
 	Type        string     `json:"type"`
 	Ref         bool       `json:"ref,omitempty"`
 	Description string     `json:"description,omitempty"`
-	Default     *int64     `json:"default,omitempty"`
+	Default     *any       `json:"default,omitempty"`
 	Alias       *Alias     `json:"alias,omitempty"`
 	Enum        *Enum      `json:"enum,omitempty"`
 	Prototype   *Prototype `json:"prototype,omitempty"`

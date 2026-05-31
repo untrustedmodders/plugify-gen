@@ -388,7 +388,12 @@ func (g *DotnetGenerator) formatMethodParameters(params []manifest.ParamType) (s
 
 		result := typeName + " " + param.Name
 		if param.Default != nil {
-			result += fmt.Sprintf(" = %d", *param.Default)
+			switch v := (*param.Default).(type) {
+			case string:
+				result += fmt.Sprintf(" = %q", v)
+			default:
+				result += fmt.Sprintf(" = %v", v)
+			}
 		}
 		return result, nil
 	})
@@ -1099,7 +1104,12 @@ func (g *DotnetGenerator) generateClassBinding(m *manifest.Manifest, class *mani
 
 		// Add default value if present
 		if param.Default != nil {
-			formattedParams += fmt.Sprintf(" = %d", *param.Default)
+			switch v := (*param.Default).(type) {
+			case string:
+				formattedParams += fmt.Sprintf(" = %q", v)
+			default:
+				formattedParams += fmt.Sprintf(" = %v", v)
+			}
 		}
 	}
 

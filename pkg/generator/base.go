@@ -259,7 +259,12 @@ func FormatParameters(params []manifest.ParamType, format ParameterFormat, mappe
 			paramName := param.Name
 			result += typeName + " " + paramName
 			if param.Default != nil {
-				result += fmt.Sprintf(" = %d", *param.Default)
+				switch v := (*param.Default).(type) {
+				case string:
+					result += fmt.Sprintf(" = %q", v)
+				default:
+					result += fmt.Sprintf(" = %v", v)
+				}
 			}
 		}
 	}
