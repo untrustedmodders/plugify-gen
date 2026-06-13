@@ -154,7 +154,7 @@ func (g *GolangGenerator) generateAlias(alias *manifest.Alias, underlyingType st
 		sb.WriteString(fmt.Sprintf("// %s - %s\n", alias.Name, alias.Description))
 	}
 
-	sb.WriteString(fmt.Sprintf("type %s = %s\n", alias.Name, underlyingType))
+	sb.WriteString(fmt.Sprintf("type %s %s\n", alias.Name, underlyingType))
 
 	return sb.String(), nil
 }
@@ -436,12 +436,15 @@ func (g *GolangGenerator) generateGoMethodCall(method *manifest.Method, sb *stri
 		sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 		sb.WriteString(fmt.Sprintf("%s__retVal_native = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 	} else if ctx.hasTry {
+		retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
+		if method.RetType.Alias != nil {
+			retTypeCast = method.RetType.Alias.Name
+		}
+
 		if ctx.isPodRet {
-			retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
 			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 			sb.WriteString(fmt.Sprintf("%s__retVal = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 		} else {
-			retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
 			if retTypeCast != "" {
 				sb.WriteString(fmt.Sprintf("%s__retVal = %s(%s)\n", ctx.innerIndent, retTypeCast, functionCall))
 			} else {
@@ -602,6 +605,9 @@ func (g *GolangGenerator) generateParamAssign(param *manifest.ParamType, indent 
 
 	// Handle vector/matrix types
 	if strings.HasPrefix(paramType, "plugify.Vector") || strings.HasPrefix(paramType, "plugify.Matrix") {
+		if param.Alias != nil {
+			paramType = param.Alias.Name
+		}
 		return fmt.Sprintf("%s*%s = *(*%s)(unsafe.Pointer(&__%s))\n", indent, name, paramType, name), nil
 	}
 
@@ -610,13 +616,25 @@ func (g *GolangGenerator) generateParamAssign(param *manifest.ParamType, indent 
 		return fmt.Sprintf("%s%sTo(&__%s, %s)\n", indent, paramType, name, name), nil
 	}
 
-	// Handle other types
-	if strings.HasPrefix(paramType, "plugify.") {
+	if strings.Contains(paramType, "VariantData") {
 		return fmt.Sprintf("%s*%s = %s(&__%s)\n", indent, name, paramType, name), nil
 	}
 
+	// Handle other types
+	if strings.HasPrefix(paramType, "plugify.") {
+		typeName := g.typeMapper.btypesMap[param.Type]
+		if param.Alias != nil {
+			typeName = param.Alias.Name
+		}
+		return fmt.Sprintf("%s*%s = %s[%s](&__%s)\n", indent, name, paramType, typeName, name), nil
+	}
+
 	if param.Enum != nil {
-		return fmt.Sprintf("%s*%s = %s(__%s)\n", indent, name, param.Enum.Name, name), nil
+		paramType = param.Enum.Name
+	}
+
+	if param.Alias != nil {
+		paramType = param.Alias.Name
 	}
 
 	return fmt.Sprintf("%s*%s = %s(__%s)\n", indent, name, paramType, name), nil
@@ -630,8 +648,32 @@ func (g *GolangGenerator) generateReturnAssign(retType *manifest.RetType, indent
 		return "", nil
 	}
 
+	if strings.Contains(paramType, "VectorData") {
+		typeName := g.typeMapper.btypesMap[retType.Type]
+		if strings.Contains(paramType, "Variant") {
+			if retType.Alias != nil {
+				typeName += ", " + retType.Alias.Name
+			} else if strings.Contains(paramType, "Variant") && typeName == "any" {
+				typeName += ", []any"
+			}
+		}
+		return fmt.Sprintf("%s__retVal = %s[%s](&__retVal_native)\n", indent, paramType, typeName), nil
+	}
+
+	if strings.Contains(paramType, "StringData") {
+		typeName := g.typeMapper.btypesMap[retType.Type]
+		if retType.Alias != nil {
+			typeName = retType.Alias.Name
+		}
+		return fmt.Sprintf("%s__retVal = %s[%s](&__retVal_native)\n", indent, paramType, typeName), nil
+	}
+
 	if retType.Enum != nil {
-		return fmt.Sprintf("%s__retVal = %sT[%s](&__retVal_native)\n", indent, paramType, retType.Enum.Name), nil
+		paramType = retType.Enum.Name
+	}
+
+	if retType.Alias != nil {
+		paramType = retType.Alias.Name
 	}
 
 	return fmt.Sprintf("%s__retVal = %s(&__retVal_native)\n", indent, paramType), nil

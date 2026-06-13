@@ -16,6 +16,8 @@ type GolangTypeMapper struct {
 	ctypesMap map[string]string
 	// Function type names
 	ftypesMap map[string]string
+	// Base type names
+	btypesMap map[string]string
 	// Value type cast constructors
 	valTypeCastMap map[string]string
 	// Return type cast names
@@ -205,6 +207,50 @@ func NewGolangTypeMapper() *GolangTypeMapper {
 			"vec3[]":   "Vector3",
 			"vec4[]":   "Vector4",
 			"mat4x4[]": "Matrix4x4",
+		},
+		btypesMap: map[string]string{
+			"void":     "",
+			"bool":     "",
+			"char8":    "",
+			"char16":   "",
+			"int8":     "",
+			"int16":    "",
+			"int32":    "",
+			"int64":    "",
+			"uint8":    "",
+			"uint16":   "",
+			"uint32":   "",
+			"uint64":   "",
+			"ptr64":    "",
+			"float":    "",
+			"double":   "",
+			"function": "",
+			"string":   "string",
+			"any":      "any",
+			"bool[]":   "bool",
+			"char8[]":  "int8",
+			"char16[]": "uint16",
+			"int8[]":   "int8",
+			"int16[]":  "int16",
+			"int32[]":  "int32",
+			"int64[]":  "int64",
+			"uint8[]":  "uint8",
+			"uint16[]": "uint16",
+			"uint32[]": "uint32",
+			"uint64[]": "uint64",
+			"ptr64[]":  "uintptr",
+			"float[]":  "float32",
+			"double[]": "float64",
+			"string[]": "string",
+			"any[]":    "any",
+			"vec2[]":   "plugify.Vector2",
+			"vec3[]":   "plugify.Vector3",
+			"vec4[]":   "plugify.Vector4",
+			"mat4x4[]": "plugify.Matrix4x4",
+			"vec2":     "",
+			"vec3":     "",
+			"vec4":     "",
+			"mat4x4":   "",
 		},
 		valTypeCastMap: map[string]string{
 			"void":     "",
