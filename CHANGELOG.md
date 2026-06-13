@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.3](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.2...v1.2.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* set default params to any ([7ad3ed1](https://github.com/untrustedmodders/plugify-gen/commit/7ad3ed1e00fa29283da078413558ce870073b9d6))
+* update for new plugify and for named types ([cc7d96b](https://github.com/untrustedmodders/plugify-gen/commit/cc7d96bd19fd3fa0fd3f5f4e5f090e92fdae627e))
+* update README.md ([301dc1c](https://github.com/untrustedmodders/plugify-gen/commit/301dc1c8b60009ad0124bd735afcc4ea973cfb89))
+
 ## [1.2.2](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.1...v1.2.2) (2026-05-24)
 
 
