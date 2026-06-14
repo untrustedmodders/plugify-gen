@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.5](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.4...v1.2.5) (2026-06-14)
+
+
+### Bug Fixes
+
+* add handle alias ([4ef7949](https://github.com/untrustedmodders/plugify-gen/commit/4ef79498e2e0d2857785952c333941d367ee4174))
+
 ## [1.2.4](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.3...v1.2.4) (2026-06-14)
 
 
