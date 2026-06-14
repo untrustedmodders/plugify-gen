@@ -56,13 +56,11 @@ type RetType = Property
 type Alias struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	Element     bool   `json:"element,omitempty"`
 }
 
 // Enum represents an enum definition
 type Enum struct {
 	Name        string      `json:"name"`
-	Type        string      `json:"type"`
 	Description string      `json:"description,omitempty"`
 	Values      []EnumValue `json:"values"`
 }

@@ -470,9 +470,7 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 	switch {
 	case param.Alias != nil:
 		typeName = param.Alias.Name
-		if !param.Alias.Element {
-			ctx |= TypeContextAlias
-		}
+		ctx |= TypeContextAlias
 
 	case param.Enum != nil:
 		typeName = param.Enum.Name
@@ -499,9 +497,7 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 	switch {
 	case retType.Alias != nil:
 		typeName = retType.Alias.Name
-		if !retType.Alias.Element {
-			ctx |= TypeContextAlias
-		}
+		ctx |= TypeContextAlias
 
 	case retType.Enum != nil:
 		typeName = retType.Enum.Name
