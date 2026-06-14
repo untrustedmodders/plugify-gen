@@ -87,6 +87,7 @@ type Class struct {
 	Description  string    `json:"description,omitempty"`
 	Deprecated   string    `json:"deprecated,omitempty"`
 	HandleType   string    `json:"handleType,omitempty"`
+	HandleAlias  string    `json:"handleAlias,omitempty"`
 	InvalidValue string    `json:"invalidValue,omitempty"`
 	NullPolicy   string    `json:"nullPolicy,omitempty"`
 	Constructors []string  `json:"constructors,omitempty"`

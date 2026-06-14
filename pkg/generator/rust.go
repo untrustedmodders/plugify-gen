@@ -627,6 +627,10 @@ func (m *RustTypeMapper) MapHandleType(class *manifest.Class) (string, string, e
 		return "", "", err
 	}
 
+	if len(class.HandleAlias) > 0 {
+		handleType = class.HandleAlias
+	}
+
 	nullptr := invalidValue == "0" || invalidValue == "" || invalidValue == "NULL" || invalidValue == "nullptr"
 	if strings.HasPrefix(class.HandleType, "ptr") && nullptr {
 		invalidValue = "0"

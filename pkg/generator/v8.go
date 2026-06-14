@@ -804,5 +804,8 @@ func (m *V8TypeMapper) MapHandleType(class *manifest.Class) (string, string, err
 	if err != nil {
 		return "", "", err
 	}
+	if len(class.HandleAlias) > 0 {
+		handleType = class.HandleAlias
+	}
 	return "null", handleType, err
 }

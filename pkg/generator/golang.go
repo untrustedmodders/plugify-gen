@@ -1235,14 +1235,9 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	var sb strings.Builder
 
 	// Determine parameters (skip first if bindSelf)
-	var aliasSelf string
 	params := method.ParamTypes
 	startIdx := 0
 	if binding.BindSelf && len(params) > 0 {
-		first := method.ParamTypes[0]
-		if first.Alias != nil {
-			aliasSelf = first.Alias.Name
-		}
 		startIdx = 1
 	}
 	methodParams := params[startIdx:]
@@ -1334,7 +1329,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 	}
 
 	// Build call arguments
-	callArgs, err := g.formatClassCallArgs(methodParams, binding, aliasSelf)
+	callArgs, err := g.formatClassCallArgs(methodParams, binding)
 	if err != nil {
 		return "", err
 	}
@@ -1364,16 +1359,7 @@ func (g *GolangGenerator) generateBinding(m *manifest.Manifest, class *manifest.
 			} else {
 				ownership = fmt.Sprintf("New%s", binding.RetAlias.Name)
 			}
-			klass := FindClass(m, binding.RetAlias.Name)
-			if klass != nil {
-				_, handleType, err := g.typeMapper.MapHandleType(klass)
-				if err != nil {
-					return "", err
-				}
-				sb.WriteString(fmt.Sprintf("\treturn %s(%s(%s(%s)))%s\n", ownership, handleType, method.FuncName, callArgs, errorTag))
-			} else {
-				sb.WriteString(fmt.Sprintf("\treturn %s(%s(%s))%s\n", ownership, method.FuncName, callArgs, errorTag))
-			}
+			sb.WriteString(fmt.Sprintf("\treturn %s(%s(%s))%s\n", ownership, method.FuncName, callArgs, errorTag))
 		} else {
 			sb.WriteString(fmt.Sprintf("\treturn %s(%s)%s\n", method.FuncName, callArgs, errorTag))
 		}
@@ -1415,16 +1401,12 @@ func (g *GolangGenerator) formatClassParams(params []manifest.ParamType, aliases
 	return strings.Join(parts, ", "), nil
 }
 
-func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, binding *manifest.Binding, alias string) (string, error) {
+func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, binding *manifest.Binding) (string, error) {
 	var parts []string
 
 	// Add self if bindSelf
 	if binding.BindSelf {
-		if len(alias) == 0 {
-			parts = append(parts, "w.handle")
-		} else {
-			parts = append(parts, fmt.Sprintf("%s(w.handle)", alias))
-		}
+		parts = append(parts, "w.handle")
 	}
 
 	// Add other parameters

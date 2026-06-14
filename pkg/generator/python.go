@@ -725,5 +725,8 @@ func (m *PythonTypeMapper) MapHandleType(class *manifest.Class) (string, string,
 	if err != nil {
 		return "", "", err
 	}
+	if len(class.HandleAlias) > 0 {
+		handleType = class.HandleAlias
+	}
 	return "None", handleType, nil
 }
