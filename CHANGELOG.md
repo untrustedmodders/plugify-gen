@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.4](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.3...v1.2.4) (2026-06-14)
+
+
+### Bug Fixes
+
+* handle cast ([3a0c2d8](https://github.com/untrustedmodders/plugify-gen/commit/3a0c2d8899a97d402a82b2b984302c132b8603ff))
+* remove unused element from alias ([01101de](https://github.com/untrustedmodders/plugify-gen/commit/01101de95d2076c9c81d0fd834f1938d55ac4549))
+
 ## [1.2.3](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.2...v1.2.3) (2026-06-13)
 
 
