@@ -357,6 +357,16 @@ func FindMethod(m *manifest.Manifest, name string) *manifest.Method {
 	return nil
 }
 
+// FindClass returns the method with the given name or nil
+func FindClass(m *manifest.Manifest, name string) *manifest.Class {
+	for i := range m.Methods {
+		if m.Classes[i].Name == name {
+			return &m.Classes[i]
+		}
+	}
+	return nil
+}
+
 // HasConstructorWithNoParam checks if any constructor has exactly 0 parameter
 func (g *BaseGenerator) HasConstructorWithNoParam(m *manifest.Manifest, class *manifest.Class) bool {
 	for _, ctorName := range class.Constructors {
