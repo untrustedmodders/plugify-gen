@@ -1430,19 +1430,24 @@ func (g *GolangGenerator) formatClassCallArgs(params []manifest.ParamType, bindi
 
 // generateEnumsGoFile generates a file containing all enums
 func (g *GolangGenerator) generateEnumsGoFile(m *manifest.Manifest) (string, error) {
-	var sb strings.Builder
-
-	// Package declaration
-	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
-
-	// Add comment header
-	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
-
 	// Generate enums
 	enumsCode, err := g.generateEnums(m)
 	if err != nil {
 		return "", err
 	}
+
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	if strings.Contains(enumsCode, "plugify.") {
+		sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
+	}
+
+	// Add comment header
+	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
+
 	if enumsCode != "" {
 		sb.WriteString(enumsCode)
 		sb.WriteString("\n")
