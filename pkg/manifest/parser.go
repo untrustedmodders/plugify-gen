@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"unicode"
 )
 
 // ParseFile parses a .pplugin manifest file
@@ -68,4 +69,13 @@ func validate(m *Manifest) error {
 	}
 
 	return nil
+}
+
+func Capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }

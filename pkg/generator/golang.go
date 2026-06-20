@@ -60,12 +60,26 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	}
 	files[fmt.Sprintf("%s/delegates.go", m.Name)] = delegatesGoCode
 
-	// Generate .h file for enums
+	// Generate .h file for types
 	sharedHCode, err := g.generateSharedHFile(m)
 	if err != nil {
 		return nil, fmt.Errorf("generating shared header: %w", err)
 	}
 	files[fmt.Sprintf("%s/shared.h", m.Name)] = sharedHCode
+
+	// Generate .go file for shared
+	sharedGoCode, err := g.generateSharedGoFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating shared file: %w", err)
+	}
+	files[fmt.Sprintf("%s/shared.go", m.Name)] = sharedGoCode
+
+	// Generate .go file for exports
+	exportGoCode, err := g.generateExportGoFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("generating export header: %w", err)
+	}
+	files[fmt.Sprintf("%s.go", m.Name)] = exportGoCode
 
 	// Generate group-specific files
 	for groupName := range groups {
@@ -108,7 +122,7 @@ func (g *GolangGenerator) generateEnum(enum *manifest.Enum, underlyingType strin
 		sb.WriteString(fmt.Sprintf("// %s - %s\n", enum.Name, enum.Description))
 	}
 
-	sb.WriteString(fmt.Sprintf("type %s = %s\n\n", enum.Name, underlyingType))
+	sb.WriteString(fmt.Sprintf("type %s %s\n\n", enum.Name, underlyingType))
 	sb.WriteString("const (\n")
 
 	for _, value := range enum.Values {
@@ -281,15 +295,6 @@ func (g *GolangGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName string, generateScopes bool) (string, error) {
 	var sb strings.Builder
 
-	// Generate documentation
-	sb.WriteString(g.generateDocumentation(DocOptions{
-		Summary:     method.Name,
-		Description: method.Description,
-		Deprecated:  method.Deprecated,
-		Params:      method.ParamTypes,
-		RetType:     method.RetType,
-	}))
-
 	// Generate function signature
 	params, err := g.formatParams(method.ParamTypes, true)
 	if err != nil {
@@ -304,15 +309,11 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName str
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("func %s(%s)", method.Name, params))
+	sb.WriteString(fmt.Sprintf("var P_%s = func(%s)", method.Name, params))
 	if returnType != "" {
 		sb.WriteString(fmt.Sprintf(" %s", returnType))
 	}
 	sb.WriteString(" {\n")
-
-	if generateScopes {
-		sb.WriteString(fmt.Sprintf("\tdefer plugify.Scope(\"%s::%s\", 3)()\n", pluginName, method.Name))
-	}
 
 	// Generate method body
 	body, err := g.generateMethodBody(method)
@@ -320,6 +321,38 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName str
 		return "", err
 	}
 	sb.WriteString(body)
+
+	sb.WriteString("}\n\n")
+
+	// Generate documentation
+	sb.WriteString(g.generateDocumentation(DocOptions{
+		Summary:     method.Name,
+		Description: method.Description,
+		Deprecated:  method.Deprecated,
+		Params:      method.ParamTypes,
+		RetType:     method.RetType,
+	}))
+
+	sb.WriteString(fmt.Sprintf("func %s(%s)", method.Name, params))
+	if returnType != "" {
+		sb.WriteString(fmt.Sprintf(" %s", returnType))
+	}
+	sb.WriteString(" {\n")
+
+	if generateScopes {
+		sb.WriteString(fmt.Sprintf("\tdefer plugify.Scope(\"%s::%s\", buildInfo, 3)()\n", pluginName, method.Name))
+	}
+
+	paramNames, err := g.formatParams(method.ParamTypes, false)
+	if err != nil {
+		return "", err
+	}
+
+	if method.RetType.Type != "void" {
+		sb.WriteString(fmt.Sprintf("\treturn P_%s(%s)\n", method.Name, paramNames))
+	} else {
+		sb.WriteString(fmt.Sprintf("\tP_%s(%s)\n", method.Name, paramNames))
+	}
 
 	sb.WriteString("}\n")
 
@@ -1138,7 +1171,7 @@ func (g *GolangGenerator) generateFinalizer(class *manifest.Class) (string, erro
 	// This is used with runtime.AddCleanup and should behave like finalize: do nothing if plugin isn't loaded.
 	sb.WriteString(fmt.Sprintf("// destroy%sHandle destroys an owned handle.\n", class.Name))
 	sb.WriteString(fmt.Sprintf("func destroy%sHandle(handle %s) {\n", class.Name, handleType))
-	sb.WriteString(fmt.Sprintf("\tif plugify.Plugin().Loaded() && handle != %s {\n", invalidValue))
+	sb.WriteString(fmt.Sprintf("\tif handle != %s {\n", invalidValue))
 	sb.WriteString(fmt.Sprintf("\t\t%s(handle)\n", *class.Destructor))
 	sb.WriteString("\t}\n")
 	sb.WriteString("}\n\n")
@@ -1473,7 +1506,7 @@ func (g *GolangGenerator) generateAliasesGoFile(m *manifest.Manifest) (string, e
 
 	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
 
-	sb.WriteString("var _ = plugify.Plugin()\n\n")
+	sb.WriteString("var _ = plugify.ApiVersion\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
@@ -1500,7 +1533,7 @@ func (g *GolangGenerator) generateDelegatesGoFile(m *manifest.Manifest) (string,
 
 	sb.WriteString("import \"github.com/untrustedmodders/go-plugify\"\n\n")
 
-	sb.WriteString("var _ = plugify.Plugin()\n\n")
+	sb.WriteString("var _ = plugify.ApiVersion\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s\n\n", m.Name))
@@ -1572,6 +1605,37 @@ func (g *GolangGenerator) generateSharedHFile(m *manifest.Manifest) (string, err
 }
 
 // generateGroupGoFile generates a group-specific Go file
+func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
+
+	sb.WriteString("import \"runtime/debug\"\n\n")
+
+	sb.WriteString("var buildInfo, _ = debug.ReadBuildInfo()\n")
+
+	return sb.String(), nil
+}
+
+// generateExportGoFile generates a export-specific Go file
+func (g *GolangGenerator) generateExportGoFile(m *manifest.Manifest) (string, error) {
+	var sb strings.Builder
+
+	// Package declaration
+	sb.WriteString("//go:build plugin\n// +build plugin\npackage main\n\n")
+
+	name := manifest.Capitalize(m.Name)
+
+	// Generate methods for this group
+	for _, method := range m.Methods {
+		sb.WriteString(fmt.Sprintf("var %s_%s = &%s.P_%s\n", name, method.Name, m.Name, method.Name))
+	}
+
+	return sb.String(), nil
+}
+
+// generateGroupGoFile generates a group-specific Go file
 func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName string, opts *GeneratorOptions) (string, error) {
 	var sb strings.Builder
 
@@ -1604,7 +1668,7 @@ func (g *GolangGenerator) generateGroupGoFile(m *manifest.Manifest, groupName st
 	sb.WriteString("var _ = reflect.TypeOf(0)\n")
 	sb.WriteString("var _ = runtime.GOOS\n")
 	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
-	sb.WriteString("var _ = plugify.Plugin()\n\n")
+	sb.WriteString("var _ = plugify.ApiVersion\n\n")
 
 	// Add comment header
 	sb.WriteString(fmt.Sprintf("// Generated from %s (group: %s)\n\n", m.Name, groupName))
