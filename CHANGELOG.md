@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.6](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.5...v1.2.6) (2026-06-22)
+
+
+### Bug Fixes
+
+* add mod name constant ([cf8efe9](https://github.com/untrustedmodders/plugify-gen/commit/cf8efe97210336eba79beb276e06d38597601e1e))
+* function pull on return ([d4b585a](https://github.com/untrustedmodders/plugify-gen/commit/d4b585abde12ac307a6760173e41c828b08edff1))
+* improve golang generation ([62e4965](https://github.com/untrustedmodders/plugify-gen/commit/62e4965f58cd566cc37ecf514f7444c4cf2bb17b))
+* improve plugins export ([9125517](https://github.com/untrustedmodders/plugify-gen/commit/912551708cc4ead5237c011d68168304e9820203))
+
 ## [1.2.5](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.4...v1.2.5) (2026-06-14)
 
 
