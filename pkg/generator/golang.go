@@ -340,7 +340,7 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName str
 	sb.WriteString(" {\n")
 
 	if generateScopes {
-		sb.WriteString(fmt.Sprintf("\tdefer plugify.Scope(\"%s::%s\", buildInfo, 3)()\n", pluginName, method.Name))
+		sb.WriteString(fmt.Sprintf("\tdefer plugify.Scope(\"%s::%s\", ModuleName, 3)()\n", pluginName, method.Name))
 	}
 
 	paramNames, err := g.formatParams(method.ParamTypes, false)
@@ -1635,9 +1635,7 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 	// Package declaration
 	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
 
-	sb.WriteString("import \"runtime/debug\"\n\n")
-
-	sb.WriteString("var buildInfo, _ = debug.ReadBuildInfo()\n")
+	sb.WriteString("var ModuleName string\n")
 
 	return sb.String(), nil
 }
