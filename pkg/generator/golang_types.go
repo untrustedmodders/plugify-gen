@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
@@ -485,6 +486,33 @@ func (m *GolangTypeMapper) MapParamType(param *manifest.ParamType) (string, erro
 	return m.MapType(typeName, ctx, param.IsArray())
 }
 
+// MapParamTypeFull implements TypeMapper interface with package
+func (m *GolangTypeMapper) MapParamTypeFull(param *manifest.ParamType, packageName string) (string, error) {
+	// Regular type mapping
+	ctx := TypeContextValue
+	if param.Ref {
+		ctx = TypeContextRef
+	}
+
+	var typeName string
+	switch {
+	case param.Alias != nil:
+		typeName = fmt.Sprintf("%s.%s", packageName, param.Alias.Name)
+		ctx |= TypeContextAlias
+
+	case param.Enum != nil:
+		typeName = fmt.Sprintf("%s.%s", packageName, param.Enum.Name)
+
+	case param.Prototype != nil:
+		return fmt.Sprintf("%s.%s", packageName, param.Prototype.Name), nil
+
+	default:
+		typeName = param.BaseType()
+	}
+
+	return m.MapType(typeName, ctx, param.IsArray())
+}
+
 // MapReturnType implements TypeMapper interface
 func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, error) {
 	if retType == nil || retType.Type == "void" {
@@ -504,6 +532,33 @@ func (m *GolangTypeMapper) MapReturnType(retType *manifest.RetType) (string, err
 
 	case retType.Prototype != nil:
 		return retType.Prototype.Name, nil
+
+	default:
+		typeName = retType.BaseType()
+	}
+
+	return m.MapType(typeName, ctx, retType.IsArray())
+}
+
+// MapReturnTypeFull implements TypeMapper interface with package
+func (m *GolangTypeMapper) MapReturnTypeFull(retType *manifest.RetType, packageName string) (string, error) {
+	if retType == nil || retType.Type == "void" {
+		return "", nil
+	}
+
+	ctx := TypeContextReturn
+
+	var typeName string
+	switch {
+	case retType.Alias != nil:
+		typeName = fmt.Sprintf("%s.%s", packageName, retType.Alias.Name)
+		ctx |= TypeContextAlias
+
+	case retType.Enum != nil:
+		typeName = fmt.Sprintf("%s.%s", packageName, retType.Enum.Name)
+
+	case retType.Prototype != nil:
+		return fmt.Sprintf("%s.%s", packageName, retType.Prototype.Name), nil
 
 	default:
 		typeName = retType.BaseType()

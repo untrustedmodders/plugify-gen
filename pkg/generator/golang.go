@@ -309,7 +309,7 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName str
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("var P_%s = func(%s)", method.Name, params))
+	sb.WriteString(fmt.Sprintf("var _%s = func(%s)", method.Name, params))
 	if returnType != "" {
 		sb.WriteString(fmt.Sprintf(" %s", returnType))
 	}
@@ -349,9 +349,9 @@ func (g *GolangGenerator) generateMethod(method *manifest.Method, pluginName str
 	}
 
 	if method.RetType.Type != "void" {
-		sb.WriteString(fmt.Sprintf("\treturn P_%s(%s)\n", method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("\treturn _%s(%s)\n", method.Name, paramNames))
 	} else {
-		sb.WriteString(fmt.Sprintf("\tP_%s(%s)\n", method.Name, paramNames))
+		sb.WriteString(fmt.Sprintf("\t_%s(%s)\n", method.Name, paramNames))
 	}
 
 	sb.WriteString("}\n")
@@ -783,6 +783,30 @@ func (g *GolangGenerator) formatParams(params []manifest.ParamType, withTypes bo
 
 		if withTypes {
 			typeName, err := g.typeMapper.MapParamType(&param)
+			if err != nil {
+				return "", err
+			}
+			parts = append(parts, fmt.Sprintf("%s %s", name, typeName))
+		} else {
+			parts = append(parts, name)
+		}
+	}
+
+	return strings.Join(parts, ", "), nil
+}
+
+// formatFullParams formats parameters with types and names with package name
+func (g *GolangGenerator) formatFullParams(params []manifest.ParamType, withTypes bool, packageName string) (string, error) {
+	if len(params) == 0 {
+		return "", nil
+	}
+
+	var parts []string
+	for _, param := range params {
+		name := param.Name
+
+		if withTypes {
+			typeName, err := g.typeMapper.MapParamTypeFull(&param, packageName)
 			if err != nil {
 				return "", err
 			}
@@ -1622,14 +1646,37 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 func (g *GolangGenerator) generateExportGoFile(m *manifest.Manifest) (string, error) {
 	var sb strings.Builder
 
+	packageName := manifest.Capitalize(m.Name)
+	packagePath := fmt.Sprintf("__package__/%s", m.Name)
+
 	// Package declaration
 	sb.WriteString("//go:build plugin\n// +build plugin\npackage main\n\n")
-
-	name := manifest.Capitalize(m.Name)
+	sb.WriteString("//TODO: replace \"__package__\" by your package name\n")
+	sb.WriteString(fmt.Sprintf("import \"%s\"\n\nf", packagePath))
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
-		sb.WriteString(fmt.Sprintf("var %s_%s = &%s.P_%s\n", name, method.Name, m.Name, method.Name))
+		// Generate function signature
+		params, err := g.formatFullParams(method.ParamTypes, true, m.Name)
+		if err != nil {
+			return "", err
+		}
+
+		returnType := ""
+		if method.RetType.Type != "void" {
+			returnType, err = g.typeMapper.MapReturnTypeFull(&method.RetType, m.Name)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		methodName := fmt.Sprintf("%s_%s", packageName, method.Name)
+		sb.WriteString(fmt.Sprintf("//go:linkname %s %s._%s\n", methodName, packagePath, method.Name))
+		sb.WriteString(fmt.Sprintf("var %s func(%s)", methodName, params))
+		if returnType != "" {
+			sb.WriteString(fmt.Sprintf(" %s", returnType))
+		}
+		sb.WriteString("\n")
 	}
 
 	return sb.String(), nil
