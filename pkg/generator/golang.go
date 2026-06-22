@@ -477,6 +477,9 @@ func (g *GolangGenerator) generateGoMethodCall(method *manifest.Method, sb *stri
 		if ctx.isPodRet {
 			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 			sb.WriteString(fmt.Sprintf("%s__retVal = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
+		} else if method.RetType.Type == "function" {
+			returnType, _ := g.typeMapper.MapReturnType(&method.RetType)
+			sb.WriteString(fmt.Sprintf("%s__retVal = plugify.GetDelegateForFunctionPointer(%s, reflect.TypeOf(%s(nil))).(%s)\n", ctx.innerIndent, functionCall, returnType, returnType))
 		} else {
 			if retTypeCast != "" {
 				sb.WriteString(fmt.Sprintf("%s__retVal = %s(%s)\n", ctx.innerIndent, retTypeCast, functionCall))
@@ -1650,7 +1653,14 @@ func (g *GolangGenerator) generateExportGoFile(m *manifest.Manifest) (string, er
 	// Package declaration
 	sb.WriteString("//go:build plugin\n// +build plugin\npackage main\n\n")
 	sb.WriteString("//TODO: replace \"__package__\" by your package name\n")
-	sb.WriteString(fmt.Sprintf("import \"%s\"\n\nf", packagePath))
+	sb.WriteString("import (\n")
+	sb.WriteString("\t\"unsafe\"\n")
+	sb.WriteString(fmt.Sprintf("\t\"%s\"\n", packagePath))
+	sb.WriteString("\t\"github.com/untrustedmodders/go-plugify\"\n")
+	sb.WriteString(")\n\n")
+
+	sb.WriteString("var _ = unsafe.Sizeof(0)\n")
+	sb.WriteString("var _ = plugify.ApiVersion\n\n")
 
 	// Generate methods for this group
 	for _, method := range m.Methods {
@@ -1668,13 +1678,13 @@ func (g *GolangGenerator) generateExportGoFile(m *manifest.Manifest) (string, er
 			}
 		}
 
-		methodName := fmt.Sprintf("%s_%s", packageName, method.Name)
-		sb.WriteString(fmt.Sprintf("//go:linkname %s %s._%s\n", methodName, packagePath, method.Name))
-		sb.WriteString(fmt.Sprintf("var %s func(%s)", methodName, params))
+		sb.WriteString(fmt.Sprintf("//go:linkname %s_%s %s._%s\n", m.Name, method.Name, packagePath, method.Name))
+		sb.WriteString(fmt.Sprintf("var %s_%s func(%s)", m.Name, method.Name, params))
 		if returnType != "" {
 			sb.WriteString(fmt.Sprintf(" %s", returnType))
 		}
 		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("var %s_%s = &%s_%s\n\n", packageName, method.Name, m.Name, method.Name))
 	}
 
 	return sb.String(), nil
