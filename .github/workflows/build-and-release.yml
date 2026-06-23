@@ -126,7 +126,11 @@ jobs:
         run: |
           mkdir -p dist
           GOOS=js GOARCH=wasm go build -ldflags="-X main.version=${{ needs.setup.outputs.tag_name }}" -o dist/plugify-gen.wasm ./cmd/wasm/main.go
-          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/wasm_exec.js || cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" dist/wasm_exec.js
+          if [ -f "$(go env GOROOT)/misc/wasm/wasm_exec.js" ]; then
+            cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" dist/wasm_exec.js
+          else
+            cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/wasm_exec.js
+          fi
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4

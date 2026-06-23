@@ -51,7 +51,11 @@ jobs:
       - name: Build WebAssembly
         run: |
           GOOS=js GOARCH=wasm go build -ldflags="-X main.version=${{ steps.version.outputs.version }}" -o web/plugify-gen.wasm ./cmd/wasm/main.go
-          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/wasm_exec.js || cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" web/wasm_exec.js
+          if [ -f "$(go env GOROOT)/misc/wasm/wasm_exec.js" ]; then
+            cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" dist/wasm_exec.js
+          else
+            cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/wasm_exec.js
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
