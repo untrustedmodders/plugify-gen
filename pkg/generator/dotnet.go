@@ -271,10 +271,10 @@ func (g *DotnetGenerator) generateMethod(method *manifest.Method, pluginName str
 	sb.WriteString(fmt.Sprintf("#region %s\n", methodName))
 
 	// Managed delegate pointer
-	sb.WriteString(fmt.Sprintf("\t\tinternal static delegate*<%s> _%s = &___%s;\n", managedTypes, methodName, methodName))
+	sb.WriteString(fmt.Sprintf("\t\tprivate static delegate*<%s> _%s = &___%s;\n", managedTypes, methodName, methodName))
 
 	// Unmanaged function pointer
-	sb.WriteString(fmt.Sprintf("\t\tinternal static delegate* unmanaged[Cdecl]<%s> __%s;\n", unmanagedTypes, methodName))
+	sb.WriteString(fmt.Sprintf("\t\tprivate static delegate* unmanaged[Cdecl]<%s> __%s;\n", unmanagedTypes, methodName))
 
 	// Wrapper method signature
 	params, err := g.formatMethodParameters(method.ParamTypes)
