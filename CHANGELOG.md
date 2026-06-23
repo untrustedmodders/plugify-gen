@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.7](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.6...v1.2.7) (2026-06-23)
+
+
+### Bug Fixes
+
+* update wasm_exec.js path for Go 1.23+ ([30b8dc2](https://github.com/untrustedmodders/plugify-gen/commit/30b8dc21fe888eee57a310bc2d1611b9cb613cc0))
+
 ## [1.2.6](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.5...v1.2.6) (2026-06-22)
 
 
