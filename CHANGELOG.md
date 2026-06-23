@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.9](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.8...v1.2.9) (2026-06-23)
+
+
+### Bug Fixes
+
+* add version file generation ([d2a4593](https://github.com/untrustedmodders/plugify-gen/commit/d2a459316117d1ffc24359358aaecf95ba444da3))
+* set private for func pointers in dotnet ([7cd105e](https://github.com/untrustedmodders/plugify-gen/commit/7cd105e7ff660478ff0a5d29a4bc5fe6ba2cfd85))
+
 ## [1.2.8](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.7...v1.2.8) (2026-06-23)
 
 
