@@ -464,15 +464,18 @@ func (g *GolangGenerator) generateGoMethodCall(method *manifest.Method, sb *stri
 		return err
 	}
 
+	retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
+	if method.RetType.Alias != nil {
+		retTypeCast = method.RetType.Alias.Name
+	}
+	if method.RetType.Enum != nil {
+		retTypeCast = method.RetType.Enum.Name
+	}
+
 	if ctx.isObjRet {
-		retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
 		sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 		sb.WriteString(fmt.Sprintf("%s__retVal_native = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 	} else if ctx.hasTry {
-		retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
-		if method.RetType.Alias != nil {
-			retTypeCast = method.RetType.Alias.Name
-		}
 
 		if ctx.isPodRet {
 			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
@@ -489,7 +492,6 @@ func (g *GolangGenerator) generateGoMethodCall(method *manifest.Method, sb *stri
 		}
 	} else if ctx.hasRet {
 		if ctx.isPodRet {
-			retTypeCast := g.typeMapper.retTypeCastMap[method.RetType.Type]
 			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 			sb.WriteString(fmt.Sprintf("%s__retVal := *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 		} else if method.RetType.Type == "function" {
