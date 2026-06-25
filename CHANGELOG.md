@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.10](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.9...v1.2.10) (2026-06-25)
+
+
+### Bug Fixes
+
+* **golang:** support enum and alias casting for all return types ([5a274a9](https://github.com/untrustedmodders/plugify-gen/commit/5a274a99cac75e70b4c1c308acb477812c229ba7))
+
 ## [1.2.9](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.8...v1.2.9) (2026-06-23)
 
 
