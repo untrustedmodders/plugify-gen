@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.11](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.10...v1.2.11) (2026-06-30)
+
+
+### Bug Fixes
+
+* add auto mod name extraction for shared ([2b3fea0](https://github.com/untrustedmodders/plugify-gen/commit/2b3fea0421622d3d0d6ebba94f4fc178e9bfeb4e))
+
 ## [1.2.10](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.9...v1.2.10) (2026-06-25)
 
 
