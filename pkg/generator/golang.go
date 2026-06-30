@@ -1639,8 +1639,9 @@ func (g *GolangGenerator) generateSharedGoFile(m *manifest.Manifest) (string, er
 
 	// Package declaration
 	sb.WriteString(fmt.Sprintf("package %s\n\n", m.Name))
-
-	sb.WriteString("var ModuleName string\n")
+	sb.WriteString("import \"runtime/debug\"\n\n")
+	sb.WriteString("var buildInfo, _ = debug.ReadBuildInfo()\n")
+	sb.WriteString("var ModuleName = buildInfo.Main.Path\n")
 
 	return sb.String(), nil
 }
@@ -1688,6 +1689,10 @@ func (g *GolangGenerator) generateExportGoFile(m *manifest.Manifest) (string, er
 		sb.WriteString("\n")
 		sb.WriteString(fmt.Sprintf("var %s_%s = &%s_%s\n\n", packageName, method.Name, m.Name, method.Name))
 	}
+
+	sb.WriteString("/*func init() {\n")
+	sb.WriteString(fmt.Sprintf("\t%s.ModuleName = \"__package__\"\n", m.Name))
+	sb.WriteString("}*/\n")
 
 	return sb.String(), nil
 }
