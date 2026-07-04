@@ -473,10 +473,10 @@ func (g *GolangGenerator) generateGoMethodCall(method *manifest.Method, sb *stri
 	}
 
 	if ctx.isObjRet {
+		retTypeCast = g.typeMapper.retTypeCastMap[method.RetType.Type]
 		sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 		sb.WriteString(fmt.Sprintf("%s__retVal_native = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
 	} else if ctx.hasTry {
-
 		if ctx.isPodRet {
 			sb.WriteString(fmt.Sprintf("%s__native := %s\n", ctx.innerIndent, functionCall))
 			sb.WriteString(fmt.Sprintf("%s__retVal = *(*%s)(unsafe.Pointer(&__native))\n", ctx.innerIndent, retTypeCast))
