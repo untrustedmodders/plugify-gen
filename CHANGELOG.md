@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.12](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.11...v1.2.12) (2026-07-04)
+
+
+### Bug Fixes
+
+* alias casts on golang ([d8cea92](https://github.com/untrustedmodders/plugify-gen/commit/d8cea9243e7b96e83cd01ed5eeced9c72ca6d8ee))
+
 ## [1.2.11](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.10...v1.2.11) (2026-06-30)
 
 
