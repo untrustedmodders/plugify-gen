@@ -24,6 +24,12 @@ func Parse(data []byte) (*Manifest, error) {
 		return nil, fmt.Errorf("failed to parse manifest JSON: %w", err)
 	}
 
+	// Resolve before validating: this links by-name prototype/enum references to
+	// their definitions, which the generators then rely on being present.
+	if err := resolve(&m); err != nil {
+		return nil, fmt.Errorf("manifest resolution failed: %w", err)
+	}
+
 	if err := validate(&m); err != nil {
 		return nil, fmt.Errorf("manifest validation failed: %w", err)
 	}

@@ -1,5 +1,7 @@
 package manifest
 
+import "encoding/json"
+
 // Manifest represents a .pplugin file structure
 type Manifest struct {
 	Schema       string       `json:"$schema"`
@@ -15,6 +17,8 @@ type Manifest struct {
 	Dependencies []Dependency `json:"dependencies"`
 	Methods      []Method     `json:"methods"`
 	Classes      []Class      `json:"classes,omitempty"`
+	Prototypes   []*Prototype `json:"prototypes,omitempty"`
+	Enums        []*Enum      `json:"enums,omitempty"`
 }
 
 // Dependency represents a plugin dependency
@@ -60,13 +64,39 @@ type Alias struct {
 
 // Enum represents an enum definition
 type Enum struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description,omitempty"`
-	Values      []EnumValue `json:"values"`
+	Name        string  `json:"name"`
+	Description string  `json:"description,omitempty"`
+	Values      []Value `json:"values"`
+
+	// ref records that the manifest wrote this as a bare name rather than a
+	// definition. resolve fills in the rest and clears it, so generators never
+	// see it set.
+	ref bool
 }
 
-// EnumValue represents a single enum value
-type EnumValue struct {
+// UnmarshalJSON accepts either a full definition or the name of an entry in the
+// manifest's top-level "enums" table.
+func (e *Enum) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		var name string
+		if err := json.Unmarshal(data, &name); err != nil {
+			return err
+		}
+		*e = Enum{Name: name, ref: true}
+		return nil
+	}
+
+	type plain Enum // shed the method set so this does not recurse
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*e = Enum(decoded)
+	return nil
+}
+
+// Value represents a single enum value
+type Value struct {
 	Name        string `json:"name"`
 	Value       int    `json:"value"`
 	Description string `json:"description,omitempty"`
@@ -78,6 +108,32 @@ type Prototype struct {
 	Description string      `json:"description,omitempty"`
 	ParamTypes  []ParamType `json:"paramTypes"`
 	RetType     RetType     `json:"retType"`
+
+	// ref records that the manifest wrote this as a bare name rather than a
+	// definition. resolve fills in the rest and clears it, so generators never
+	// see it set.
+	ref bool
+}
+
+// UnmarshalJSON accepts either a full definition or the name of an entry in the
+// manifest's top-level "prototypes" table.
+func (p *Prototype) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		var name string
+		if err := json.Unmarshal(data, &name); err != nil {
+			return err
+		}
+		*p = Prototype{Name: name, ref: true}
+		return nil
+	}
+
+	type plain Prototype // shed the method set so this does not recurse
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*p = Prototype(decoded)
+	return nil
 }
 
 // Class represents an RAII wrapper class for handle-based APIs
