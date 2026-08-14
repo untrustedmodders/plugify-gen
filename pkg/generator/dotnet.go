@@ -55,7 +55,7 @@ func (g *DotnetGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	files[fmt.Sprintf("imported/%s/delegates.cs", m.Name)] = delegatesCode
 
 	// Generate group-specific files (methods and classes)
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		groupCode, err := g.generateGroupFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)

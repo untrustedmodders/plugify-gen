@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/untrustedmodders/plugify-gen/pkg/manifest"
@@ -112,6 +113,18 @@ func (g *BaseGenerator) Sanitizer(name string) string {
 }
 
 // GetGroups gets the list of all groups from manifest
+// SortedGroups returns the group names in a stable order. Ranging over the map
+// directly makes generated output vary between runs, since Go randomises map
+// iteration, which shows up as reordered includes and unnecessary diffs.
+func (g *BaseGenerator) SortedGroups(groups map[string]struct{}) []string {
+	names := make([]string, 0, len(groups))
+	for name := range groups {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func (g *BaseGenerator) GetGroups(m *manifest.Manifest) map[string]struct{} {
 	// Collect all unique groups from both methods and classes
 	groups := make(map[string]struct{})

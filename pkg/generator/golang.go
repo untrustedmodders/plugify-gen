@@ -82,7 +82,7 @@ func (g *GolangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	files[fmt.Sprintf("%s.go", m.Name)] = exportGoCode
 
 	// Generate group-specific files
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		goCode, err := g.generateGroupGoFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)

@@ -59,7 +59,7 @@ func (g *DlangGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) 
 	files[fmt.Sprintf("source/imported/%s/package.d", moduleName)] = packageCode
 
 	// Generate a file for each group
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		groupCode, err := g.generateModuleFile(m, moduleName, groupName, opts)
 		if err != nil {
 			return nil, err
@@ -153,7 +153,7 @@ func (g *DlangGenerator) generatePackageFile(m *manifest.Manifest, moduleName st
 	sb.WriteString(fmt.Sprintf("public import imported.%s.delegates;\n", moduleName))
 
 	// Import all group modules
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		sb.WriteString(fmt.Sprintf("public import imported.%s.%s;\n", moduleName, groupName))
 	}
 

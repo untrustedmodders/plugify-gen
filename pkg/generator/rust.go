@@ -53,7 +53,7 @@ func (g *RustGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (
 	files[fmt.Sprintf("%s/delegates.rs", folder)] = delegatesCode
 
 	// Generate a file for each group
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		groupCode, err := g.generateGroupFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
@@ -469,7 +469,7 @@ func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]
 	sb.WriteString("pub mod enums;\n")
 	sb.WriteString("pub mod aliases;\n")
 	sb.WriteString("pub mod delegates;\n")
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		sb.WriteString(fmt.Sprintf("pub mod %s;\n", groupName))
 	}
 	sb.WriteString("\n")
@@ -481,7 +481,7 @@ func (g *RustGenerator) generateModFile(m *manifest.Manifest, groups map[string]
 	sb.WriteString("pub use aliases::*;\n")
 	sb.WriteString("#[allow(unused_imports)]\n")
 	sb.WriteString("pub use delegates::*;\n")
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		sb.WriteString("#[allow(unused_imports)]\n")
 		sb.WriteString(fmt.Sprintf("pub use %s::*;\n", groupName))
 	}

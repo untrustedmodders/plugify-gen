@@ -53,7 +53,7 @@ func (g *CxxGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	files[fmt.Sprintf("%s/delegates.ixx", folder)] = delegatesCode
 
 	// Generate a module file for each group
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		groupCode, err := g.generateGroupFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
@@ -879,7 +879,7 @@ func (g *CxxGenerator) generateMainHeader(m *manifest.Manifest, groups map[strin
 	sb.WriteString(fmt.Sprintf("export import %s.delegates;\n", m.Name))
 
 	// Re-export all group modules
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		sb.WriteString(fmt.Sprintf("export import %s.%s;\n", m.Name, groupName))
 	}
 

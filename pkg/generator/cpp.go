@@ -53,7 +53,7 @@ func (g *CppGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions) (*
 	files[fmt.Sprintf("%s/%s/delegates.hpp", folder, m.Name)] = delegatesCode
 
 	// Generate a file for each group
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		groupCode, err := g.generateGroupFile(m, groupName, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate group %s: %w", groupName, err)
@@ -877,7 +877,7 @@ func (g *CppGenerator) generateMainHeader(m *manifest.Manifest, groups map[strin
 	sb.WriteString(fmt.Sprintf("#include \"%s/delegates.hpp\"\n", m.Name))
 
 	// Import all group headers
-	for groupName := range groups {
+	for _, groupName := range g.SortedGroups(groups) {
 		sb.WriteString(fmt.Sprintf("#include \"%s/%s.hpp\"\n", m.Name, groupName))
 	}
 
