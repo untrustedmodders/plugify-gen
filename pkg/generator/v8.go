@@ -289,7 +289,12 @@ func (g *V8Generator) generateEnums(m *manifest.Manifest) (string, error) {
 func (g *V8Generator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
-	if enum.Description != "" {
+	switch {
+	case enum.Description != "" && enum.Deprecated != "":
+		sb.WriteString(fmt.Sprintf("  /**\n   * %s\n   * @deprecated %s\n   */\n", enum.Description, enum.Deprecated))
+	case enum.Deprecated != "":
+		sb.WriteString(fmt.Sprintf("  /** @deprecated %s */\n", enum.Deprecated))
+	case enum.Description != "":
 		sb.WriteString(fmt.Sprintf("  /** %s */\n", enum.Description))
 	}
 
@@ -333,7 +338,12 @@ func (g *V8Generator) generateDelegates(m *manifest.Manifest) (string, error) {
 func (g *V8Generator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
-	if proto.Description != "" {
+	switch {
+	case proto.Description != "" && proto.Deprecated != "":
+		sb.WriteString(fmt.Sprintf("  /**\n   * %s\n   * @deprecated %s\n   */\n", proto.Description, proto.Deprecated))
+	case proto.Deprecated != "":
+		sb.WriteString(fmt.Sprintf("  /** @deprecated %s */\n", proto.Deprecated))
+	case proto.Description != "":
 		sb.WriteString(fmt.Sprintf("  /** %s */\n", proto.Description))
 	}
 

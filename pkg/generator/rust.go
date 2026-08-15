@@ -157,9 +157,10 @@ func (g *RustGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 func (g *RustGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
-	if enum.Description != "" {
+	if enum.Description != "" || enum.Deprecated != "" {
 		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: enum.Description,
+			Deprecated:  enum.Deprecated,
 			Indent:      "",
 		}))
 	}
@@ -211,12 +212,16 @@ func (g *RustGenerator) generateDelegates(m *manifest.Manifest) (string, error) 
 func (g *RustGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
-	if proto.Description != "" {
+	if proto.Description != "" || proto.Deprecated != "" {
 		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: proto.Description,
+			Deprecated:  proto.Deprecated,
 			Indent:      "",
 		}))
 	}
+
+	// Note: rustc accepts #[deprecated] on a type alias but has never linted uses
+	// of one, so this documents the intent rather than enforcing it.
 
 	// Generate return type
 	retType, err := g.typeMapper.MapReturnType(&proto.RetType)

@@ -166,6 +166,9 @@ func (g *DlangGenerator) generateEnum(enum *manifest.Enum, underlyingType string
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("/// %s\n", enum.Description))
 	}
+	if enum.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("deprecated(\"%s\")\n", enum.Deprecated))
+	}
 
 	sb.WriteString(fmt.Sprintf("enum %s : %s {\n", enum.Name, underlyingType))
 
@@ -224,7 +227,7 @@ func (g *DlangGenerator) generateModuleFile(m *manifest.Manifest, moduleName, gr
 	if len(m.Classes) > 0 {
 		dependentGroups := g.FindDependentGroups(m, groupName)
 		if len(dependentGroups) > 0 {
-			for depGroup := range dependentGroups {
+			for _, depGroup := range g.SortedGroups(dependentGroups) {
 				sb.WriteString(fmt.Sprintf("import imported.%s.%s;\n", moduleName, depGroup))
 			}
 			sb.WriteString("\n")
@@ -429,6 +432,7 @@ func (g *DlangGenerator) generateDelegate(proto *manifest.Prototype) (string, er
 
 	sb.WriteString(g.generateDocumentation(DocOptions{
 		Description: proto.Description,
+		Deprecated:  proto.Deprecated,
 		Params:      proto.ParamTypes,
 		Indent:      "",
 	}))

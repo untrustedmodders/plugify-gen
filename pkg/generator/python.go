@@ -34,6 +34,11 @@ func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	if needsCallable {
 		sb.WriteString("from collections.abc import Callable\n")
 	}
+	// The @deprecated decorator is emitted for methods, classes and enums; without
+	// this import the generated module raises NameError as soon as it is loaded.
+	if g.needsDeprecated(m) {
+		sb.WriteString("from deprecated import deprecated\n")
+	}
 	sb.WriteString("from enum import IntEnum\n")
 	sb.WriteString("from plugify.plugin import Vector2, Vector3, Vector4, Matrix4x4\n\n")
 	sb.WriteString(fmt.Sprintf("# Generated from %s.pplugin\n\n", m.Name))
@@ -86,6 +91,32 @@ func (g *PythonGenerator) Generate(m *manifest.Manifest, opts *GeneratorOptions)
 	return result, nil
 }
 
+// needsDeprecated reports whether anything in the manifest carries a deprecation,
+// and so whether the generated module has to import the decorator.
+func (g *PythonGenerator) needsDeprecated(m *manifest.Manifest) bool {
+	for i := range m.Methods {
+		if m.Methods[i].Deprecated != "" {
+			return true
+		}
+	}
+	for _, e := range m.Enums {
+		if e.Deprecated != "" {
+			return true
+		}
+	}
+	for i := range m.Classes {
+		if m.Classes[i].Deprecated != "" {
+			return true
+		}
+		for _, b := range m.Classes[i].Bindings {
+			if b.Deprecated != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // needsCallable checks if any method uses function/delegate types
 func (g *PythonGenerator) needsCallable(m *manifest.Manifest) bool {
 	for _, method := range m.Methods {
@@ -109,6 +140,11 @@ func (g *PythonGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 func (g *PythonGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
+	// An enum is a class here, so the decorator applies. A delegate is an inline
+	// Callable[...] with no declaration to attach to, so it cannot be marked.
+	if enum.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@deprecated(reason=\"%s\")\n", enum.Deprecated))
+	}
 	sb.WriteString(fmt.Sprintf("class %s(IntEnum):\n", enum.Name))
 
 	if enum.Description != "" {

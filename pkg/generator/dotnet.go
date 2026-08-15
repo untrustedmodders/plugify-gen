@@ -148,11 +148,13 @@ func (g *DotnetGenerator) generateEnums(m *manifest.Manifest) (string, error) {
 func (g *DotnetGenerator) generateEnum(enum *manifest.Enum, underlyingType string) (string, error) {
 	var sb strings.Builder
 
-	// XML documentation
-	if enum.Description != "" {
+	// XML documentation. Also entered for a bare deprecation, since the
+	// [Obsolete] attribute is emitted from here.
+	if enum.Description != "" || enum.Deprecated != "" {
 		sb.WriteString(g.generateDocumentation(DocOptions{
-			Indent:  "\t",
-			Summary: enum.Description,
+			Indent:     "\t",
+			Summary:    enum.Description,
+			Deprecated: enum.Deprecated,
 		}))
 	}
 
@@ -211,11 +213,13 @@ func (g *DotnetGenerator) generateDelegates(m *manifest.Manifest) (string, error
 func (g *DotnetGenerator) generateDelegate(proto *manifest.Prototype) (string, error) {
 	var sb strings.Builder
 
-	// XML documentation
-	if proto.Description != "" {
+	// XML documentation. Also entered for a bare deprecation, since the
+	// [Obsolete] attribute is emitted from here.
+	if proto.Description != "" || proto.Deprecated != "" {
 		sb.WriteString(g.generateDocumentation(DocOptions{
-			Indent:  "\t",
-			Summary: proto.Description,
+			Indent:     "\t",
+			Summary:    proto.Description,
+			Deprecated: proto.Deprecated,
 		}))
 	}
 

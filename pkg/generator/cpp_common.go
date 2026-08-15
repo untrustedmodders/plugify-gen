@@ -154,3 +154,18 @@ func (m *CppCommonTypeMapper) MapHandleType(class *manifest.Class) (string, stri
 
 	return invalidValue, handleType, nil
 }
+
+// cppDeprecatedAttr renders a [[deprecated]] attribute, or "" when there is no
+// reason to render. C++ is particular about where the attribute may sit: it
+// appertains to whatever precedes it in an enum-specifier and in an
+// alias-declaration, rather than to a following declaration the way it does for
+// a function. Put it on its own line ahead of `enum class` and the compiler
+// ignores it with a warning; do the same ahead of `using` and the translation
+// unit does not compile at all. So these two are spliced into the declaration
+// instead of being emitted by generateDocumentation.
+func cppDeprecatedAttr(reason string) string {
+	if reason == "" {
+		return ""
+	}
+	return fmt.Sprintf("[[deprecated(\"%s\")]] ", reason)
+}

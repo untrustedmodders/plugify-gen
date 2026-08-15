@@ -87,7 +87,8 @@ func (g *CxxGenerator) generateEnum(enum *manifest.Enum, underlyingType string) 
 		sb.WriteString(fmt.Sprintf("  // %s\n", enum.Description))
 	}
 
-	sb.WriteString(fmt.Sprintf("  enum class %s : %s {\n", enum.Name, underlyingType))
+	// The attribute belongs after `enum class`, where it appertains to the enum.
+	sb.WriteString(fmt.Sprintf("  enum class %s%s : %s {\n", cppDeprecatedAttr(enum.Deprecated), enum.Name, underlyingType))
 
 	for i, val := range enum.Values {
 		if val.Description != "" {
@@ -145,7 +146,8 @@ func (g *CxxGenerator) generateDelegate(proto *manifest.Prototype) (string, erro
 		return "", err
 	}
 
-	sb.WriteString(fmt.Sprintf("  using %s = %s (*)(%s);\n\n", proto.Name, retType, params))
+	// The attribute belongs after the alias name, not before `using`.
+	sb.WriteString(fmt.Sprintf("  using %s %s= %s (*)(%s);\n\n", proto.Name, cppDeprecatedAttr(proto.Deprecated), retType, params))
 	return sb.String(), nil
 }
 
@@ -813,7 +815,7 @@ func (g *CxxGenerator) generateGroupFile(m *manifest.Manifest, groupName string,
 	if len(m.Classes) > 0 {
 		dependentGroups := g.FindDependentGroups(m, groupName)
 		if len(dependentGroups) > 0 {
-			for depGroup := range dependentGroups {
+			for _, depGroup := range g.SortedGroups(dependentGroups) {
 				sb.WriteString(fmt.Sprintf("import %s.%s;\n", m.Name, depGroup))
 			}
 			sb.WriteString("\n")

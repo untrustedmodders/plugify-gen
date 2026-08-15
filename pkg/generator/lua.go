@@ -84,6 +84,13 @@ func (g *LuaGenerator) generateEnum(enum *manifest.Enum, underlyingType string) 
 		sb.WriteString(fmt.Sprintf("-- Enum: %s\n", enum.Name))
 	}
 
+	// Lua has no deprecation of its own; this is the annotation the language
+	// server reads. Delegates are not emitted as named declarations here, so
+	// there is nothing to mark for them.
+	if enum.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("@[deprecated {reason = \"%s\"}]\n", enum.Deprecated))
+	}
+
 	// Lua table
 	sb.WriteString(fmt.Sprintf("%s = {\n", enum.Name))
 

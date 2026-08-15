@@ -121,6 +121,14 @@ func (g *GolangGenerator) generateEnum(enum *manifest.Enum, underlyingType strin
 	if enum.Description != "" {
 		sb.WriteString(fmt.Sprintf("// %s - %s\n", enum.Name, enum.Description))
 	}
+	// `// Deprecated:` is the convention gopls and staticcheck read; it has to be
+	// its own paragraph at the end of the doc comment.
+	if enum.Deprecated != "" {
+		if enum.Description != "" {
+			sb.WriteString("//\n")
+		}
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", enum.Deprecated))
+	}
 
 	sb.WriteString(fmt.Sprintf("type %s %s\n\n", enum.Name, underlyingType))
 	sb.WriteString("const (\n")
@@ -264,6 +272,14 @@ func (g *GolangGenerator) generateDelegate(proto *manifest.Prototype) (string, e
 	// Add delegate description
 	if proto.Description != "" {
 		sb.WriteString(fmt.Sprintf("// %s - %s\n", proto.Name, proto.Description))
+	}
+	// `// Deprecated:` is the convention gopls and staticcheck read; it has to be
+	// its own paragraph at the end of the doc comment.
+	if proto.Deprecated != "" {
+		if proto.Description != "" {
+			sb.WriteString("//\n")
+		}
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", proto.Deprecated))
 	}
 
 	// Generate parameter list
