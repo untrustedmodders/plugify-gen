@@ -179,12 +179,12 @@ type ParamAlias = Bind
 type RetAlias = Bind
 
 // IsArray returns true if the type is an array (ends with [])
-func (t *RetType) IsArray() bool {
+func (t *Property) IsArray() bool {
 	return len(t.Type) > 2 && t.Type[len(t.Type)-2:] == "[]"
 }
 
 // BaseType returns the type without array suffix
-func (t *RetType) BaseType() string {
+func (t *Property) BaseType() string {
 	if t.IsArray() {
 		return t.Type[:len(t.Type)-2]
 	}
