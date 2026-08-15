@@ -60,12 +60,14 @@ type RetType = Property
 type Alias struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Deprecated  string `json:"deprecated,omitempty"`
 }
 
 // Enum represents an enum definition
 type Enum struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description,omitempty"`
+	Deprecated  string  `json:"deprecated,omitempty"`
 	Values      []Value `json:"values"`
 
 	// ref records that the manifest wrote this as a bare name rather than a
@@ -106,6 +108,7 @@ type Value struct {
 type Prototype struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
+	Deprecated  string      `json:"deprecated,omitempty"`
 	ParamTypes  []ParamType `json:"paramTypes"`
 	RetType     RetType     `json:"retType"`
 
@@ -164,7 +167,8 @@ type Binding struct {
 // Bind represents a value that should be treated as a class type
 type Bind struct {
 	Name        string `json:"name"`
-	Description bool   `json:"description,omitempty"`
+	Description string `json:"description,omitempty"`
+	Deprecated  string `json:"deprecated,omitempty"`
 	Owner       bool   `json:"owner,omitempty"`
 }
 
