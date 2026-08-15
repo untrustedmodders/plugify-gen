@@ -23,13 +23,13 @@ func resolve(m *Manifest) error {
 	// inline definition happened to be walked first.
 	declared := make([]*Prototype, 0, len(m.Prototypes))
 	for i := range m.Prototypes {
-		if _, err := t.registerPrototype(&m.Prototypes[i], "manifest"); err != nil {
+		if _, err := t.registerPrototype(&m.Prototypes[i], scope("manifest", "")); err != nil {
 			return err
 		}
 		declared = append(declared, m.Prototypes[i])
 	}
 	for i := range m.Enums {
-		if _, err := t.registerEnum(&m.Enums[i], "manifest"); err != nil {
+		if _, err := t.registerEnum(&m.Enums[i], scope("manifest", "")); err != nil {
 			return err
 		}
 	}
@@ -38,12 +38,12 @@ func resolve(m *Manifest) error {
 	// each definition it introduces, so walking the methods and the declared
 	// prototypes reaches everything.
 	for i := range m.Methods {
-		if err := t.collectMethod(&m.Methods[i], fmt.Sprintf("method %q", m.Methods[i].Name)); err != nil {
+		if err := t.collectMethod(&m.Methods[i], scope("method", m.Methods[i].Name)); err != nil {
 			return err
 		}
 	}
 	for _, prototype := range declared {
-		if err := t.collectPrototype(prototype, fmt.Sprintf("prototype %q", prototype.Name)); err != nil {
+		if err := t.collectPrototype(prototype, scope("prototype", prototype.Name)); err != nil {
 			return err
 		}
 	}
@@ -51,12 +51,12 @@ func resolve(m *Manifest) error {
 	// Pass two: swap each by-name reference for the definition it names. Every
 	// definition is in the tables by now, so references may point forwards.
 	for i := range m.Methods {
-		if err := t.linkMethod(&m.Methods[i], fmt.Sprintf("method %q", m.Methods[i].Name)); err != nil {
+		if err := t.linkMethod(&m.Methods[i], scope("method", m.Methods[i].Name)); err != nil {
 			return err
 		}
 	}
 	for _, prototype := range t.prototypes {
-		if err := t.linkPrototype(prototype, fmt.Sprintf("prototype %q", prototype.Name)); err != nil {
+		if err := t.linkPrototype(prototype, scope("prototype", prototype.Name)); err != nil {
 			return err
 		}
 	}
@@ -70,6 +70,43 @@ func resolve(m *Manifest) error {
 	return nil
 }
 
+// where names the property being checked, for an error message. Formatting it
+// eagerly for every parameter of every method cost several times more than all
+// the checking put together, so the pieces are carried around instead and only
+// joined on the path that actually reports a failure.
+type where struct {
+	parent *where // the property this one sits inside, if any
+	kind   string // "method" or "prototype", when there is no parent
+	name   string // the method or prototype it belongs to
+	index  int    // parameter position, or idxReturn / idxScope
+}
+
+const (
+	idxScope  = -1
+	idxReturn = -2
+)
+
+func scope(kind, name string) where {
+	return where{kind: kind, name: name, index: idxScope}
+}
+
+func (w where) param(i int) where { return where{parent: &w, index: i} }
+func (w where) returnType() where { return where{parent: &w, index: idxReturn} }
+
+func (w where) String() string {
+	if w.parent == nil {
+		if w.name == "" {
+			return w.kind
+		}
+		return fmt.Sprintf("%s %q", w.kind, w.name)
+	}
+	prefix := w.parent.String()
+	if w.index == idxReturn {
+		return prefix + " return type"
+	}
+	return fmt.Sprintf("%s param[%d]", prefix, w.index)
+}
+
 // typeTable gathers every prototype and enum in a manifest into one table keyed
 // by name, so a definition declared up front and the same definition written
 // inline collapse onto a single shared value.
@@ -81,7 +118,7 @@ type typeTable struct {
 // registerPrototype reports whether this definition is the first seen under its
 // name. A later duplicate is repointed at the first, so generators can treat
 // pointer identity as type identity.
-func (t *typeTable) registerPrototype(slot **Prototype, context string) (bool, error) {
+func (t *typeTable) registerPrototype(slot **Prototype, context where) (bool, error) {
 	prototype := *slot
 	if prototype == nil || prototype.ref {
 		return false, nil
@@ -102,7 +139,7 @@ func (t *typeTable) registerPrototype(slot **Prototype, context string) (bool, e
 	return false, nil
 }
 
-func (t *typeTable) registerEnum(slot **Enum, context string) (bool, error) {
+func (t *typeTable) registerEnum(slot **Enum, context where) (bool, error) {
 	enum := *slot
 	if enum == nil || enum.ref {
 		return false, nil
@@ -131,7 +168,7 @@ func (t *typeTable) registerEnum(slot **Enum, context string) (bool, error) {
 	return false, nil
 }
 
-func (t *typeTable) collectProperty(prop *Property, context string) error {
+func (t *typeTable) collectProperty(prop *Property, context where) error {
 	introduced, err := t.registerPrototype(&prop.Prototype, context)
 	if err != nil {
 		return err
@@ -148,25 +185,25 @@ func (t *typeTable) collectProperty(prop *Property, context string) error {
 	return nil
 }
 
-func (t *typeTable) collectPrototype(prototype *Prototype, context string) error {
+func (t *typeTable) collectPrototype(prototype *Prototype, context where) error {
 	for i := range prototype.ParamTypes {
-		if err := t.collectProperty(&prototype.ParamTypes[i], fmt.Sprintf("%s param[%d]", context, i)); err != nil {
+		if err := t.collectProperty(&prototype.ParamTypes[i], context.param(i)); err != nil {
 			return err
 		}
 	}
-	return t.collectProperty(&prototype.RetType, context+" return type")
+	return t.collectProperty(&prototype.RetType, context.returnType())
 }
 
-func (t *typeTable) collectMethod(method *Method, context string) error {
+func (t *typeTable) collectMethod(method *Method, context where) error {
 	for i := range method.ParamTypes {
-		if err := t.collectProperty(&method.ParamTypes[i], fmt.Sprintf("%s param[%d]", context, i)); err != nil {
+		if err := t.collectProperty(&method.ParamTypes[i], context.param(i)); err != nil {
 			return err
 		}
 	}
-	return t.collectProperty(&method.RetType, context+" return type")
+	return t.collectProperty(&method.RetType, context.returnType())
 }
 
-func (t *typeTable) linkProperty(prop *Property, context string) error {
+func (t *typeTable) linkProperty(prop *Property, context where) error {
 	if prop.Prototype != nil && prop.Prototype.ref {
 		definition, found := t.prototypes[prop.Prototype.Name]
 		if !found {
@@ -184,22 +221,22 @@ func (t *typeTable) linkProperty(prop *Property, context string) error {
 	return nil
 }
 
-func (t *typeTable) linkPrototype(prototype *Prototype, context string) error {
+func (t *typeTable) linkPrototype(prototype *Prototype, context where) error {
 	for i := range prototype.ParamTypes {
-		if err := t.linkProperty(&prototype.ParamTypes[i], fmt.Sprintf("%s param[%d]", context, i)); err != nil {
+		if err := t.linkProperty(&prototype.ParamTypes[i], context.param(i)); err != nil {
 			return err
 		}
 	}
-	return t.linkProperty(&prototype.RetType, context+" return type")
+	return t.linkProperty(&prototype.RetType, context.returnType())
 }
 
-func (t *typeTable) linkMethod(method *Method, context string) error {
+func (t *typeTable) linkMethod(method *Method, context where) error {
 	for i := range method.ParamTypes {
-		if err := t.linkProperty(&method.ParamTypes[i], fmt.Sprintf("%s param[%d]", context, i)); err != nil {
+		if err := t.linkProperty(&method.ParamTypes[i], context.param(i)); err != nil {
 			return err
 		}
 	}
-	return t.linkProperty(&method.RetType, context+" return type")
+	return t.linkProperty(&method.RetType, context.returnType())
 }
 
 // detectCycles rejects a prototype that can reach itself. Such a prototype would
