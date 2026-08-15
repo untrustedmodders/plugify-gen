@@ -175,6 +175,12 @@ func (g *GolangGenerator) generateAlias(alias *manifest.Alias, underlyingType st
 	if alias.Description != "" {
 		sb.WriteString(fmt.Sprintf("// %s - %s\n", alias.Name, alias.Description))
 	}
+	if alias.Deprecated != "" {
+		if alias.Description != "" {
+			sb.WriteString("//\n")
+		}
+		sb.WriteString(fmt.Sprintf("// Deprecated: %s\n", alias.Deprecated))
+	}
 
 	sb.WriteString(fmt.Sprintf("type %s %s\n", alias.Name, underlyingType))
 

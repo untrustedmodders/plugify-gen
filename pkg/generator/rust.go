@@ -193,9 +193,12 @@ func (g *RustGenerator) generateAliases(m *manifest.Manifest) (string, error) {
 func (g *RustGenerator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
 	var sb strings.Builder
 
-	if alias.Description != "" {
+	// rustc accepts #[deprecated] on a type alias but does not lint uses of one,
+	// so this states the intent without enforcing it.
+	if alias.Description != "" || alias.Deprecated != "" {
 		sb.WriteString(g.generateDocumentation(DocOptions{
 			Description: alias.Description,
+			Deprecated:  alias.Deprecated,
 			Indent:      "",
 		}))
 	}

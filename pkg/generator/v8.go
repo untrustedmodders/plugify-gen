@@ -322,7 +322,12 @@ func (g *V8Generator) generateAliases(m *manifest.Manifest) (string, error) {
 func (g *V8Generator) generateAlias(alias *manifest.Alias, underlyingType string) (string, error) {
 	var sb strings.Builder
 
-	if alias.Description != "" {
+	switch {
+	case alias.Description != "" && alias.Deprecated != "":
+		sb.WriteString(fmt.Sprintf("  /**\n   * %s\n   * @deprecated %s\n   */\n", alias.Description, alias.Deprecated))
+	case alias.Deprecated != "":
+		sb.WriteString(fmt.Sprintf("  /** @deprecated %s */\n", alias.Deprecated))
+	case alias.Description != "":
 		sb.WriteString(fmt.Sprintf("  /** %s */\n", alias.Description))
 	}
 

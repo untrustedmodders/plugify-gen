@@ -205,6 +205,10 @@ func (g *DlangGenerator) generateAlias(alias *manifest.Alias, underlyingType str
 		sb.WriteString(fmt.Sprintf("/// %s\n", alias.Description))
 	}
 
+	if alias.Deprecated != "" {
+		sb.WriteString(fmt.Sprintf("deprecated(\"%s\")\n", alias.Deprecated))
+	}
+
 	sb.WriteString(fmt.Sprintf("alias %s = %s;\n", alias.Name, underlyingType))
 
 	return sb.String(), nil

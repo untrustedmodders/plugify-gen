@@ -315,7 +315,8 @@ func (g *CppGenerator) generateAlias(alias *manifest.Alias, underlyingType strin
 		sb.WriteString(fmt.Sprintf("  // %s\n", alias.Description))
 	}
 
-	sb.WriteString(fmt.Sprintf("  using %s = %s;\n", alias.Name, underlyingType))
+	// As with delegates, the attribute belongs after the alias name.
+	sb.WriteString(fmt.Sprintf("  using %s %s= %s;\n", alias.Name, cppDeprecatedAttr(alias.Deprecated), underlyingType))
 
 	return sb.String(), nil
 }
