@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.13](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.12...v1.2.13) (2026-08-16)
+
+
+### Bug Fixes
+
+* add deprecation to aliases ([0fc26bd](https://github.com/untrustedmodders/plugify-gen/commit/0fc26bdd93fd71cd0907034a6d8612d5426f4443))
+* add deprecation to enums and prototypes ([fdf9529](https://github.com/untrustedmodders/plugify-gen/commit/fdf952951c5a3c1a984a110737731d9430c03bfe))
+* add groups sorting ([d71b6ae](https://github.com/untrustedmodders/plugify-gen/commit/d71b6ae664bb34c6f0da4e70252dbd1400758ad8))
+* add manifest resolution ([7c5cfa5](https://github.com/untrustedmodders/plugify-gen/commit/7c5cfa5c693f3d7263c04b946c95b2b8369f3b8d))
+* add more deprecated fields ([a0179ad](https://github.com/untrustedmodders/plugify-gen/commit/a0179ad3acfcbaceb0fb7d5a5e46a30af9d6a3f2))
+* improve scope perf ([d8797f9](https://github.com/untrustedmodders/plugify-gen/commit/d8797f94b05deb6eaef6a8010ee734f65c7604bb))
+
 ## [1.2.12](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.11...v1.2.12) (2026-07-04)
 
 
