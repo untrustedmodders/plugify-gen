@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.14](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.13...v1.2.14) (2026-08-24)
+
+
+### Bug Fixes
+
+* rename IsValid to Valid ([1aaec1c](https://github.com/untrustedmodders/plugify-gen/commit/1aaec1c0b3c59fb137367881bc2a1857bf921954))
+
 ## [1.2.13](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.12...v1.2.13) (2026-08-16)
 
 
