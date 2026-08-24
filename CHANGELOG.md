@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.15](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.14...v1.2.15) (2026-08-24)
+
+
+### Bug Fixes
+
+* enum export ([14e5c01](https://github.com/untrustedmodders/plugify-gen/commit/14e5c01b569061587f4a40bb7f86ef32d4179efe))
+
 ## [1.2.14](https://github.com/untrustedmodders/plugify-gen/compare/v1.2.13...v1.2.14) (2026-08-24)
 
 
