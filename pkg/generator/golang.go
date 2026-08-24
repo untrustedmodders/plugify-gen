@@ -1300,9 +1300,9 @@ func (g *GolangGenerator) generateUtilityMethods(class *manifest.Class) (string,
 	}
 	sb.WriteString("}\n\n")
 
-	// IsValid method
-	sb.WriteString("// IsValid returns true if handle is not nil\n")
-	sb.WriteString(fmt.Sprintf("func (w *%s) IsValid() bool {\n", class.Name))
+	// Valid method
+	sb.WriteString("// Valid returns true if handle is not nil\n")
+	sb.WriteString(fmt.Sprintf("func (w *%s) Valid() bool {\n", class.Name))
 	sb.WriteString(fmt.Sprintf("\treturn w.handle != %s\n", invalidValue))
 	sb.WriteString("}\n\n")
 
